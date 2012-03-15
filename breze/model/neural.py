@@ -33,12 +33,6 @@ class MultilayerPerceptron(Model):
             hidden_to_output=(self.n_hidden, self.n_output),
             output_bias=self.n_output)
 
-    def _lookup(self, what, module):
-        if isinstance(what, (str, unicode)):
-            return getrattr(what, module)
-        else:
-            return what
-
     def make_exprs(self, inpt, pars):
         inpt = T.matrix('inpt') if inpt is None else inpt
         target = T.matrix('target')
