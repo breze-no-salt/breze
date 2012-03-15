@@ -27,6 +27,6 @@ net.parameters.data[:] = np.random.standard_normal(net.parameters.data.shape)
 
 
 # Optimize!
-opt = Lbfgs(net.parameters.data, f, fprime, args=args, logfunc=logfunc)
+opt = Lbfgs(net.parameters.data, f, fprime, args=args)
 for i, info in enumerate(opt):
     print 'loss', f(net.parameters.data, X, Z)

@@ -5,7 +5,7 @@ import numpy as np
 import theano.tensor as T
 
 from ..util import ParameterSet, Model
-from ..component import elementwise, distance
+from ..component import transfer, distance
 
 
 class MultilayerPerceptron(Model):
@@ -37,8 +37,8 @@ class MultilayerPerceptron(Model):
         inpt = T.matrix('inpt') if inpt is None else inpt
         target = T.matrix('target')
 
-        transfer_hidden = getattr(elementwise, self.hidden_func)
-        transfer_output = getattr(elementwise, self.output_func)
+        transfer_hidden = getattr(transfer, self.hidden_func)
+        transfer_output = getattr(transfer, self.output_func)
         make_loss = getattr(distance, self.loss)
 
         hidden_in = T.dot(inpt, pars.inpt_to_hidden)
