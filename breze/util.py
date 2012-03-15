@@ -10,6 +10,11 @@ import theano.tensor as T
 import theano
 
 
+def lookup(what, where):
+    """Return where.what if what is a string, else what."""
+    return getattr(where, what) if isinstance(what, (str, unicode)) else what
+
+
 class ParameterSet(object):
 
     def __init__(self, **kwargs):

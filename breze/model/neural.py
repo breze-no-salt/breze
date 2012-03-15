@@ -4,7 +4,7 @@
 import numpy as np
 import theano.tensor as T
 
-from ..util import ParameterSet, Model
+from ..util import ParameterSet, Model, lookup
 from ..component import transfer, distance
 
 
@@ -33,13 +33,19 @@ class MultilayerPerceptron(Model):
             hidden_to_output=(self.n_hidden, self.n_output),
             output_bias=self.n_output)
 
+    def _lookup(self, what, module):
+        if isinstance(what, (str, unicode)):
+            return getrattr(what, module)
+        else:
+            return what
+
     def make_exprs(self, inpt, pars):
         inpt = T.matrix('inpt') if inpt is None else inpt
         target = T.matrix('target')
 
-        transfer_hidden = getattr(transfer, self.hidden_func)
-        transfer_output = getattr(transfer, self.output_func)
-        make_loss = getattr(distance, self.loss)
+        transfer_hidden = lookup(self.hidden_func, transfer)
+        transfer_output = lookup(self.output_func, transfer)
+        make_loss = lookup(self.loss, distance)
 
         hidden_in = T.dot(inpt, pars.inpt_to_hidden)
         hidden = transfer_hidden(hidden_in)
