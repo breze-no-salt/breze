@@ -27,3 +27,7 @@ def soft_rectified_linear(inpt):
 
 def identity(inpt):
     return inpt
+
+
+def logproduct_of_t(inpt):
+    return T.log(1 + inpt**2),

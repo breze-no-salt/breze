@@ -6,7 +6,8 @@ import theano.tensor as T
 import numpy as np
 
 from breze.model.elementwise import (
-    sigmoid, tanh, tanhplus, rectified_linear, soft_rectified_linear)
+    sigmoid, tanh, tanhplus, rectified_linear, soft_rectified_linear,
+    logproduct_of_t)
 
 from tools import roughly 
 
@@ -78,3 +79,16 @@ def test_soft_rectified_linear():
 
     correct = roughly(result, desired)
     assert correct, 'soft relu not working'
+
+
+def test_log_product_of_t():
+    inpt = T.matrix()
+    expr = logproduct_of_t(inpt)
+    f = theano.function([inpt], expr)
+    result = f(test_matrix)
+    desired = np.array([
+       [1.60943791, 2.41947884, 3.0563569 , 9.21443597],
+       [0.69314718, 0.69314718, 1.60943791, 0.]])
+
+    correct = roughly(result, desired)
+    assert correct, 'pot not working'
