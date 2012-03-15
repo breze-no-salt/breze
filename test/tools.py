@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 
 
-def arr_equal(arr1, arr2, eps=1E-8):
-    return (abs(arr1 - arr2) < eps).all()
+import numpy as np
+
+
+def roughly(x1, x2, eps=1E-8):
+    x1 = np.asarray(x1)
+    x2 = np.asarray(x2)
+    return (abs(x1 - x2) < eps).all()

@@ -7,7 +7,7 @@ import numpy as np
 
 from breze.model.norm import l1, l2, exp
 
-from tools import arr_equal
+from tools import roughly 
 
 
 test_arr = np.array([1, -1, 2, 0])
@@ -81,7 +81,7 @@ def test_exp_matrix_rowwise():
     norm = exp(inpt, axis=1)
     f = theano.function([inpt], norm, mode='FAST_COMPILE')
     res = f(test_matrix)
-    correct = arr_equal(res, [114.68499678, 11.47521737])
+    correct = roughly(res, [114.68499678, 11.47521737])
     assert correct, 'exp norm rowwise not working'
 
 
@@ -90,7 +90,7 @@ def test_l1_matrix_colwise():
     norm = l1(inpt, axis=0)
     f = theano.function([inpt], norm, mode='FAST_COMPILE')
     res = f(test_matrix)
-    correct = arr_equal(res, [3., 4.2, 6.5, 100.2])
+    correct = roughly(res, [3., 4.2, 6.5, 100.2])
     assert correct, 'l1 norm colwise not working'
 
 
@@ -99,7 +99,7 @@ def test_l2_matrix_colwise():
     norm = l2(inpt, axis=0)
     f = theano.function([inpt], norm, mode='FAST_COMPILE')
     res = f(test_matrix)
-    correct = arr_equal(
+    correct = roughly(
             res,
             [5., 1.12400000e+01, 2.42500000e+01, 1.00400400e+04])
     assert correct, 'l2 norm colwise not working'
@@ -110,5 +110,5 @@ def test_exp_matrix_colwise():
     norm = exp(inpt, axis=0)
     f = theano.function([inpt], norm, mode='FAST_COMPILE')
     res = f(test_matrix)
-    correct = arr_equal(res, [2.85361711, 24.90040964, 97.4061874, 1.])
+    correct = roughly(res, [2.85361711, 24.90040964, 97.4061874, 1.])
     assert correct, 'exp norm colwise not working'
