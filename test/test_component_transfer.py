@@ -29,7 +29,6 @@ def test_tanh():
     assert correct, 'tanh not working'
 
 
-
 def test_tanhplus():
     inpt = T.matrix()
     expr = tanhplus(inpt)
