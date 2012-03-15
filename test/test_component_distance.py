@@ -5,7 +5,7 @@ import theano
 import theano.tensor as T
 import numpy as np
 
-from breze.model.distance import manhattan, euclidean, bernoulli_cross_entropy
+from breze.component.distance import manhattan, euclidean, bernoulli_cross_entropy
 from tools import roughly
 
 
