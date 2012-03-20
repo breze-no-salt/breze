@@ -47,7 +47,7 @@ class MultilayerPerceptron(Model):
         output_in = T.dot(hidden, pars.hidden_to_output) + pars.output_bias
         output = transfer_output(output_in)
 
-        loss_rowwise = make_loss(target, output, axis=1) / inpt.shape[0]
+        loss_rowwise = make_loss(target, output, axis=1)
         loss = loss_rowwise.mean()
 
         return {
