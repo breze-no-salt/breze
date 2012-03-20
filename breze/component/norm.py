@@ -12,5 +12,9 @@ def l2(inpt, axis=None):
     return (inpt**2).sum(axis=axis)
 
 
+def root_l2(inpt, axis=None):
+    return T.sqrt((inpt**2).sum(axis=axis))
+
+
 def exp(inpt, axis=None):
     return T.exp(inpt).sum(axis=axis)
