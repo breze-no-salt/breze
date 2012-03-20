@@ -41,10 +41,10 @@ class MultilayerPerceptron(Model):
         transfer_output = lookup(self.output_func, transfer)
         make_loss = lookup(self.loss, distance)
 
-        hidden_in = T.dot(inpt, pars.inpt_to_hidden)
+        hidden_in = T.dot(inpt, pars.inpt_to_hidden) + pars.hidden_bias
         hidden = transfer_hidden(hidden_in)
 
-        output_in = T.dot(hidden, pars.hidden_to_output)
+        output_in = T.dot(hidden, pars.hidden_to_output) + pars.output_bias
         output = transfer_output(output_in)
 
         loss_rowwise = make_loss(target, output, axis=1) / inpt.shape[0]
