@@ -30,4 +30,4 @@ def identity(inpt):
 
 
 def logproduct_of_t(inpt):
-    return T.log(1 + inpt**2),
+    return T.log(1 + inpt**2)
