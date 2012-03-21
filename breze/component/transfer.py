@@ -3,6 +3,7 @@
 
 import theano
 import theano.tensor as T
+import norm
 
 
 def tanh(inpt):
@@ -31,3 +32,11 @@ def identity(inpt):
 
 def logproduct_of_t(inpt):
     return T.log(1 + inpt**2)
+
+
+def softmax(inpt):
+    return norm.normalize(inpt, T.exp, axis=1)
+
+
+def logcosh(inpt):
+    return T.log(T.cosh(inpt))
