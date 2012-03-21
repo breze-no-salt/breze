@@ -159,4 +159,13 @@ def tile_raster_images(X, img_shape, tile_shape,tile_spacing = (0,0),
         return out_array
 
 
+def one_hot(array, classes):
+    n = array.shape[0]
+    arr = numpy.zeros((n, classes), dtype=numpy.float32)
+    arr[xrange(n), array] = 1.
+    return arr
 
+
+def noisify(array, noise):
+    randoms = numpy.random.rand(*array.shape)
+    return array * (randoms > noise)
