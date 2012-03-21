@@ -12,8 +12,8 @@ from breze.model.neural import MultilayerPerceptron as MLP
 
 
 # Make data.
-X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype='float64')
-Z = np.array([[0], [1], [1], [0]], dtype='float64')
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=theano.config.floatX)
+Z = np.array([[0], [1], [1], [0]], dtype=theano.config.floatX)
 args = itertools.repeat(([X, Z], {}))
 
 
