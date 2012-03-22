@@ -13,8 +13,10 @@ def make_exprs(transfer_func, inpt, inpt_to_feature):
     transfer_func = lookup(transfer_func, transfer)
     feature = transfer_func(feature_in)
 
-    col_normalized = norm.normalize(feature, norm.root_l2, axis=0)
-    row_normalized = norm.normalize(col_normalized, norm.root_l2, axis=1)
+    col_normalized = T.sqrt(
+        norm.normalize(feature, lambda x: x**2, axis=0) + 1E-8)
+    row_normalized = T.sqrt(
+        norm.normalize(col_normalized, lambda x: x**2, axis=1) + 1E-8)
 
     loss_rowwise = row_normalized.sum(axis=1)
     loss = loss_rowwise.mean()
