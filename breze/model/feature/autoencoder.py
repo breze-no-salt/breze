@@ -14,7 +14,7 @@ class AutoEncoder(MultilayerPerceptron):
     def __init__(self, n_inpt, n_hidden, 
                  hidden_transfer, out_transfer, reconstruct_loss,
                  tied_weights=True):
-        self.n_inpt = n_inpt
+        self.n_inpt = self.n_output = n_inpt
         self.n_hidden = n_hidden
         self.tied_weights = tied_weights
 

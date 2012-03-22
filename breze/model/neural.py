@@ -28,7 +28,7 @@ class MultilayerPerceptron(Model):
             in_to_hidden=(self.n_inpt, self.n_hidden),
             hidden_to_out=(self.n_hidden, self.n_output),
             hidden_bias=self.n_hidden,
-            out_bias=self.n_inpt)
+            out_bias=self.n_output)
 
     def init_exprs(self):
         self.exprs = self.make_exprs(
