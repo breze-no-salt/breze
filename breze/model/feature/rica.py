@@ -57,8 +57,8 @@ class Rica(AutoEncoder):
 
         exprs['reconstruct_loss'] = exprs['loss']
 
-        feature = f_feature(exprs['hidden'])
-        exprs['ica_loss'] = feature.mean()
+        exprs['feature'] = f_feature(exprs['hidden'])
+        exprs['ica_loss'] = exprs['feature'].mean()
 
         exprs['loss'] = exprs['reconstruct_loss'] + c_ica * exprs['ica_loss']
         return exprs
