@@ -46,6 +46,9 @@ class ParameterSet(object):
             setattr(self, key, var)
   
             n_used += size
+
+    def __contains__(self, key):
+        return key in self.views
   
     def __getitem__(self, key):
         return self.views[key]
