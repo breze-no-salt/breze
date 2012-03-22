@@ -25,25 +25,25 @@ class MultilayerPerceptron(Model):
 
     def init_pars(self):
         self.parameters = ParameterSet(
-            inpt_to_hidden=(self.n_inpt, self.n_hidden),
-            hidden_to_output=(self.n_hidden, self.n_inpt),
+            in_to_hidden=(self.n_inpt, self.n_hidden),
+            hidden_to_out=(self.n_hidden, self.n_inpt),
             hidden_bias=self.n_hidden,
             out_bias=self.n_inpt)
 
     def init_exprs(self):
         self.exprs = self.make_exprs(
             T.matrix('inpt'), T.matrix('target'),
-            self.parameters.inpt_to_hidden, self.parameters.hidden_to_out,
-            self.parameters.hidden, self.parameters.bias_out,
-            self.hidden_transfer, self.out_transfer, self.reconstruct_loss)
+            self.parameters.in_to_hidden, self.parameters.hidden_to_out,
+            self.parameters.hidden_bias, self.parameters.out_bias,
+            self.hidden_transfer, self.output_transfer, self.loss)
 
     @staticmethod
     def make_exprs(inpt, target, in_to_hidden, hidden_to_out, 
                    hidden_bias, out_bias,
-                   hidden_transfer, out_transfer, loss):
+                   hidden_transfer, output_transfer, loss):
 
         f_hidden = lookup(hidden_transfer, transfer)
-        f_output = lookup(out_transfer, transfer)
+        f_output = lookup(output_transfer, transfer)
         f_loss = lookup(loss, distance)
 
         hidden_in = T.dot(inpt, in_to_hidden) + hidden_bias
