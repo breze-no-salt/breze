@@ -26,7 +26,7 @@ class MultilayerPerceptron(Model):
     def init_pars(self):
         self.parameters = ParameterSet(
             in_to_hidden=(self.n_inpt, self.n_hidden),
-            hidden_to_out=(self.n_hidden, self.n_inpt),
+            hidden_to_out=(self.n_hidden, self.n_output),
             hidden_bias=self.n_hidden,
             out_bias=self.n_inpt)
 
