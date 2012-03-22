@@ -6,9 +6,10 @@ import theano.tensor as T
 
 from ...util import ParameterSet, Model, lookup
 from ...component import transfer, distance, norm
+from ..neural import MultilayerPerceptron
 
 
-class AutoEncoder(Model):
+class AutoEncoder(MultilayerPerceptron):
 
     def __init__(self, n_inpt, n_hidden, 
                  hidden_transfer, out_transfer, reconstruct_loss,
@@ -44,45 +45,28 @@ class AutoEncoder(Model):
             hidden_to_outpt = self.parameters.hidden_to_output
 
         self.exprs = self.make_exprs(
-            T.matrix('inpt'), self.parameters.inpt_to_hidden, hidden_to_output,
+            T.matrix('inpt'), 
+            self.parameters.inpt_to_hidden, hidden_to_output,
             self.parameters.hidden, self.parameters.bias_out,
             self.hidden_transfer, self.out_transfer, self.reconstruct_loss)
 
     @staticmethod
-    def make_exprs(inpt, inpt_to_hidden, hidden_to_output, 
+    def make_exprs(inpt, in_to_hidden, hidden_to_out, 
                    hidden_bias, out_bias,
-                   hidden_transfer, out_transfer, reconstruct_loss):
-
-        f_hidden = lookup(hidden_transfer, transfer)
-        f_out = lookup(out_transfer, transfer)
-        f_reconstruct_loss = lookup(reconstruct_loss, distance)
-
-        # Define model.
-        hidden_in = T.dot(inpt, inpt_to_hidden) + hidden_bias
-        hidden = f_hidden(hidden_in)
-        output_in = T.dot(hidden, hidden_to_output) + out_bias
-        output = f_out(output_in)
-
-        # Define loss.
-        loss_rowwise = f_reconstruct_loss(inpt, output, axis=1)
-        loss = loss_rowwise.mean()
-
-        return {'inpt': inpt,
-                'hidden_in': hidden_in,
-                'hidden': hidden,
-                'output_in': output_in,
-                'output': output,
-                'loss_rowwise': loss_rowwise,
-                'loss': loss}
+                   hidden_transfer, out_transfer, loss):
+        return MultilayerPerceptron.make_exprs(
+            inpt, inpt, in_to_hidden, hidden_to_out, 
+            hidden_bias, out_bias,
+            hidden_transfer, out_transfer, loss)
 
 
 class SparseAutoEncoder(AutoEncoder):
 
     def __init__(self, n_inpt, n_hidden, hidden_transfer, out_transfer,
             reconstruct_loss, 
-            sparsity_loss, sparsity_penalty, sparsity_target=0.01,
+            c_sparsity, sparsity_loss, sparsity_target=0.01,
             tied_weights=True):
-        self.sparsity_penalty = sparsity_penalty
+        self.c_sparsity = c_sparsity
         self.sparsity_loss = sparsity_loss
         self.sparsity_target = sparsity_target
 
@@ -100,13 +84,13 @@ class SparseAutoEncoder(AutoEncoder):
             T.matrix('inpt'), self.parameters.inpt_to_hidden, hidden_to_output,
             self.parameters.hidden_bias, self.parameters.out_bias,
             self.hidden_transfer, self.out_transfer, self.reconstruct_loss,
-            self.sparsity_loss, self.sparsity_penalty, self.sparsity_target)
+            self.sparsity_loss, self.c_sparsity, self.sparsity_target)
 
     @staticmethod
     def make_exprs(inpt, inpt_to_hidden, hidden_to_output,
                    hidden_bias, out_bias,
                    hidden_transfer, out_transfer, reconstruct_loss,
-                   sparsity_loss, sparsity_penalty, sparsity_target):
+                   sparsity_loss, c_sparsity, sparsity_target):
         exprs = AutoEncoder.make_exprs(
             inpt, inpt_to_hidden, hidden_to_output, 
             hidden_bias, out_bias, 
@@ -116,7 +100,7 @@ class SparseAutoEncoder(AutoEncoder):
         f_distance = lookup(sparsity_loss, distance)
 
         sparsity_loss = f_distance(sparsity_target, hidden.mean(axis=0))
-        sparsity_loss *= sparsity_penalty
+        sparsity_loss *= c_sparsity
 
         exprs['sparsity_loss'] = sparsity_loss
         exprs['loss_reg'] = exprs['loss'] + sparsity_loss
@@ -127,9 +111,9 @@ class SparseAutoEncoder(AutoEncoder):
 class ContractiveAutoEncoder(AutoEncoder):
 
     def __init__(self, n_inpt, n_hidden, hidden_transfer, out_transfer,
-                 reconstruct_loss, jacobian_penalty, tied_weights=True):
+                 reconstruct_loss, c_jacobian, tied_weights=True):
 
-        self.jacobian_penalty = jacobian_penalty
+        self.c_jacobian = c_jacobian
         
         super(ContractiveAutoEncoder, self).__init__(
             n_inpt, n_hidden, hidden_transfer, out_transfer,
@@ -145,13 +129,13 @@ class ContractiveAutoEncoder(AutoEncoder):
             T.matrix('inpt'), self.parameters.inpt_to_hidden, hidden_to_output,
             self.parameters.hidden_bias, self.parameters.out_bias,
             self.hidden_transfer, self.out_transfer, self.reconstruct_loss,
-            self.jacobian_penalty)
+            self.c_jacobian)
 
     @staticmethod
     def make_exprs(inpt, inpt_to_hidden, hidden_to_output,
                    hidden_bias, out_bias,
                    hidden_transfer, out_transfer, reconstruct_loss,
-                   jacobian_penalty):
+                   c_jacobian):
         exprs = AutoEncoder.make_exprs(
             inpt, inpt_to_hidden, hidden_to_output, 
             hidden_bias, out_bias, 
@@ -160,12 +144,10 @@ class ContractiveAutoEncoder(AutoEncoder):
         hidden_in = exprs['hidden_in']
 
         d_h_d_h_in = T.grad(hidden.sum(), hidden_in)
-        #jacobian = (d_h_d_h_in.dimshuffle(0, 1, 'x') * 
-        #            inpt_to_hidden.T)
-        #jacobian_loss = (jacobian**2).mean(axis=0).sum() * jacobian_penalty
-        jacobian_loss = T.sum(T.mean(d_h_d_h_in**2, axis=0) * (inpt_to_hidden**2))
+        jacobian_loss = T.sum(
+            T.mean(d_h_d_h_in**2, axis=0) * (inpt_to_hidden**2))
 
         exprs['jacobian_loss'] = jacobian_loss
-        exprs['loss_reg'] = exprs['loss'] + jacobian_loss
+        exprs['loss_reg'] = exprs['loss'] + c_jacobian * jacobian_loss
         
         return exprs
