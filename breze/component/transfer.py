@@ -40,3 +40,7 @@ def softmax(inpt):
 
 def logcosh(inpt):
     return T.log(T.cosh(inpt))
+
+
+def softabs(inpt, eps=1E-8):
+    return T.sqrt(inpt**2 + eps)
