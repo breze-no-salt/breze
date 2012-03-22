@@ -11,52 +11,57 @@ from ..component import transfer, distance
 class MultilayerPerceptron(Model):
 
     def __init__(self, n_inpt, n_hidden, n_output, 
-                 hidden_func, output_func, loss, 
-                 inpt=None):
+                 hidden_transfer, output_transfer, loss):
         self.n_inpt = n_inpt
         self.n_hidden = n_hidden
         self.n_output = n_output
 
-        self.hidden_func = hidden_func
-        self.output_func = output_func
+        self.hidden_transfer = hidden_transfer
+        self.output_transfer = output_transfer
         self.loss = loss
 
-        pars = self.make_pars()
-        exprs = self.make_exprs(inpt, pars)
+        self.init_pars()
+        self.init_exprs()
 
-        super(MultilayerPerceptron, self).__init__(exprs, pars)
-
-    def make_pars(self):
-        return ParameterSet(
+    def init_pars(self):
+        self.parameters = ParameterSet(
             inpt_to_hidden=(self.n_inpt, self.n_hidden),
+            hidden_to_output=(self.n_hidden, self.n_inpt),
             hidden_bias=self.n_hidden,
-            hidden_to_output=(self.n_hidden, self.n_output),
-            output_bias=self.n_output)
+            out_bias=self.n_inpt)
 
-    def make_exprs(self, inpt, pars):
-        inpt = T.matrix('inpt') if inpt is None else inpt
-        target = T.matrix('target')
+    def init_exprs(self):
+        self.exprs = self.make_exprs(
+            T.matrix('inpt'), T.matrix('target'),
+            self.parameters.inpt_to_hidden, self.parameters.hidden_to_out,
+            self.parameters.hidden, self.parameters.bias_out,
+            self.hidden_transfer, self.out_transfer, self.reconstruct_loss)
 
-        transfer_hidden = lookup(self.hidden_func, transfer)
-        transfer_output = lookup(self.output_func, transfer)
-        make_loss = lookup(self.loss, distance)
+    @staticmethod
+    def make_exprs(inpt, target, in_to_hidden, hidden_to_out, 
+                   hidden_bias, out_bias,
+                   hidden_transfer, out_transfer, loss):
 
-        hidden_in = T.dot(inpt, pars.inpt_to_hidden) + pars.hidden_bias
-        hidden = transfer_hidden(hidden_in)
+        f_hidden = lookup(hidden_transfer, transfer)
+        f_output = lookup(out_transfer, transfer)
+        f_loss = lookup(loss, distance)
 
-        output_in = T.dot(hidden, pars.hidden_to_output) + pars.output_bias
-        output = transfer_output(output_in)
+        hidden_in = T.dot(inpt, in_to_hidden) + hidden_bias
+        hidden = f_hidden(hidden_in)
 
-        loss_rowwise = make_loss(target, output, axis=1)
+        output_in = T.dot(hidden, hidden_to_out) + out_bias
+        output = f_output(output_in)
+
+        loss_rowwise = f_loss(target, output, axis=1)
         loss = loss_rowwise.mean()
 
         return {
             'inpt': inpt, 
             'target': target,
-            'hidden-in': hidden_in,
+            'hidden_in': hidden_in,
             'hidden': hidden,
-            'output-in': output_in,
+            'output_in': output_in,
             'output': output,
-            'loss-rowwise': loss_rowwise,
+            'loss_rowwise': loss_rowwise,
             'loss': loss
         }
