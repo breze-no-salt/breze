@@ -16,7 +16,7 @@ from climin.stops import rising
 from breze.model.feature import (
         SparseFiltering, ContractiveAutoEncoder, SparseAutoEncoder, Rica)
 from breze.model.linear import Linear
-from breze.model.neural import MultilayerPerceptron
+from breze.model.neural import TwoLayerPerceptron
 
 from utils import tile_raster_images, one_hot
 
@@ -154,7 +154,7 @@ print 'lr empirical on test', (f_predict(TF) == TZ).mean()
 print '--- FINE TUNING  ---'
 
 # Define an mlp and fine tune it.
-net = MultilayerPerceptron(
+net = TwoLayerPerceptron(
     n_inpt, n_feature, 10, feature_transfer, 'softmax', 'cross_entropy')
 net.parameters['in_to_hidden'][:] = fe.parameters[filter_key]
 if 'hidden_bias' in fe.parameters:
