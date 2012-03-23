@@ -6,10 +6,10 @@ import theano.tensor as T
 
 from ...util import ParameterSet, Model, lookup
 from ...component import transfer, distance, norm
-from ..neural import MultilayerPerceptron
+from ..neural import TwoLayerPerceptron
 
 
-class AutoEncoder(MultilayerPerceptron):
+class AutoEncoder(TwoLayerPerceptron):
 
     def __init__(self, n_inpt, n_hidden, 
                  hidden_transfer, out_transfer, loss,
@@ -53,7 +53,7 @@ class AutoEncoder(MultilayerPerceptron):
     def make_exprs(inpt, in_to_hidden, hidden_to_out, 
                    hidden_bias, out_bias,
                    hidden_transfer, out_transfer, loss):
-        return MultilayerPerceptron.make_exprs(
+        return TwoLayerPerceptron.make_exprs(
             inpt, inpt, in_to_hidden, hidden_to_out, 
             hidden_bias, out_bias,
             hidden_transfer, out_transfer, loss)
