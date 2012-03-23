@@ -11,6 +11,7 @@ import theano.tensor as T
 
 from climin import Lbfgs
 from climin.util import draw_mini_slices
+from climin.stops import rising
 
 from breze.model.feature import (
         SparseFiltering, ContractiveAutoEncoder, SparseAutoEncoder, Rica)
@@ -23,13 +24,13 @@ from utils import tile_raster_images, one_hot
 # Hyperparameters.
 batch_size = 1000
 report_frequency = 50
-max_iter_pretrain = 500
-max_iter_lr = 100
-max_iter_finetune = 20
+max_iter_pretrain = 1000
+max_iter_lr = 1000
+max_iter_finetune = 1000
 n_inpt = 784
 n_feature = 256
 
-method = 'sae'
+method = 'cae'
 
 
 # Make data.
@@ -89,6 +90,7 @@ fe.parameters.data[:] = np.random.normal(0, 0.01, size=fe.parameters.data.shape)
 print '--- PRETRAINING ---'
 # Optimize!
 opt = Lbfgs(fe.parameters.data, f, fprime, args=args)
+
 for i, info in enumerate(opt):
     if i > max_iter_pretrain:
         break
@@ -127,11 +129,19 @@ args = (([F, Z2], {}) for _ in itertools.count())
 lr.parameters.data[:] = np.random.normal(0, 0.01, size=lr.parameters.data.shape)
 f_predict = lr.function(['inpt'], T.argmax(lr.exprs['output_in'], axis=1))
 opt = Lbfgs(lr.parameters.data, f, fprime, args=args)
+
+f_val_loss = lambda: f(lr.parameters.data, VF, VZ2)
+is_val_rising = rising(f_val_loss)
+
 for i, info in enumerate(opt):
     loss = f(lr.parameters.data, F, Z2)
     val_loss = f(lr.parameters.data, VF, VZ2)
     test_loss = f(lr.parameters.data, TF, TZ2)
     print 'loss', loss, 'validate loss', val_loss, 'test loss', test_loss
+
+    if is_val_rising(info):
+        print 'loss rising on validation set'
+        break
 
     if i > max_iter_lr:
         break
@@ -163,11 +173,19 @@ f_predict = net.function(['inpt'], T.argmax(net.exprs['output_in'], axis=1))
 args = (([X, Z2], {}) for _ in itertools.count())
 
 opt = Lbfgs(net.parameters.data, f, fprime, args=args)
+
+f_val_loss = lambda: f(net.parameters.data, VX, VZ2)
+is_val_rising = rising(f_val_loss)
+
 for i, info in enumerate(opt):
     loss = f(net.parameters.data, X, Z2)
     val_loss = f(net.parameters.data, VX, VZ2)
     test_loss = f(net.parameters.data, TX, TZ2)
     print 'loss', loss, 'validate loss', val_loss, 'test loss', test_loss
+
+    if is_val_rising(info):
+        print 'loss rising on validation set'
+        break
 
     if i > max_iter_finetune:
         break
