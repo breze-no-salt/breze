@@ -6,7 +6,7 @@ import theano.tensor as T
 import numpy as np
 
 from breze.component.distance import (
-    absolute, squared, bernoulli_cross_entropy)
+    absolute, squared, bernoulli_cross_entropy, cross_entropy)
 from tools import roughly
 
 
@@ -72,27 +72,27 @@ def test_squared_colwise():
     assert correct, 'squared distance colwise not working'
 
 
-def test_bernoulli_cross_entropy():
+def test_cross_entropy():
     X, Y = T.matrix(), T.matrix()
-    dist = bernoulli_cross_entropy(X, Y)
+    dist = cross_entropy(X, Y)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
     correct = roughly(res, 1.6063716678910529)
-    assert correct, 'bernoulli_cross_entropy distance not working'
+    assert correct, 'cross_entropy distance not working'
 
 
-def test_bernoulli_cross_entropy_rowwise():
+def test_cross_entropy_rowwise():
     X, Y = T.matrix(), T.matrix()
-    dist = bernoulli_cross_entropy(X, Y, axis=1)
+    dist = cross_entropy(X, Y, axis=1)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
     correct = roughly(res, [0.85798192, 0.74838975])
     assert correct, 'bernoulli_cross_entropy distance rowwise not working'
 
 
-def test_bernoulli_cross_entropy_colwise():
+def test_cross_entropy_colwise():
     X, Y = T.matrix(), T.matrix()
-    dist = bernoulli_cross_entropy(X, Y, axis=0)
+    dist = cross_entropy(X, Y, axis=0)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
     correct = roughly(res, [[0.49795728, 0.48932523, 0.61908916]])
