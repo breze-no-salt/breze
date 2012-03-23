@@ -21,17 +21,9 @@ class AutoEncoder(MultilayerPerceptron):
             hidden_transfer, out_transfer, loss)
 
     def init_pars(self):
-        if self.tied_weights:
-            self.parameters = ParameterSet(
-                in_to_hidden=(self.n_inpt, self.n_hidden),
-                hidden_bias=self.n_hidden,
-                out_bias=self.n_inpt)
-        else:
-            self.parameters = ParameterSet(
-                in_to_hidden=(self.n_inpt, self.n_hidden),
-                hidden_to_out=(self.n_hidden, self.n_inpt),
-                hidden_bias=self.n_hidden,
-                out_bias=self.n_inpt)
+        parspec = self.get_parameter_spec(
+            self.n_inpt, self.n_hidden, self.tied_weights)
+        self.parameters = ParameterSet(**parspec)
 
     def init_exprs(self):
         if self.tied_weights:
@@ -44,6 +36,18 @@ class AutoEncoder(MultilayerPerceptron):
             self.parameters.in_to_hidden, hidden_to_out,
             self.parameters.hidden_bias, self.parameters.out_bias,
             self.hidden_transfer, self.out_transfer, self.loss)
+
+    @staticmethod
+    def get_parameter_spec(n_inpt, n_hidden, tied_weights):
+        if tied_weights:
+            return dict(in_to_hidden=(n_inpt, n_hidden),
+                        hidden_bias=n_hidden,
+                        out_bias=n_inpt)
+        else:
+            return dict(in_to_hidden=(self.n_inpt, self.n_hidden),
+                        hidden_to_out=(self.n_hidden, self.n_inpt),
+                        hidden_bias=self.n_hidden,
+                        out_bias=self.n_inpt)
 
     @staticmethod
     def make_exprs(inpt, in_to_hidden, hidden_to_out, 
