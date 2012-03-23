@@ -11,30 +11,35 @@ from ..component import transfer, distance
 class MultilayerPerceptron(Model):
 
     def __init__(self, n_inpt, n_hidden, n_output, 
-                 hidden_transfer, output_transfer, loss):
+                 hidden_transfer, out_transfer, loss):
         self.n_inpt = n_inpt
         self.n_hidden = n_hidden
         self.n_output = n_output
 
         self.hidden_transfer = hidden_transfer
-        self.output_transfer = output_transfer
+        self.out_transfer = out_transfer
         self.loss = loss
 
         super(MultilayerPerceptron, self).__init__()
 
     def init_pars(self):
-        self.parameters = ParameterSet(
-            in_to_hidden=(self.n_inpt, self.n_hidden),
-            hidden_to_out=(self.n_hidden, self.n_output),
-            hidden_bias=self.n_hidden,
-            out_bias=self.n_output)
+        parspec = self.get_parameter_spec(
+            self.n_inpt, self.n_hidden, self.n_output)
+        self.parameters = ParameterSet(**parspec)
 
     def init_exprs(self):
         self.exprs = self.make_exprs(
             T.matrix('inpt'), T.matrix('target'),
             self.parameters.in_to_hidden, self.parameters.hidden_to_out,
             self.parameters.hidden_bias, self.parameters.out_bias,
-            self.hidden_transfer, self.output_transfer, self.loss)
+            self.hidden_transfer, self.out_transfer, self.loss)
+
+    @staticmethod
+    def get_parameter_spec(n_inpt, n_hidden, n_output):
+        return dict(in_to_hidden=(n_inpt, n_hidden),
+                    hidden_to_out=(n_hidden, n_output),
+                    hidden_bias=n_hidden,
+                    out_bias=n_output)
 
     @staticmethod
     def make_exprs(inpt, target, in_to_hidden, hidden_to_out, 

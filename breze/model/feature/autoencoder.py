@@ -12,13 +12,13 @@ from ..neural import MultilayerPerceptron
 class AutoEncoder(MultilayerPerceptron):
 
     def __init__(self, n_inpt, n_hidden, 
-                 hidden_transfer, out_transfer, reconstruct_loss,
+                 hidden_transfer, out_transfer, loss,
                  tied_weights=True):
         self.tied_weights = tied_weights
 
         super(AutoEncoder, self).__init__(
             n_inpt, n_hidden, n_inpt,
-            hidden_transfer, out_transfer, reconstruct_loss)
+            hidden_transfer, out_transfer, loss)
 
     def init_pars(self):
         if self.tied_weights:
@@ -35,15 +35,15 @@ class AutoEncoder(MultilayerPerceptron):
 
     def init_exprs(self):
         if self.tied_weights:
-            hidden_to_outpt = self.parameters.in_to_hidden.T
+            hidden_to_out = self.parameters.in_to_hidden.T
         else:
-            hidden_to_outpt = self.parameters.hidden_to_out
+            hidden_to_out = self.parameters.hidden_to_out
 
         self.exprs = self.make_exprs(
             T.matrix('inpt'), 
             self.parameters.in_to_hidden, hidden_to_out,
-            self.parameters.hidden, self.parameters.bias_out,
-            self.hidden_transfer, self.out_transfer, self.reconstruct_loss)
+            self.parameters.hidden_bias, self.parameters.out_bias,
+            self.hidden_transfer, self.out_transfer, self.loss)
 
     @staticmethod
     def make_exprs(inpt, in_to_hidden, hidden_to_out, 
@@ -58,7 +58,7 @@ class AutoEncoder(MultilayerPerceptron):
 class SparseAutoEncoder(AutoEncoder):
 
     def __init__(self, n_inpt, n_hidden, hidden_transfer, out_transfer,
-            reconstruct_loss, 
+            loss, 
             c_sparsity, sparsity_loss, sparsity_target=0.01,
             tied_weights=True):
         self.c_sparsity = c_sparsity
@@ -67,7 +67,7 @@ class SparseAutoEncoder(AutoEncoder):
 
         super(SparseAutoEncoder, self).__init__(
             n_inpt, n_hidden, hidden_transfer, out_transfer,
-            reconstruct_loss, tied_weights)
+            loss, tied_weights)
 
     def init_exprs(self):
         if self.tied_weights:
@@ -78,18 +78,18 @@ class SparseAutoEncoder(AutoEncoder):
         self.exprs = self.make_exprs(
             T.matrix('inpt'), self.parameters.in_to_hidden, hidden_to_out,
             self.parameters.hidden_bias, self.parameters.out_bias,
-            self.hidden_transfer, self.out_transfer, self.reconstruct_loss,
+            self.hidden_transfer, self.out_transfer, self.loss,
             self.sparsity_loss, self.c_sparsity, self.sparsity_target)
 
     @staticmethod
     def make_exprs(inpt, in_to_hidden, hidden_to_out,
                    hidden_bias, out_bias,
-                   hidden_transfer, out_transfer, reconstruct_loss,
+                   hidden_transfer, out_transfer, loss,
                    sparsity_loss, c_sparsity, sparsity_target):
         exprs = AutoEncoder.make_exprs(
             inpt, in_to_hidden, hidden_to_out, 
             hidden_bias, out_bias, 
-            hidden_transfer, out_transfer, reconstruct_loss)
+            hidden_transfer, out_transfer, loss)
 
         hidden = exprs['hidden']
         f_distance = lookup(sparsity_loss, distance)
@@ -106,13 +106,13 @@ class SparseAutoEncoder(AutoEncoder):
 class ContractiveAutoEncoder(AutoEncoder):
 
     def __init__(self, n_inpt, n_hidden, hidden_transfer, out_transfer,
-                 reconstruct_loss, c_jacobian, tied_weights=True):
+                 loss, c_jacobian, tied_weights=True):
 
         self.c_jacobian = c_jacobian
         
         super(ContractiveAutoEncoder, self).__init__(
             n_inpt, n_hidden, hidden_transfer, out_transfer,
-            reconstruct_loss, tied_weights)
+            loss, tied_weights)
 
     def init_exprs(self):
         if self.tied_weights:
@@ -123,18 +123,18 @@ class ContractiveAutoEncoder(AutoEncoder):
         self.exprs = self.make_exprs(
             T.matrix('inpt'), self.parameters.in_to_hidden, hidden_to_out,
             self.parameters.hidden_bias, self.parameters.out_bias,
-            self.hidden_transfer, self.out_transfer, self.reconstruct_loss,
+            self.hidden_transfer, self.out_transfer, self.loss,
             self.c_jacobian)
 
     @staticmethod
     def make_exprs(inpt, in_to_hidden, hidden_to_out,
                    hidden_bias, out_bias,
-                   hidden_transfer, out_transfer, reconstruct_loss,
+                   hidden_transfer, out_transfer, loss,
                    c_jacobian):
         exprs = AutoEncoder.make_exprs(
             inpt, in_to_hidden, hidden_to_out, 
             hidden_bias, out_bias, 
-            hidden_transfer, out_transfer, reconstruct_loss)
+            hidden_transfer, out_transfer, loss)
         hidden = exprs['hidden']
         hidden_in = exprs['hidden_in']
 

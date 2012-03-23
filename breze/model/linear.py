@@ -19,15 +19,21 @@ class Linear(Model):
         self.init_exprs()
 
     def init_pars(self):
-        self.parameters = ParameterSet(in_to_out=(self.n_inpt, self.n_output),
-                                       bias=self.n_output)
+        parspec = self.get_parameter_spec(self.n_inpt, self.n_output)
+        self.parameters = ParameterSet(**parspec)
 
     def init_exprs(self):
         self.exprs = self.make_exprs(
             T.matrix('inpt'), self.parameters.in_to_out, self.parameters.bias,
             self.out_transfer, self.loss)
 
-    def make_exprs(self, inpt, in_to_out, bias, out_transfer, loss):
+    @staticmethod
+    def get_parameter_spec(n_inpt, n_output):
+        return {'in_to_out': (n_inpt, n_output),
+                'bias': n_output}
+
+    @staticmethod
+    def make_exprs(inpt, in_to_out, bias, out_transfer, loss):
         f_out = lookup(out_transfer, transfer)
         f_loss = lookup(loss, distance)
 
