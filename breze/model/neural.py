@@ -20,8 +20,7 @@ class MultilayerPerceptron(Model):
         self.output_transfer = output_transfer
         self.loss = loss
 
-        self.init_pars()
-        self.init_exprs()
+        super(MultilayerPerceptron, self).__init__()
 
     def init_pars(self):
         self.parameters = ParameterSet(

@@ -59,9 +59,9 @@ class ParameterSet(object):
 
 class Model(object):
 
-    def __init__(self, exprs, parameters):
-        self.exprs = exprs
-        self.parameters = parameters
+    def __init__(self):
+        self.init_pars()
+        self.init_exprs()
 
     def function(self, variables, exprs, mode=None, explicit_pars=False):
         """Return a function for the given `exprs` given `variables`.
