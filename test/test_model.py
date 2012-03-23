@@ -6,7 +6,7 @@ import theano.tensor as T
 import numpy as np
 
 from breze.model.linear import Linear
-from breze.model.neural import MultilayerPerceptron
+from breze.model.neural import MultiLayerPerceptron, TwoLayerPerceptron
 from breze.model.feature import (
     AutoEncoder, ContractiveAutoEncoder, SparseAutoEncoder, SparseFiltering,
     Rica)
@@ -22,8 +22,28 @@ def test_linear():
     fprime(np.random.random((10, 2)), np.random.random((10, 3)))
 
 
+def test_2lp():
+    l = TwoLayerPerceptron(2, 10, 3, 'tanh', 'softabs', 'squared')
+    f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
+    grad = T.grad(l.exprs['loss'], l.parameters.flat)
+    fprime = l.function(['inpt', 'target'], grad, mode='FAST_COMPILE')
+
+    f(np.random.random((10, 2)), np.random.random((10, 3)))
+    fprime(np.random.random((10, 2)), np.random.random((10, 3)))
+
+
 def test_mlp():
-    l = MultilayerPerceptron(2, 10, 3, 'tanh', 'softabs', 'squared')
+    l = MultiLayerPerceptron(2, [10], 3, ['tanh'], 'softabs', 'squared')
+    f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
+    grad = T.grad(l.exprs['loss'], l.parameters.flat)
+    fprime = l.function(['inpt', 'target'], grad, mode='FAST_COMPILE')
+
+    f(np.random.random((10, 2)), np.random.random((10, 3)))
+    fprime(np.random.random((10, 2)), np.random.random((10, 3)))
+
+
+def test_mlp():
+    l = MultiLayerPerceptron(2, [10, 12], 3, ['tanh', 'sigmoid'], 'softabs', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt', 'target'], grad, mode='FAST_COMPILE')

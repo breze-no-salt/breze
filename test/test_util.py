@@ -22,9 +22,9 @@ def test_parameter_set_init():
 def test_parameter_set_data_change():
     pars = ParameterSet(matrix=(10, 10),
                         vector=10)
-    pars['matrix'] *= 0
-    pars['vector'] *= 0
-    assert (pars.data == 0).all()
+    pars['matrix'][...] = 0
+    pars['vector'][...] = 0
+    assert (pars.data == 0).all(), repr(pars.data)
 
     pars['matrix'] += 1
     assert pars.data.sum() == 100
@@ -41,7 +41,9 @@ def test_model_function():
     inpt = T.matrix()
     output = T.dot(inpt, pars.weights)
 
-    model = Model({'inpt': inpt, 'output': output}, pars)
+    model = Model()
+    model.exprs = {'inpt': inpt, 'output': output}
+    model.parameters = pars
 
     f = model.function(['inpt'], 'output')
     fx = model.function(['inpt'], 'output', explicit_pars=True)

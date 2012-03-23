@@ -63,6 +63,12 @@ class Model(object):
         self.init_pars()
         self.init_exprs()
 
+    def init_pars(self):
+        pass
+
+    def init_exprs(self):
+        pass
+
     def function(self, variables, exprs, mode=None, explicit_pars=False):
         """Return a function for the given `exprs` given `variables`.
 

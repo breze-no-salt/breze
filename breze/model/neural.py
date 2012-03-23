@@ -8,7 +8,7 @@ from ..util import ParameterSet, Model, lookup
 from ..component import transfer, distance
 
 
-class MultilayerPerceptron(Model):
+class TwoLayerPerceptron(Model):
 
     def __init__(self, n_inpt, n_hidden, n_output, 
                  hidden_transfer, out_transfer, loss):
@@ -20,7 +20,7 @@ class MultilayerPerceptron(Model):
         self.out_transfer = out_transfer
         self.loss = loss
 
-        super(MultilayerPerceptron, self).__init__()
+        super(TwoLayerPerceptron, self).__init__()
 
     def init_pars(self):
         parspec = self.get_parameter_spec(
@@ -69,3 +69,95 @@ class MultilayerPerceptron(Model):
             'loss_rowwise': loss_rowwise,
             'loss': loss
         }
+
+
+class MultiLayerPerceptron(Model):
+
+    def __init__(self, n_inpt, n_hiddens, n_output, 
+                 hidden_transfers, out_transfer, loss):
+        self.n_inpt = n_inpt
+        self.n_hiddens = n_hiddens
+        self.n_output = n_output
+
+        self.hidden_transfers = hidden_transfers
+        self.out_transfer = out_transfer
+        self.loss = loss
+
+        super(MultiLayerPerceptron, self).__init__()
+
+    def init_pars(self):
+        parspec = self.get_parameter_spec(
+            self.n_inpt, self.n_hiddens, self.n_output)
+        self.parameters = ParameterSet(**parspec)
+
+    def init_exprs(self):
+        hidden_to_hiddens = [getattr(self.parameters, 'hidden_to_hidden_%i' % i)
+                             for i in range(len(self.n_hiddens) - 1)]
+        hidden_biases = [getattr(self.parameters, 'hidden_bias_%i' % i)
+                         for i in range(len(self.n_hiddens))]
+        self.exprs = self.make_exprs(
+            T.matrix('inpt'), T.matrix('target'),
+            self.parameters.in_to_hidden,
+            hidden_to_hiddens, 
+            self.parameters.hidden_to_out,
+            hidden_biases,
+            self.parameters.out_bias,
+            self.hidden_transfers, self.out_transfer, self.loss)
+
+    @staticmethod
+    def get_parameter_spec(n_inpt, n_hiddens, n_output):
+        spec = dict(in_to_hidden=(n_inpt, n_hiddens[0]),
+                    hidden_to_out=(n_hiddens[-1], n_output),
+                    hidden_bias_0=n_hiddens[0],
+                    out_bias=n_output)
+
+        zipped = zip(n_hiddens[:-1], n_hiddens[1:])
+        spec['hidden_bias_0'] = n_hiddens[0]
+        for i, (inlayer, outlayer) in enumerate(zipped):
+            spec['hidden_to_hidden_%i' % i] = (inlayer, outlayer)
+            spec['hidden_bias_%i' % (i + 1)] = outlayer
+
+        return spec
+
+    @staticmethod
+    def make_exprs(inpt, target, in_to_hidden, 
+                   hidden_to_hiddens, 
+                   hidden_to_out, 
+                   hidden_biases, 
+                   out_bias,
+                   hidden_transfers, output_transfer, loss):
+        
+        f_hidden = lookup(hidden_transfers[0], transfer)
+        hidden_in = T.dot(inpt, in_to_hidden) + hidden_biases[0]
+        hidden = f_hidden(hidden_in)
+
+        exprs = {}
+
+        zipped = zip(hidden_to_hiddens, hidden_biases[1:], hidden_transfers[1:])
+        for i, (w, b, t) in enumerate(zipped):
+            hidden_m1 = hidden
+            hidden_in = T.dot(hidden_m1, w) + b
+            f = lookup(t, transfer)
+            hidden = f(hidden_in)
+            exprs['hidden_in_%i' % i] = hidden_in
+            exprs['hidden_%i' % i] = hidden
+
+        f_output = lookup(output_transfer, transfer)
+        output_in = T.dot(hidden, hidden_to_out) + out_bias
+        output = f_output(output_in)
+
+        f_loss = lookup(loss, distance)
+
+        loss_rowwise = f_loss(target, output, axis=1)
+        loss = loss_rowwise.mean()
+
+        exprs.update({
+            'inpt': inpt, 
+            'target': target,
+            'output_in': output_in,
+            'output': output,
+            'loss_rowwise': loss_rowwise,
+            'loss': loss
+        })
+
+        return exprs
