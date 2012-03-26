@@ -10,6 +10,10 @@ def cross_entropy(X, Y, axis=None):
     return -(X * T.log(Y)).sum(axis=axis)
 
 
+def nominal_cross_entropy(X, Y, axis=None):
+    return -(T.log(Y)[T.arange(X.shape[0]), X])
+
+
 def bernoulli_cross_entropy(X, Y, axis=None):
     return -(X * T.log(Y) + (1 - X) * T.log(1 - Y)).sum(axis=axis)
 
@@ -34,4 +38,3 @@ def bernoulli_kl(X, Y):
 
 def discrete_entropy(X, axis=None):
     return -(X * T.log(X)).sum(axis=axis)
-    

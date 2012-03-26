@@ -6,18 +6,22 @@ import theano.tensor as T
 import numpy as np
 
 from breze.component.distance import (
-    absolute, squared, bernoulli_cross_entropy, cross_entropy)
+    absolute, squared, bernoulli_cross_entropy, cross_entropy,
+    nominal_cross_entropy)
 from tools import roughly
 
 
 test_X = np.array([
         [.1, .2, .3],
-        [.2, .1, .2]])
+        [.2, .1, .2]], dtype=theano.config.floatX)
 
 
 test_Y = np.array([
         [.13, .21, .32],
-        [.23, .17, .25]])
+        [.23, .17, .25]], dtype=theano.config.floatX)
+
+
+test_Xc = np.array([0, 2], dtype=np.int32)
 
 
 def test_absolute():
@@ -97,3 +101,12 @@ def test_cross_entropy_colwise():
     res = f(test_X, test_Y)
     correct = roughly(res, [[0.49795728, 0.48932523, 0.61908916]])
     assert correct, 'bernoulli_cross_entropy distance colwise not working'
+
+
+def test_nominal_cross_entropy():
+    Xc, Y = T.ivector(), T.matrix()
+    dist = nominal_cross_entropy(Xc, Y)
+    f = theano.function([Xc, Y], dist, mode='FAST_COMPILE')
+    res = f(test_Xc, test_Y)
+    correct = roughly(res, -np.log(test_Y)[np.arange(test_Xc.shape[0]), test_Xc])
+    assert correct, 'nominal_cross_entropy distance not working'
