@@ -59,6 +59,26 @@ class AutoEncoder(TwoLayerPerceptron):
             hidden_transfer, out_transfer, loss)
 
 
+class DenoisingAutoEncoder(AutoEncoder):
+
+    def __init__(self, n_inpt, n_hidden, hidden_transfer, out_transfer,
+            loss, tied_weights=True):
+        super(DenoisingAutoEncoder, self).__init__(n_inpt, n_hidden,
+                hidden_transfer, out_transfer, loss, tied_weights)
+
+    @staticmethod
+    def make_exprs(inpt, in_to_hidden, hidden_to_out,
+            hidden_bias, out_bias, hidden_transfer, out_transfer, loss):
+        corrupted = T.matrix('corrupted')
+        exprs = TwoLayerPerceptron.make_exprs(
+                corrupted, inpt, in_to_hidden, hidden_to_out,
+                hidden_bias, out_bias, hidden_transfer, out_transfer,
+                loss)
+        exprs["corrupted"] = exprs["inpt"]
+        exprs["inpt"] = exprs["target"]
+        return exprs
+
+
 class SparseAutoEncoder(AutoEncoder):
 
     def __init__(self, n_inpt, n_hidden, hidden_transfer, out_transfer,
