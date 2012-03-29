@@ -12,17 +12,14 @@ from autoencoder import AutoEncoder
 
 class Rica(AutoEncoder):
 
-    def __init__(self, n_inpt, n_hidden, 
-            feature_transfer, out_transfer,
-            loss, 
-            c_ica, 
-            tied_weights=True):
-
-        self.feature_transfer = feature_transfer
-        self.c_ica = c_ica
+    def __init__(self, n_inpt, n_hidden, feature_transfer, out_transfer,
+            loss, c_ica, tied_weights=True):
         super(Rica, self).__init__(
             n_inpt, n_hidden, 'identity', out_transfer,
             loss, tied_weights)
+
+        self.feature_transfer = feature_transfer
+        self.c_ica = c_ica
 
     def init_exprs(self):
         if self.tied_weights:

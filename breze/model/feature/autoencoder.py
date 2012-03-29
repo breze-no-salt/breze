@@ -15,6 +15,8 @@ class AutoEncoder(TwoLayerPerceptron):
                  hidden_transfer, out_transfer, loss,
                  tied_weights=True):
         self.tied_weights = tied_weights
+        self.feature_transfer = hidden_transfer
+        self.n_feature = n_hidden
 
         super(AutoEncoder, self).__init__(
             n_inpt, n_hidden, n_inpt,
@@ -36,6 +38,7 @@ class AutoEncoder(TwoLayerPerceptron):
             self.parameters.in_to_hidden, hidden_to_out,
             self.parameters.hidden_bias, self.parameters.out_bias,
             self.hidden_transfer, self.out_transfer, self.loss)
+        self.exprs['feature'] = self.exprs['hidden']
 
     @staticmethod
     def get_parameter_spec(n_inpt, n_hidden, tied_weights):

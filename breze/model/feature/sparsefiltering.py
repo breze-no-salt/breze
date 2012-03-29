@@ -10,10 +10,10 @@ from ...component import transfer, distance, norm
 
 class SparseFiltering(Model):
 
-    def __init__(self, n_inpt, n_feature, transfer_func='identity'):
+    def __init__(self, n_inpt, n_feature, feature_transfer='softabs'):
         self.n_inpt = n_inpt
         self.n_feature = n_feature
-        self.transfer_func = transfer_func
+        self.feature_transfer = feature_transfer
 
         super(SparseFiltering, self).__init__()
 
@@ -23,17 +23,17 @@ class SparseFiltering(Model):
 
     def init_exprs(self):
         self.exprs = self.make_exprs(
-            self.transfer_func, T.matrix('inpt'), self.parameters.in_to_feature)
+            self.feature_transfer, T.matrix('inpt'), self.parameters.in_to_feature)
 
     @staticmethod
     def get_parameter_spec(n_inpt, n_feature):
         return dict(in_to_feature=(n_inpt, n_feature))
 
     @staticmethod
-    def make_exprs(transfer_func, inpt, inpt_to_feature):
+    def make_exprs(feature_transfer, inpt, inpt_to_feature):
         feature_in = T.dot(inpt, inpt_to_feature)
-        transfer_func = lookup(transfer_func, transfer)
-        feature = transfer_func(feature_in)
+        f_feature = lookup(feature_transfer, transfer)
+        feature = f_feature(feature_in)
 
         col_normalized = T.sqrt(
             norm.normalize(feature, lambda x: x**2, axis=0) + 1E-8)
