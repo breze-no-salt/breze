@@ -15,6 +15,27 @@ def lookup(what, where):
     return getattr(where, what) if isinstance(what, (str, unicode)) else what
 
 
+def lookup_some_key(what, where, default=None):
+    """Return where[w] where w is the first element in `what` which `where` has.
+    """
+    for w in what:
+        try:
+            return where[w]
+        except KeyError:
+            pass
+    return default
+
+
+def opt_from_model(model, fargs, args, opt_klass, opt_kwargs):
+    """Return an optimizer object given a model and an optimizer specification.
+    """
+    d_loss_d_pars = T.grad(model.exprs['loss'], model.parameters.flat)
+    f = model.function(fargs, 'loss', explicit_pars=True)
+    fprime = model.function(fargs, d_loss_d_pars, explicit_pars=True)
+    opt = opt_klass(model.parameters.data, f, fprime, args=args, **opt_kwargs)
+    return opt
+
+
 class ParameterSet(object):
 
     def __init__(self, **kwargs):
