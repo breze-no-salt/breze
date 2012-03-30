@@ -9,8 +9,8 @@ from breze.model.linear import Linear
 from breze.model.neural import MultiLayerPerceptron, TwoLayerPerceptron
 from breze.model.feature import (
     AutoEncoder, ContractiveAutoEncoder, SparseAutoEncoder, SparseFiltering,
-    Rica)
-
+    Rica, DenoisingAutoEncoder)
+from breze.model.rim import RIM_LR
 
 def test_linear():
     l = Linear(2, 3, 'softabs', 'squared')
@@ -104,4 +104,24 @@ def test_rica():
     fprime = l.function(['inpt'], grad, mode='FAST_COMPILE')
 
     f(np.random.random((10, 2)))
-    fprime(np.random.random((10, 2)))
+
+
+def test_dnae():
+    l = DenoisingAutoEncoder(2, 10, 'tanh', 'identity', 'bernoulli_cross_entropy')
+    f = l.function(['corrupted', 'inpt'], 'loss', mode='FAST_COMPILE')
+    grad = T.grad(l.exprs['loss'], l.parameters.flat)
+    fprime = l.function(['corrupted', 'inpt'], grad, mode='FAST_COMPILE')
+
+    mtx = np.asarray(np.random.random((10,2)), dtype=theano.config.floatX)
+    f(mtx, mtx)
+    fprime(mtx, mtx)
+
+
+def test_rim():
+    l = RIM_LR(2, 3, 1e-4)
+    f = l.function(['inpt'], 'loss_reg', mode='FAST_COMPILE')
+    d_loss_wrt_pars = T.grad(l.exprs['loss_reg'], l.parameters.flat)
+    fprime = l.function(['inpt'], d_loss_wrt_pars, mode='FAST_COMPILE')
+
+    f(np.asarray(np.random.random((10, 2)), dtype=theano.config.floatX))
+    fprime(np.asarray(np.random.random((10, 2)), dtype=theano.config.floatX))
