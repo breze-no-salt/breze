@@ -12,6 +12,9 @@ from breze.model.feature import (
     Rica, DenoisingAutoEncoder)
 from breze.model.rim import RIM_LR
 
+from breze.model.sequential import LinearDynamicalSystem
+
+
 def test_linear():
     l = Linear(2, 3, 'softabs', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
@@ -125,3 +128,15 @@ def test_rim():
 
     f(np.asarray(np.random.random((10, 2)), dtype=theano.config.floatX))
     fprime(np.asarray(np.random.random((10, 2)), dtype=theano.config.floatX))
+
+
+def test_lds():
+    l = LinearDynamicalSystem(2, 2)
+    nll = -l.exprs['log_likelihood'].mean()
+    f = l.function(['inpt'], nll, mode='FAST_COMPILE')
+
+    f(np.random.random((10, 1, 2)))
+
+    # this makes theano crash.
+    # grad = T.grad(nll, l.parameters.flat)
+    # fprime(np.random.random((10, 2, 2)))
