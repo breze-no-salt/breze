@@ -11,8 +11,7 @@ from breze.model.feature import (
     AutoEncoder, ContractiveAutoEncoder, SparseAutoEncoder, SparseFiltering,
     Rica, DenoisingAutoEncoder)
 from breze.model.rim import RIM_LR
-
-from breze.model.sequential import LinearDynamicalSystem
+from breze.model.sequential import LinearDynamicalSystem, RecurrentNetwork
 
 
 def test_linear():
@@ -178,3 +177,19 @@ def test_lds_shapes():
                    visible_noise_mean, visible_noise_cov,
                    hidden_noise_mean, hidden_noise_cov,
                    hidden_mean_initial, hidden_cov_initial)
+    
+
+def test_rnn():
+    l = RecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'squared')
+    f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
+    d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
+    fprime = l.function(['inpt', 'target'], d_loss_wrt_pars, 
+                        mode='FAST_COMPILE')
+
+    X = np.random.random((10, 3, 2)).astype(theano.config.floatX)
+    Z = np.random.random((10, 3, 1)).astype(theano.config.floatX)
+
+    f(X, Z)
+    fprime(X, Z)
+
+
