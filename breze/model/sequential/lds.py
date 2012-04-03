@@ -67,7 +67,7 @@ def smooth(filtered_means, filtered_covs, transition,
         outputs_info=[filtered_means[-1], filtered_covs[-1]],
         go_backwards=True)
 
-    return g, G
+    return g[::-1], G[::-1]
 
 
 def forward_step(transition, emission,
@@ -84,7 +84,8 @@ def forward_step(transition, emission,
     hnm, hnc = hidden_noise_mean, hidden_noise_cov
 
     def step(visible, filtered_hidden_mean_m1, filtered_hidden_cov_m1):
-        A, B = transition, emission                             # (h, h), (h, d)
+        A, B = transition, emission                         # (h, h), (h, v)
+
         # Shortcuts for the filtered mean and covariance from the previous
         # time step.
         f_m1 = filtered_hidden_mean_m1                      # (n, h)
@@ -112,16 +113,17 @@ def forward_step(transition, emission,
             lambda x: matrix_inverse(x), visible_cov)       # (n, v, v)
 
         # I don't know a better name for this monster.
-        visible_hidden_cov_T = visible_hidden_cov.dimshuffle(0, 2, 1)
-        D = stacked_dot(visible_hidden_cov_T,
-                        inv_visible_cov)                    # (n, h, v)
+        visible_hidden_cov_T = visible_hidden_cov.dimshuffle(0, 2, 1)   # (n, v, h)
+        #D = stacked_dot(visible_hidden_cov_T,
+        #                inv_visible_cov)                    # (n, v, h)
+        D = stacked_dot(inv_visible_cov, visible_hidden_cov_T)
 
-        f = (D * visible_error.dimshuffle(0, 'x', 1)        # (n, h)
-            ).sum(axis=2)
+        f = (D * visible_error.dimshuffle(0, 1, 'x')        # (n, h)
+            ).sum(axis=1)
         f += hidden_mean
 
         F = hidden_cov
-        F -= stacked_dot(D, visible_hidden_cov)
+        F -= stacked_dot(visible_hidden_cov, D)
 
         log_p = (inv_visible_cov *                          # (n,)
                  visible_error.dimshuffle(0, 1, 'x') *
@@ -140,6 +142,8 @@ def backward_step(transition, hidden_noise_mean, hidden_noise_cov):
     def step(filtered_mean, filtered_cov,
              smoothed_mean_p1, smoothed_cov_p1):
         f, F = filtered_mean, filtered_cov                  # (n, h), (n, h, h)
+        f.name = 'filtered_mean'
+        F.name = 'filtered_covs'
 
         # Statistics for p(h, h_m1 | V)
         hidden_mean = T.dot(f, A) + hidden_noise_mean       # (n, h)
@@ -162,8 +166,8 @@ def backward_step(transition, hidden_noise_mean, hidden_noise_cov):
                                 inv_hidden_cov)
 
         mean_rev = f
-        mean_rev -= (hidden_mean.dimshuffle(0, 'x', 1) * trans_rev # (n, h)
-                    ).sum(axis=2)
+        #mean_rev -= (hidden_mean.dimshuffle(0, 'x', 1) * trans_rev # (n, h)
+        #            ).sum(axis=2)
 
         # Turn these into matrices so they work with stacked_dot.
         smoothed_mean_p1 = smoothed_mean_p1.dimshuffle(0, 1, 'x')
