@@ -131,7 +131,8 @@ def test_rim():
 
 
 def test_lds():
-    l = LinearDynamicalSystem(2, 2)
+    l = LinearDynamicalSystem(2, 3)
+    l.parameters.data[:] = np.random.random(l.parameters.data.shape)
     nll = -l.exprs['log_likelihood'].mean()
     f = l.function(['inpt'], nll, mode='FAST_COMPILE')
 
@@ -140,3 +141,40 @@ def test_lds():
     # this makes theano crash.
     # grad = T.grad(nll, l.parameters.flat)
     # fprime(np.random.random((10, 2, 2)))
+
+def test_lds_shapes():
+    n_inpt = 2
+    n_hidden = 3
+
+    theano.config.compute_test_value = 'raise'
+    inpt = T.tensor3('inpt')
+    inpt.tag.test_value = np.random.random((10, 2, n_inpt))
+
+    transition = T.matrix('transitions')
+    transition.tag.test_value = np.random.random((n_hidden, n_hidden))
+
+    emission = T.matrix('emissions')
+    emission.tag.test_value = np.random.random((n_hidden, n_inpt))
+
+    visible_noise_mean = T.vector('visible_noise_mean')
+    visible_noise_mean.tag.test_value = np.random.random(n_inpt)
+
+    visible_noise_cov = T.matrix('visible_noise_cov')
+    visible_noise_cov.tag.test_value = np.random.random((n_inpt, n_inpt))
+
+    hidden_noise_mean = T.vector('hidden_noise_mean')
+    hidden_noise_mean.tag.test_value = np.random.random(n_hidden)
+
+    hidden_noise_cov = T.matrix('hidden_noise_cov')
+    hidden_noise_cov.tag.test_value = np.random.random((n_hidden, n_hidden))
+
+    hidden_mean_initial = T.vector('hidden_mean_initial')
+    hidden_mean_initial.tag.test_value = np.random.random(n_hidden)
+
+    hidden_cov_initial = T.matrix('hidden_cov_initial')
+    hidden_cov_initial.tag.test_value = np.random.random((n_hidden, n_hidden))
+
+    LinearDynamicalSystem.make_exprs(inpt, transition, emission, 
+                   visible_noise_mean, visible_noise_cov,
+                   hidden_noise_mean, hidden_noise_cov,
+                   hidden_mean_initial, hidden_cov_initial)
