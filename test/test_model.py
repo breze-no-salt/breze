@@ -177,6 +177,7 @@ def test_lds_shapes():
                    visible_noise_mean, visible_noise_cov,
                    hidden_noise_mean, hidden_noise_cov,
                    hidden_mean_initial, hidden_cov_initial)
+    theano.config.compute_test_value = 'off'
     
 
 def test_rnn():
