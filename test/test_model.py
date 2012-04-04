@@ -11,7 +11,8 @@ from breze.model.feature import (
     AutoEncoder, ContractiveAutoEncoder, SparseAutoEncoder, SparseFiltering,
     Rica, DenoisingAutoEncoder)
 from breze.model.rim import RIM_LR
-from breze.model.sequential import LinearDynamicalSystem, RecurrentNetwork
+from breze.model.sequential import (
+        LinearDynamicalSystem, RecurrentNetwork, LstmRecurrentNetwork)
 
 
 def test_linear():
@@ -196,6 +197,34 @@ def test_rnn():
 
 def test_pooling_rnn():
     l = RecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'nca', 'mean')
+    f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
+    d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
+    fprime = l.function(['inpt', 'target'], d_loss_wrt_pars, 
+                        mode='FAST_COMPILE')
+
+    X = np.random.random((10, 30, 2)).astype(theano.config.floatX)
+    Z = np.random.random((30, 1)).astype(theano.config.floatX)
+
+    f(X, Z)
+    fprime(X, Z)
+
+def test_lstmrnn():
+    l = LstmRecurrentNetwork(2, 5, 1, 'sigmoid', 'identity', 'squared')
+
+    f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
+    d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
+    fprime = l.function(['inpt', 'target'], d_loss_wrt_pars, 
+                        mode='FAST_COMPILE')
+
+    X = np.random.random((10, 3, 2)).astype(theano.config.floatX)
+    Z = np.random.random((10, 3, 1)).astype(theano.config.floatX)
+
+    f(X, Z)
+    fprime(X, Z)
+
+
+def test_pooling_lstmrnn():
+    l = LstmRecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'nca', 'mean')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt', 'target'], d_loss_wrt_pars, 
