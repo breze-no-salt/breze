@@ -7,7 +7,7 @@ import numpy as np
 
 from breze.component.distance import (
     absolute, squared, bernoulli_cross_entropy, cross_entropy,
-    nominal_cross_entropy)
+    nominal_cross_entropy, distance_matrix, nca)
 from tools import roughly
 
 
@@ -110,3 +110,23 @@ def test_nominal_cross_entropy():
     res = f(test_Xc, test_Y)
     correct = roughly(res, -np.log(test_Y)[np.arange(test_Xc.shape[0]), test_Xc])
     assert correct, 'nominal_cross_entropy distance not working'
+
+
+def test_distance_matrix():
+    X = T.matrix()
+    D = distance_matrix(X)
+    f = theano.function([X], D, mode='FAST_COMPILE')
+    x = np.array([[1], [2], [3]])
+    res = f(x)
+    print res
+    correct = roughly(res, np.array([[0, 1, 4], [1, 0, 1], [4, 1, 0]]))
+    assert correct, 'distance matrix not working right'
+
+
+def test_nca():
+    theano.config.compute_test_value = 'raise'
+    X = T.matrix()
+    X.tag.test_value = np.random.random((20, 10))
+    Y = T.matrix()
+    Y.tag.test_value = np.random.random((20, 1)) > 0.5
+    expr = nca(X, Y)
