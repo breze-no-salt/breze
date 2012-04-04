@@ -12,7 +12,8 @@ from ...component import transfer, distance
 class RecurrentNetwork(Model):
 
     def __init__(self, n_inpt, n_hidden, n_output, 
-                 hidden_transfer, out_transfer, loss, pooling=None):
+                 hidden_transfer, out_transfer='identity', loss='squared',
+                 pooling=None):
         self.n_inpt = n_inpt
         self.n_hidden = n_hidden
         self.n_output = n_output
