@@ -214,6 +214,22 @@ class LstmRecurrentNetwork(RecurrentNetwork):
         output_flat = T.dot(hidden_rec_flat, hidden_to_out)
         output_in = output_flat.reshape((n_time_steps, n_samples, n_output))
         output_in += out_bias.dimshuffle('x', 'x', 0)
+
+        if pooling is None:
+            pass
+        elif pooling == 'mean':
+            output_in = T.mean(output_in, axis=0)
+        elif pooling == 'sum':
+            output_in = T.sum(output_in, axis=0)
+        elif pooling == 'prod':
+            output_in = T.prod(output_in, axis=0)
+        elif pooling == 'min':
+            output_in = T.min(output_in, axis=0)
+        elif pooling == 'max':
+            output_in = T.max(output_in, axis=0)
+        else:
+            raise ValueError('unknown pooling operator %s' % self.pooling)
+
         output = f_output(output_in)
 
         loss = f_loss(output, target)
