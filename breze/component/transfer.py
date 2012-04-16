@@ -44,3 +44,7 @@ def logcosh(inpt):
 
 def softabs(inpt, eps=1E-8):
     return T.sqrt(inpt**2 + eps)
+
+
+def softsign(inpt):
+    return inpt / (1 + abs(inpt))
