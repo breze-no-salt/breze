@@ -39,33 +39,41 @@ def filter_and_prob(inpt, transition, emission,
         visible_noise_mean, visible_noise_cov,
         hidden_noise_mean, hidden_noise_cov)
 
-    # Make sure we have a initial hidden and initial covariance for
-    # each sequence.
-    ones = T.ones_like(inpt[0, :, 0])
-    initial_hidden = T.outer(ones, initial_hidden)
-    initial_hidden_cov_flat = initial_hidden_cov.flatten()
-    initial_hidden_cov = T.outer(ones, initial_hidden_cov_flat
-                  ).reshape((inpt.shape[1],
-                             initial_hidden.shape[1],
-                             initial_hidden.shape[1]))
+    hidden_mean_0 = T.zeros_like(hidden_noise_mean).dimshuffle('x', 0)
+    hidden_cov_0 = T.zeros_like(hidden_noise_cov).dimshuffle('x', 0, 1)
+    f0, F0, ll0 = step(inpt[0], hidden_mean_0, hidden_cov_0)
+    replace = {hidden_noise_mean: initial_hidden, 
+               hidden_noise_cov: initial_hidden_cov}
+    f0 = theano.clone(f0, replace)
+    F0 = theano.clone(F0, replace)
+    ll0 = theano.clone(ll0, replace)
 
-    (f, F, log_p), _ = theano.scan(
+    (f, F, ll), _ = theano.scan(
         step,
-        sequences=inpt,
-        outputs_info=[initial_hidden, initial_hidden_cov, None])
+        sequences=inpt[1:],
+        outputs_info=[f0, F0, None])
 
-    return f, F, log_p
+    ll = ll.sum(axis=0)
+
+    f = T.concatenate([T.shape_padleft(f0), f])
+    F = T.concatenate([T.shape_padleft(F0), F])
+    ll += ll0
+
+    return f, F, ll
 
 
-def smooth(filtered_means, filtered_covs, transition,
+def smooth(filtered_mean, filtered_cov, transition,
            hidden_noise_mean, hidden_noise_cov):
     step = backward_step(transition, hidden_noise_mean, hidden_noise_cov)
 
     (g, G), _ = theano.scan(
         step,
-        sequences=[filtered_means[:-1], filtered_covs[:-1]],
-        outputs_info=[filtered_means[-1], filtered_covs[-1]],
+        sequences=[filtered_mean[:-1], filtered_cov[:-1]],
+        outputs_info=[filtered_mean[-1], filtered_cov[-1]],
         go_backwards=True)
+
+    g = T.concatenate([T.shape_padleft(filtered_mean[-1]), g])
+    G = T.concatenate([T.shape_padleft(filtered_cov[-1]), G])
 
     return g[::-1], G[::-1]
 
@@ -99,7 +107,8 @@ def forward_step(transition, emission,
         # Calculate covariance of joint.
         hidden_cov = stacked_dot(
             A.T, stacked_dot(F_m1, A))                      # (n, h, h)
-        hidden_cov +=  hnc
+
+        hidden_cov += hnc
 
         visible_cov = stacked_dot(                          # (n, v, v)
             B.T, stacked_dot(hidden_cov, B))
@@ -114,8 +123,6 @@ def forward_step(transition, emission,
 
         # I don't know a better name for this monster.
         visible_hidden_cov_T = visible_hidden_cov.dimshuffle(0, 2, 1)   # (n, v, h)
-        #D = stacked_dot(visible_hidden_cov_T,
-        #                inv_visible_cov)                    # (n, v, h)
         D = stacked_dot(inv_visible_cov, visible_hidden_cov_T)
 
         f = (D * visible_error.dimshuffle(0, 1, 'x')        # (n, h)
@@ -125,14 +132,17 @@ def forward_step(transition, emission,
         F = hidden_cov
         F -= stacked_dot(visible_hidden_cov, D)
 
-        log_p = (inv_visible_cov *                          # (n,)
-                 visible_error.dimshuffle(0, 1, 'x') *
-                 visible_error.dimshuffle(0,'x', 1)).sum(axis=(1, 2))
-        dets, _ = theano.map(
-            lambda x: det(x), 2 * np.pi * visible_cov)
-        log_p /= T.sqrt(dets)
+        log_l = (inv_visible_cov *                          # (n,)
+            visible_error.dimshuffle(0, 1, 'x') *
+            visible_error.dimshuffle(0,'x', 1)).sum(axis=(1, 2))
+        log_l *= -.5
 
-        return f, F, log_p
+        dets, _ = theano.map(lambda x: det(x), visible_cov)
+
+        log_l -= 0.5 * T.log(dets)
+        log_l -= np.log(2 * np.pi)
+
+        return f, F, log_l
 
     return step
 
@@ -142,43 +152,42 @@ def backward_step(transition, hidden_noise_mean, hidden_noise_cov):
     def step(filtered_mean, filtered_cov,
              smoothed_mean_p1, smoothed_cov_p1):
         f, F = filtered_mean, filtered_cov                  # (n, h), (n, h, h)
-        f.name = 'filtered_mean'
-        F.name = 'filtered_covs'
 
-        # Statistics for p(h, h_m1 | V)
         hidden_mean = T.dot(f, A) + hidden_noise_mean       # (n, h)
+
         hidden_cov = stacked_dot(A.T,
                                  stacked_dot(F, A))         # (n, h, h)
         hidden_cov += hidden_noise_cov
 
+        hidden_p1_hidden_cov = stacked_dot(A.T, F)            # (n, h, h)
+
+        hidden_p1_hidden_cov_T = hidden_p1_hidden_cov.dimshuffle(0, 2, 1)
+
         inv_hidden_cov, _ = theano.map(
             lambda x: matrix_inverse(x), hidden_cov)        # (n, h, h)
-
-        hidden_p1_hidden_cov = stacked_dot(A, F)            # (n, h, h)
-        hidden_p1_hidden_cov_T = hidden_p1_hidden_cov.dimshuffle(0, 2, 1)
 
         cov_rev = F - stacked_dot(
             stacked_dot(hidden_p1_hidden_cov_T, inv_hidden_cov),
             hidden_p1_hidden_cov)                           # (n, h, h)
 
-
         trans_rev = stacked_dot(hidden_p1_hidden_cov_T,     # (n, h, h)
                                 inv_hidden_cov)
 
         mean_rev = f
-        #mean_rev -= (hidden_mean.dimshuffle(0, 'x', 1) * trans_rev # (n, h)
-        #            ).sum(axis=2)
+        mean_rev -= (hidden_mean.dimshuffle(0, 'x', 1) * trans_rev # (n, h)
+                    ).sum(axis=2)
 
         # Turn these into matrices so they work with stacked_dot.
-        smoothed_mean_p1 = smoothed_mean_p1.dimshuffle(0, 1, 'x')
+        smoothed_mean_p1 = smoothed_mean_p1.dimshuffle(0, 'x', 1)
 
-        smoothed_mean = stacked_dot(smoothed_mean_p1, trans_rev)
-        smoothed_mean = smoothed_mean[:, :, 0]
+        trans_rev_T = trans_rev.dimshuffle(0, 2, 1)
+        smoothed_mean = stacked_dot(smoothed_mean_p1, trans_rev_T)
+        smoothed_mean = smoothed_mean[0, :, :]
         smoothed_mean += mean_rev
 
         smoothed_cov = stacked_dot(trans_rev,
-                                   stacked_dot(smoothed_cov_p1, trans_rev))
-
+                                   stacked_dot(smoothed_cov_p1, trans_rev_T))
+        
         smoothed_cov += cov_rev
 
         return smoothed_mean, smoothed_cov

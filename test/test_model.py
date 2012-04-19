@@ -14,6 +14,10 @@ from breze.model.rim import RIM_LR
 from breze.model.sequential import (
         LinearDynamicalSystem, RecurrentNetwork, LstmRecurrentNetwork)
 
+from tools import roughly
+
+from nose.plugins.skip import SkipTest
+
 
 def test_linear():
     l = Linear(2, 3, 'softabs', 'squared')
@@ -142,11 +146,123 @@ def test_lds():
     # grad = T.grad(nll, l.parameters.flat)
     # fprime(np.random.random((10, 2, 2)))
 
+
+def test_lds_values():
+    # The following test values were generated with David Barber's LDS
+    # implementation coming along with his book 'Bayesian Reasoning and
+    # machine learning'.
+
+    l = LinearDynamicalSystem(2, 3)
+
+    l.parameters['transition'] = np.arange(1, 10).reshape((3, 3)).T
+    l.parameters['emission'] = np.arange(1, 7).reshape((3, 2))
+
+    l.parameters['visible_noise_mean'] = np.array((-1, 1))
+    cov_block = np.arange(1, 5).reshape((2, 2))
+    l.parameters['visible_noise_cov'] = (
+    #        np.eye(2))
+        np.dot(cov_block, cov_block.T) * 0.2 + np.eye(2) * 100)
+
+    l.parameters['hidden_noise_mean'] = np.array((1, 2, 3))
+    cov_block = np.arange(1, 10).reshape((3, 3))
+    l.parameters['hidden_noise_cov'] = (
+    #        np.eye(3))
+        np.dot(cov_block, cov_block.T) + np.eye(3) * 10)
+
+    l.parameters['hidden_mean_initial'] = -np.array((.1, .2, .3))
+    l.parameters['hidden_cov_initial'] = (
+     #       np.eye(3))
+        np.dot(cov_block, cov_block.T) * 0.2 + np.eye(3) * 10)
+
+    f_forward = l.function(
+        ['inpt'],
+        ['filtered_means', 'filtered_covs', 'log_likelihood'],
+        mode='FAST_COMPILE')
+    f_backward = l.function(
+        ['filtered_means', 'filtered_covs'],
+        ['smoothed_means', 'smoothed_covs'],
+        mode='FAST_COMPILE')
+
+    X = np.array([
+        [1, 1.5],
+        [2, 2.5],
+        [3, 3.5],
+        [4, 4.5]])
+    X.shape = 4, 1, 2
+
+    f, F, ll = f_forward(X)
+
+    f_desired = np.array([
+        [[-0.0395, 0.0649, 0.1694]],
+        [[0.5087, 0.2911, 0.0734]],
+        [[0.5593, 0.3754, 0.1914]],
+        [[0.8622, 0.5272, 0.1921]]])
+
+    F_desired = np.zeros((4, 1, 3, 3))
+
+    F_desired[0, 0] = [
+        [9.4992 , -1.0806 , -1.6604  ],
+        [-1.0806,   7.5570,  -3.8054] ,
+        [-1.6604,  -3.8054,   4.0497 ],
+    ]
+
+    F_desired[1, 0] = [
+        [16.0466,   0.6834,  -4.6797],
+        [0.6834 ,  8.0361 , -4.6112 ],
+        [-4.6797,  -4.6112,   5.4574],
+    ]
+
+    F_desired[2, 0] = [
+        [18.8713,   1.4414,  -5.9885],
+        [1.4414 ,  8.2395 , -4.9624 ],
+        [-5.9885,  -4.9624,   6.0637],
+    ]
+
+    F_desired[3, 0] = [
+        [19.7744,   1.6837,  -6.4070],
+        [1.6837 ,  8.3045 , -5.0747 ],
+        [-6.4070,  -5.0747,   6.2577],
+    ]
+
+    assert roughly(f, f_desired, 1E-4), 'filtered means not correct'
+    assert roughly(F, F_desired, 1E-4), 'filtered covs not correct'
+    assert roughly(ll, [-38.3636], 1E-4), 'log likelihood calculated wrong: %f' % ll
+
+    s, S = f_backward(f, F)
+
+    s_desired = np.array([
+        [-0.2173, 0.1706, -0.5076, 0.8622],
+        [-0.0597, 0.0528, -0.0275, 0.5272],
+        [0.0978 , -0.0651 , 0.4526 , 0.1921]]).T
+
+    S_desired = np.zeros((4, 1, 3, 3))
+    S_desired[0, 0] = np.array([[ 5.5498, -2.5166, -0.583 ],
+                                [-2.5166,  6.9683, -3.5468],
+                                [-0.583 , -3.5468,  3.4894]])
+
+    S_desired[1, 0] = np.array([[ 7.3348, -2.1811, -1.697 ],
+                                [-2.1811,  7.0324, -3.7542],
+                                [-1.697 , -3.7542,  4.1886]])
+
+
+    S_desired[2, 0] = np.array([[ 9.8391, -1.7404, -3.3199],
+                                [-1.7404,  7.11  , -4.0396],
+                                [-3.3199, -4.0396,  5.2407]])
+
+    S_desired[3, 0] = np.array([[ 19.7744,   1.6837,  -6.407 ],
+                                [  1.6837,   8.3045,  -5.0747],
+                                [ -6.407 ,  -5.0747,   6.2577]])
+
+    assert roughly(s[:, 0, :], s_desired, 1E-4), 'smooooothed means not correct'
+    assert roughly(S, S_desired, 1E-4), 'smooooothed covs not correct'
+
+
+
 def test_lds_shapes():
+    raise SkipTest()
     n_inpt = 2
     n_hidden = 3
 
-    theano.config.compute_test_value = 'raise'
     inpt = T.tensor3('inpt')
     inpt.tag.test_value = np.random.random((10, 2, n_inpt))
 
