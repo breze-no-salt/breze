@@ -15,5 +15,7 @@ Here are some guidelines. Please...
 - follow the documentation guidelines of [Sphinx](http://sphinx.pocoo.org/),
   especially for docstrings. Here is an
   [example](http://packages.python.org/an_example_pypi_project/sphinx.html).
+- In case you develop something new, please do so in a new branch 'feature-XXX'
+  so you do not mess with other peoples work.
 
 Have fun!
