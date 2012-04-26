@@ -16,6 +16,7 @@ Here are some guidelines. Please...
   especially for docstrings. Here is an
   [example](http://packages.python.org/an_example_pypi_project/sphinx.html).
 - In case you develop something new, please do so in a new branch 'feature-XXX'
-  so you do not mess with other peoples work.
+  so you do not mess with other peoples work. Also, before merging it into the
+  master branch, let someone else from the lab review it.
 
 Have fun!
