@@ -9,8 +9,8 @@ Welcome to brummlearn's documentation!
 Contents:
 
 .. toctree::
+   cca
    :maxdepth: 2
-
 
 
 Indices and tables
