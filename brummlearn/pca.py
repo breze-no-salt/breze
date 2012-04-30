@@ -10,15 +10,15 @@ import scipy.linalg
 
 
 def pca(X, n_components=None, whiten=False):
-    """Apply principal component analysis to a dataset and return the 
+    """Apply principal component analysis to a dataset and return the
     corresponding matrix `w` to extract those components.
 
-    The data set has to be whitened.
+    If `whiten` is set, the data set will also be whitened.
 
     Items can be projected into this space by ``np.dot(X, w)``, where w is the
     new frame.
 
-    :param X: 2d array, where the rows index data points and the columns 
+    :param X: 2d array, where the rows index data points and the columns
               coordinates of those points.
     :param n_components: Amount of components to keep.
     :param whiten: Flag that indicates whether the data should have isometric

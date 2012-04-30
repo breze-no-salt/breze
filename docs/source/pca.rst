@@ -1,5 +1,5 @@
-Principal Components Analysis
-=============================
+Principal Component Analysis
+============================
 
 .. automodule:: brummlearn.pca
 
