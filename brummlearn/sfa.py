@@ -18,7 +18,7 @@ def sfa(X, n_components):
 
     The data set has to be whitened.
 
-    Items can be projected into this space by np.dot(X, w), where w is the new
+    Items can be projected into this space by ``np.dot(X, w)``, where w is the new
     data.
 
     :param X: List of 2d arrays, where the first dimension indices time and
