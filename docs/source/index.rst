@@ -9,6 +9,7 @@ Welcome to brummlearn's documentation!
 Contents:
 
 .. toctree::
+   pca
    cca
    sfa
    :maxdepth: 2
