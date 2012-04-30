@@ -10,6 +10,7 @@ Contents:
 
 .. toctree::
    cca
+   sfa
    :maxdepth: 2
 
 
