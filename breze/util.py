@@ -90,7 +90,8 @@ class Model(object):
     def init_exprs(self):
         pass
 
-    def function(self, variables, exprs, mode=None, explicit_pars=False):
+    def function(self, variables, exprs, mode=None, explicit_pars=False,
+                 on_unused_input='raise'):
         """Return a function for the given `exprs` given `variables`.
 
         If `mode` is different to None, the specified mode is used, otherwise
@@ -126,7 +127,8 @@ class Model(object):
         else:
             givens = []
 
-        return theano.function(variables, exprs, givens=givens, mode=mode)
+        return theano.function(variables, exprs, givens=givens, mode=mode,
+                               on_unused_input=on_unused_input)
 
 
 class PrintEverythingMode(theano.Mode):
