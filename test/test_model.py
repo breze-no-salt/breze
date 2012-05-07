@@ -9,7 +9,7 @@ from breze.model.linear import Linear
 from breze.model.neural import MultiLayerPerceptron, TwoLayerPerceptron
 from breze.model.feature import (
     AutoEncoder, ContractiveAutoEncoder, SparseAutoEncoder, SparseFiltering,
-    Rica, DenoisingAutoEncoder)
+    Rica, DenoisingAutoEncoder, RestrictedBoltzmannMachine)
 from breze.model.rim import RIM_LR
 
 from breze.model.sequential import LinearDynamicalSystem
@@ -145,6 +145,17 @@ def test_lds():
     # this makes theano crash.
     # grad = T.grad(nll, l.parameters.flat)
     # fprime(np.random.random((10, 2, 2)))
+
+
+def test_rbm():
+    m = RestrictedBoltzmannMachine(2, 3)
+    m.parameters.data[:] = np.random.random(m.parameters.data.shape)
+
+    for name, expr in m.exprs.items():
+        f = m.function(
+            [m.exprs['inpt'], m.exprs['feature'], m.exprs['n_gibbs_steps']],
+            expr,
+            on_unused_input='ignore')
 
 
 def test_lds_values():
