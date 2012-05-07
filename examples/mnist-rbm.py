@@ -59,7 +59,7 @@ in_bias_update_m1 = 0
 feature_bias_update_m1 = 0
 
 for i in range(10000):
-    print '.'
+    print '.',
     x = args.next()
 
     in_to_feature_step, in_bias_step, feature_bias_step = learn_step(x)
@@ -80,8 +80,5 @@ for i in range(10000):
         W = rbm.parameters['in_to_feature'][:]
         A = tile_raster_images(W.T, (28, 28), (8, 8)).astype('float64')
         pilimage = pil.fromarray(A).convert('RGB')
-        pilimage.save('rbm-mnist-filters-%03i.png' % i)
+        pilimage.save('rbm-mnist-filters-%05i.png' % i)
 
-        A = tile_raster_images(x, (28, 28), (8, 8)).astype('float64')
-        pilimage = pil.fromarray(A).convert('RGB')
-        pilimage.save('rbm-mnist-inpts-%03i.png' % i)
