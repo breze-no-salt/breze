@@ -161,9 +161,12 @@ class WarnNaNMode(theano.Mode):
         def print_eval(i, node, fn):
             fn()
             for i, inpt in enumerate(fn.inputs):
-                if np.isnan(inpt[0]).any():
-                    print 'nan detected in input %i of %s' % (i, node)
-                    import pdb
-                    pdb.set_trace()
+                try:
+                    if np.isnan(inpt[0]).any():
+                        print 'nan detected in input %i of %s' % (i, node)
+                        import pdb
+                        pdb.set_trace()
+                except TypeError:
+                    print 'could not check for NaN in:', inpt
         wrap_linker = theano.gof.WrapLinkerMany([theano.gof.OpWiseCLinker()], [print_eval])
         super(WarnNaNMode, self).__init__(wrap_linker, optimizer='fast_compile')
