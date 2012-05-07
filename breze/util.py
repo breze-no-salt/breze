@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 
+import collections
 import contextlib
 import sys
 import time
@@ -81,6 +82,7 @@ class ParameterSet(object):
 class Model(object):
 
     def __init__(self):
+        self.updates = collections.defaultdict(lambda: {})
         self.init_pars()
         self.init_exprs()
 
@@ -127,8 +129,19 @@ class Model(object):
         else:
             givens = []
 
+        # Build update dictionary.
+        updates = collections.defaultdict(lambda: {})
+        if isinstance(exprs, (list, tuple)):
+            for expr in exprs:
+                # TODO: last takes all, maybe should throw an error.
+                updates.update(self.updates[expr])
+        else:
+            updates.update(self.updates[exprs])
+
+
         return theano.function(variables, exprs, givens=givens, mode=mode,
-                               on_unused_input=on_unused_input)
+                               on_unused_input=on_unused_input,
+                               updates=updates)
 
 
 class PrintEverythingMode(theano.Mode):
