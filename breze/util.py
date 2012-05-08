@@ -92,6 +92,17 @@ class Model(object):
     def init_exprs(self):
         pass
 
+    def __getstate__(self):
+        dct = self.__dict__.copy()
+        dct['updates'] = dict(dct['updates'])
+        return dct
+
+    def __setstate__(self, state):
+        dct = state['updates'] 
+        state['updates'] = collections.defaultdict(lambda: {})
+        state['updates'].update(dct)
+        self.__dict__.update(state)
+
     def function(self, variables, exprs, mode=None, explicit_pars=False,
                  on_unused_input='raise'):
         """Return a function for the given `exprs` given `variables`.
