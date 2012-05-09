@@ -15,8 +15,7 @@ class Linear(Model):
         self.out_transfer = out_transfer
         self.loss = loss
 
-        self.init_pars()
-        self.init_exprs()
+        super(Linear, self).__init__()
 
     def init_pars(self):
         parspec = self.get_parameter_spec(self.n_inpt, self.n_output)
