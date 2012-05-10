@@ -1,0 +1,5 @@
+*.pyc
+breze.egg-info
+*.suo
+mnist.pkl.gz
+rbm-mnist-filters-*.png
