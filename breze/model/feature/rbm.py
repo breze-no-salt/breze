@@ -48,13 +48,14 @@ class RestrictedBoltzmannMachine(Model):
         energy = ((inpt * in_bias.dimshuffle('x', 0)).sum(axis=1)
                   + (feature * feature_bias.dimshuffle('x', 0)).sum(axis=1)
                   + (T.dot(inpt, in_to_feature) * feature).sum(axis=1))
-        import theano.printing
-        energy = theano.printing.Print('energy')(energy)
 
         # Free energy given the visibles.
-        free_energy_given_visibles = T.log((
+        #free_energy_given_visibles = T.log((
+        #    - T.dot(inpt, in_bias)
+        #    - (1 + T.exp(T.dot(inpt, in_to_feature) + feature_bias)).sum(axis=1)))
+        free_energy_given_visibles = (
             - T.dot(inpt, in_bias)
-            - (1 + T.exp(T.dot(inpt, in_to_feature) + feature_bias)).sum(axis=1)))
+            - T.log(1 + T.exp(T.dot(inpt, in_to_feature) + feature_bias)).sum(axis=1))
 
         # Probability of features conditioned on visibles, p(h|v).
         p_feature_given_inpt = (
