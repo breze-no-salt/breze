@@ -12,6 +12,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from math import sqrt
+from math import exp
 from matplotlib import widgets
 import sys
 
@@ -46,9 +47,6 @@ def learn_step(x):
 
     return in_to_feature_step / n, in_bias_step, feature_bias_step
 
-# initialize parameters
-rbm.parameters.data[:] = np.random.normal(0, 1E-2, rbm.parameters.data.shape)
-
 # initialize plot
 res = 0.05
 xgrid, ygrid = np.meshgrid(np.arange(0, 1, res), np.arange(0, 1, res))
@@ -60,8 +58,17 @@ ax = plt.axes()
 # training points
 training = [ ]
 
+def init_params():
+    global rbm, past_iterations
+
+    rbm.parameters.data[:] = np.random.normal(0, 1E-2, rbm.parameters.data.shape)
+    past_iterations = 0
+
 def train(tdata, iterations):
-    global rbm
+    global rbm, past_iterations
+
+    if len(tdata) == 0:
+        return
 
     in_to_feature_update_m1 = 0
     in_bias_update_m1 = 0
@@ -82,6 +89,8 @@ def train(tdata, iterations):
         in_to_feature_update_m1 = in_to_feature_update
         in_bias_update_m1 = in_bias_update
         feature_bias_update_m1 = feature_bias_update
+
+        past_iterations += 1
     
 h_free_energy = None
 def plot_free_energy():
@@ -92,12 +101,14 @@ def plot_free_energy():
         h_free_energy.remove()
 
     p = np.array([px, py]).T
-    fe = f_free_energy(p)
+    #fe = f_free_energy(p)
+    fe = np.exp(f_free_energy(p))
     fegrid = fe.reshape(xgrid.shape)
     #fegrid = ygrid
 
     h_free_energy = plt.imshow(fegrid, cmap=cm.gray, origin='lower', extent=(0,1,0,1))
     #plt.colorbar()
+    plt.title('%d iterations' % past_iterations)
     plt.draw()
 
 h_training_points = None
@@ -112,6 +123,7 @@ def plot_training_points():
                                  'rx')
     plt.draw()
 
+# event handlers
 def ax_onclick(event):
     global training
     if event.inaxes == ax:
@@ -122,18 +134,34 @@ def ax_onclick(event):
                                                     (t[1]-event.ydata)**2) > 0.02]                                    
         plot_training_points()
 
-
-# add training button
 def b_train_onclick(event):
     train(np.array(training), 1000)
     plot_free_energy()
-    pass
 
+def b_clear_trainingset_onclick(event):
+    global training
+    training = [ ]
+    plot_training_points()
+
+def b_reset_rbm_onclick(event):
+    init_params()
+    plot_free_energy()
+
+# register events
 cid = fig.canvas.mpl_connect('button_press_event', ax_onclick)
-ax_train = plt.axes([0.9, 0.0, 0.1, 0.075])
+ax_train = plt.axes([0.9, 0.0, 0.1, 0.1])
 b_train = widgets.Button(ax_train, 'Train')
 b_train.on_clicked(b_train_onclick)
+ax_clear_trainingset = plt.axes([0.9, 0.1, 0.1, 0.1])
+b_clear_trainingset = widgets.Button(ax_clear_trainingset, 'Clear ts.')
+b_clear_trainingset.on_clicked(b_clear_trainingset_onclick)
+ax_reset_rbm = plt.axes([0.9, 0.2, 0.1, 0.1])
+b_reset_rbm = widgets.Button(ax_reset_rbm, 'Reset RBM')
+b_reset_rbm.on_clicked(b_reset_rbm_onclick)
 
+# initial plot
+init_params()
 plot_free_energy()
+
 plt.show()
 
