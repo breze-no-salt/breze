@@ -47,6 +47,10 @@ def learn_step(x):
 
     return in_to_feature_step / n, in_bias_step, feature_bias_step
 
+def sample_from_rbm(start, steps):
+    _, recons = f_sample(start, steps)
+    return recons
+
 # initialize plot
 res = 0.05
 xgrid, ygrid = np.meshgrid(np.arange(0, 1, res), np.arange(0, 1, res))
@@ -57,6 +61,7 @@ ax = plt.axes()
 
 # training points
 training = [ ]
+sample_point = (0, 0)
 
 def init_params():
     global rbm, past_iterations
@@ -69,6 +74,7 @@ def train(tdata, iterations):
 
     if len(tdata) == 0:
         return
+    print tdata
 
     in_to_feature_update_m1 = 0
     in_bias_update_m1 = 0
@@ -117,21 +123,27 @@ def plot_training_points():
 
     plt.axes(ax)
     if h_training_points != None:
-        h_training_points.pop(0).remove()
+        while len(h_training_points) > 0:
+            h_training_points.pop(0).remove()
     h_training_points = plt.plot([t[0] for t in training], 
                                  [t[1] for t in training],
-                                 'rx')
+                                 'rx',
+                                 sample_point[0],
+                                 sample_point[1],
+                                 'bx')
     plt.draw()
 
 # event handlers
 def ax_onclick(event):
-    global training
+    global training, sample_point
     if event.inaxes == ax:
         if event.button == 1:
             training.append((event.xdata, event.ydata))
         elif event.button == 3:
             training = [t for t in training if sqrt((t[0]-event.xdata)**2 +
-                                                    (t[1]-event.ydata)**2) > 0.02]                                    
+                                                    (t[1]-event.ydata)**2) > 0.02]
+        elif event.button == 2:
+            sample_point = (event.xdata, event.ydata)                                    
         plot_training_points()
 
 def b_train_onclick(event):
@@ -147,6 +159,12 @@ def b_reset_rbm_onclick(event):
     init_params()
     plot_free_energy()
 
+def b_sample_onclick(event):
+    global sample_point
+    s = sample_from_rbm(np.array([np.array(sample_point)]), 1)
+    sample_point = (s[0,0], s[0,1])
+    plot_training_points()
+
 # register events
 cid = fig.canvas.mpl_connect('button_press_event', ax_onclick)
 ax_train = plt.axes([0.9, 0.0, 0.1, 0.1])
@@ -158,6 +176,9 @@ b_clear_trainingset.on_clicked(b_clear_trainingset_onclick)
 ax_reset_rbm = plt.axes([0.9, 0.2, 0.1, 0.1])
 b_reset_rbm = widgets.Button(ax_reset_rbm, 'Reset RBM')
 b_reset_rbm.on_clicked(b_reset_rbm_onclick)
+ax_sample = plt.axes([0.9, 0.3, 0.1, 0.1])
+b_sample = widgets.Button(ax_sample, 'Sample')
+b_sample.on_clicked(b_sample_onclick)
 
 # initial plot
 init_params()
