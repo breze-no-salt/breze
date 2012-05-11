@@ -113,6 +113,7 @@ class rbm_plot:
         self.h_free_energy = None
         self.h_colorbar = None
         self.h_training_points = None
+        self.h_hexbin = None
         self.plot_free_energy()
 
         # register events
@@ -133,6 +134,10 @@ class rbm_plot:
         ax_sample = plt.axes([0.9, 0.3, 0.1, 0.1])
         self.b_sample = widgets.Button(ax_sample, 'Sample')
         self.b_sample.on_clicked(self.b_sample_onclick)
+
+        ax_histogram = plt.axes([0.9, 0.4, 0.1, 0.1])
+        self.b_histogram = widgets.Button(ax_histogram, 'Histrogram')
+        self.b_histogram.on_clicked(self.b_histogram_onclick)
 
     def show(self):
         plt.show()
@@ -174,6 +179,30 @@ class rbm_plot:
                                           'bx')
         plt.draw()
 
+    def plot_sampling_histogram(self):
+        plt.axes(self.ax)
+
+        if self.h_hexbin != None:
+            self.h_hexbin.remove()
+            self.h_hexbin = None
+            return
+
+        batch_size = 100
+        interval = 10
+        iterations = 100
+
+        x = np.array([])
+        y = np.array([])
+        batch = np.zeros((batch_size, 2))
+        for i in range(iterations):
+            sys.stdout.write('.')
+            batch = self.model.sample(batch, interval)
+            x = np.append(x, batch[:,0])
+            y = np.append(y, batch[:,1])
+
+        self.h_hexbin = plt.hexbin(x, y, 
+                                   cmap=cm.gray, extent=(0,1,0,1))
+
     # event handlers
     def ax_onclick(self, event):
         if event.inaxes == self.ax:
@@ -203,6 +232,8 @@ class rbm_plot:
         self.sample_point = (s[0,0], s[0,1])
         self.plot_points()
 
+    def b_histogram_onclick(self, event):
+        self.plot_sampling_histogram()
 
 
 # main
