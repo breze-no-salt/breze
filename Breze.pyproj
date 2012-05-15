@@ -30,6 +30,7 @@
     <Compile Include="breze\component\transfer.py" />
     <Compile Include="breze\component\__init__.py" />
     <Compile Include="breze\model\feature\autoencoder.py" />
+    <Compile Include="breze\model\feature\mvrbm.py" />
     <Compile Include="breze\model\feature\rbm.py" />
     <Compile Include="breze\model\feature\rica.py" />
     <Compile Include="breze\model\feature\sparsefiltering.py" />
@@ -48,6 +49,7 @@
     <Compile Include="examples\mnist-nn.py" />
     <Compile Include="examples\mnist-rbm.py" />
     <Compile Include="examples\mnist-stack.py" />
+    <Compile Include="examples\mv-rdbn.py" />
     <Compile Include="examples\utils.py" />
     <Compile Include="examples\visual-rbm.py" />
     <Compile Include="examples\xor.py" />
