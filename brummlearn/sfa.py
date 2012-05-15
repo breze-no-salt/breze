@@ -31,5 +31,4 @@ def sfa(X, n_components):
     u, s, v = scipy.linalg.svd(cov, full_matrices=False)
     u = u[:, -n_components:][:, ::-1]
     s = s[-n_components:][::-1]
-    w = np.dot(u, np.diag(1. / np.sqrt(s)))
-    return w
+    return u
