@@ -69,6 +69,36 @@ class MultiViewRestrictedBoltzmannMachine(Model):
                    x_to_common_feature, y_to_common_feature,
                    n_gs_learn, n_gs_infer, 
                    xy_dist, feature_dist, srng):
+        pass
+
+    def mwh(f_vis, bias_vis, lp_vis, 
+            f_phid, bias_phid, lp_phid, weights_priv,
+            f_shid, fac_shid, lp_shid):
+
+        # f_vis[view][statistic]
+        # f_phid[view][statistic]
+        # bias_vis[view][node, statistic]
+        # bias_phid[view][node, statistic]
+        # weights_priv[view][to_node, to_statistic, from_node, from_statistic]
+        # weights_comm[view][to_node, to_statistic, from_node, from_statistic]
+        
+        n_views = len(f_vis)
+        assert len(fac_vis) == n_views
+        assert len(lp_vis) == n_views
+
+        for view in range(n_views):
+            for statistic in range(n_statistics):
+                fac_vis[view][statistic] = bias_vis[i][:, statistic]
+                for from_statistic in range(n_statistics):
+                    fac_vis[view][statistic] += \
+                        T.dot(weights_priv[view][:, statistic, :, from_statistic],
+                              f_phid[view][from_statistic])
+
+        p_vis[i] = (f_vis[i] * fac_vis[i]).sum(axis=1) - lp_vis[i]
+
+
+
+
 
         def p(q, val, dist):
             if dist == 'bernoulli':
