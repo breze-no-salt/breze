@@ -78,45 +78,71 @@ class MultiViewRestrictedBoltzmannMachine(Model):
         # f_vis[view][statistic]
         # f_phid[view][statistic]
         # f_shid[statistic]
+        # fac_vis[view][node, statistic]
+        # fac_phid[view][node, statistic]
+        # fac_shid[node, statistic]
+        # lp_vis[view](fac[node, statistic]) -> lp_vis[node]
+        # lp_phid[view](fac[node, statistic]) -> lp_phid[node]
+        # lp_shid(fac[node, statistic]) -> lp_shid[node]
         # bias_vis[view][node, statistic]
         # bias_phid[view][node, statistic]
         # bias_shid[node, statistic]
         # weights_priv[view][to_node, to_statistic, from_node, from_statistic]
         # weights_shrd[view][to_node, to_statistic, from_node, from_statistic]
-        # fac_vis[view][node, statistic]
-        # fac_phid[view][node, statistic]
-        # fac_shid[node, statistic]
+        # p_vis[view][node]
+        # p_phid[view][node]
+        # p_shid[node]
+        # sample_vis[view](fac[node, statistic]) -> sample_vis[node]
+        # sample_phid[view](fac[node, statistic]) -> sample_phid[node]
+        # sample_shid(fac[node, statistic]) -> sample_shid[node]
 
         n_views = len(f_vis)
-        assert len(fac_vis) == n_views
-        assert len(lp_vis) == n_views
+        assert len(f_phid) == n_views
+        assert len(bias_vis) == n_views
+        assert len(bias_phid) == n_views
+        assert len(weights_priv) == n_views
+        assert len(weights_shrd) == n_views
 
-        for statistic in range(n_statistics):
+        n_vis_statistics = [len(f) for f in f_vis]
+        n_phid_statistics = [len(f) for f in f_phid]
+        n_shid_statistics = len(f_shid)
+
+        # calculate probability of shared hidden units
+        fac_shid = np.zeros(bias_shid.shape)
+        for statistic in range(n_shid_statistics):
             fac_shid[:, statistic] = bias_shid[:, statistic]
+            for from_view in range(n_views):
+                for from_statistic in range(n_vis_statistics[from_view]):
+                    fac_shid[statistic] += T.dot(weights_shrd[from_view][:, statistic, :, from_statistic].T,
+                                                 f_vis[from_view][from_statistic])
+        p_shid = (fac_shid * f_shid).sum(axis=1) - lp_shid(fac_shid)
 
-            for view in range(n_views):
-                fac_vis[view][:, statistic] = bias_vis[view][:, statistic]
+        # calculate probability of private hidden units
+        fac_phid = [np.zeros(b.shape) for b in bias_phid]
+        for view in range(n_views):      
+            for statistic in range(n_phid_statistics[view]):
                 fac_phid[view][:, statistic] = bias_phid[view][:, statistic]
+                for from_statistic in range(n_vis_statistics[view]):
+                    fac_phid[view][statistic] += T.dot(weights_priv[view][:, statistic, :, from_statistic].T,
+                                                       f_vis[view][from_statistic])
+            p_phid[view] = (fac_phid[view] * f_phid[view]).sum(axis=1) - lp_phid[view](fac_phid[view])
 
-                for from_statistic in range(n_statistics):
-                    fac_vis[view][statistic] += \
-                        T.dot(weights_priv[view][:, statistic, :, from_statistic],
-                                f_phid[view][from_statistic])
-                    fac_vis[view][statistic] += \
-                        T.dot(weights_shrd[view][:, statistic, :, from_statistic],
-                                f_shid[from_statistic])
-
-                    fac_phid[view][statistic] += \
-                        T.dot(weights_priv[view][:, statistic, :, from_statistic].T,
-                              f_vis[view][from_statistic])
-
-                    fac_shid[statistic] += \
-                        T.dot(weights_shrd[view][:, statistic, :, from_statistic].T,
-                              f_vis[view][from_statistic])
+        # calculate probability of visible units
+        fac_vis = [np.zeros(b.shape) for b in bias_vis]
+        for view in range(n_views):      
+            for statistic in range(n_vis_statistics[view]):
+                fac_vis[view][:, statistic] = bias_vis[view][:, statistic]
+                for from_statistic in range(n_phid_statistics[view]):
+                    fac_vis[view][statistic] += T.dot(weights_priv[view][:, statistic, :, from_statistic],
+                                                      f_phid[view][from_statistic])
+                for from_statistic in range(n_shid_statistics):
+                    fac_vis[view][statistic] += T.dot(weights_shrd[view][:, statistic, :, from_statistic],
+                                                      f_shid[from_statistic])
+            p_vis[view] = (fac_vis[view] * f_vis[view]).sum(axis=1) - lp_vis[view](fac_vis[view])
 
 
 
-        p_vis[i] = (f_vis[i] * fac_vis[i]).sum(axis=1) - lp_vis[i]
+                    
 
 
 
