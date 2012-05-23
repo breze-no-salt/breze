@@ -63,6 +63,18 @@ class MultiViewHarmoniumModel:
         assert len(self.weights_priv) == n_views
         assert len(self.weights_shrd) == n_views
 
+    def n_views(self):
+        return len(self.f_vis)
+
+    def n_vis_statistics(self):
+        return [len(f) for f in self.f_vis]
+
+    def n_phid_statistics(self):
+        return [len(f) for f in self.f_phid]
+
+    def n_shid_statistics(self):
+        return len(self.f_shid)
+
     def fac_shid(self, x_vis):
         # calculate factor of shared hidden units
         # fac_shid[node, statistic]
@@ -186,33 +198,64 @@ class MultiViewHarmoniumModel:
 class MultiViewHarmonium(Model):
 
     def __init__(self, n_views, n_vis, n_phid, n_shid, 
-                 n_x, n_y, n_x_feature, n_y_feature, n_common_feature,
-                 inpt_dist='bernoulli', seed=1010):
-        self.n_x = n_x
-        self.n_y = n_y
-        self.n_x_feature = n_x_feature
-        self.n_y_feature = n_y_feature
-        self.n_common_feature = n_common_feature
-        self.inpt_dist = inpt_dist
-        # TODO check if it is a good idea to have it here; side effects?
+                 n_vis_statistics, n_phid_statistics, n_shid_statistics,
+                 f_vis, f_phid, f_shid,
+                 lp_vis, lp_phid, lp_shid,
+                 sampler_vis, sampler_phid, sampler_shid,
+                 seed=1010):
+        self.n_views = n_views
+        self.n_vis = n_vis
+        self.n_phid = n_phid
+        self.n_shid = n_shid
+        self.n_vis_statistics = n_vis_statistics
+        self.n_phid_statistics = n_phid_statistics
+        self.n_shid_statistics = n_shid_statistics
+
+        self.model = MultiViewHarmoniumModel(n_views)
+        self.model.f_vis = f_vis
+        self.model.f_phid = f_phid
+        self.model.f_shid = f_shid
+        self.model.lp_vis = lp_vis
+        self.model.lp_phid = lp_phid
+        self.model.lp_shid = lp_shid
+        self.model.sampler_vis = sampler_vis
+        self.model.sampler_phid = sampler_phid
+        self.model.sampler_shid = sampler_shid
+
         self.srng = RandomStreams(seed=seed)
 
         super(MultiViewHarmonium, self).__init__()
 
-    def init_pars(self):
-        parspec = self.get_parameter_spec(self.n_x, self.n_y, 
-                                          self.n_x_feature, self.n_y_feature,
-                                          self.n_common_feature)
+    def init_pars(self):       
+        parspec = self.get_parameter_spec(self.n_views,
+                                          self.n_vis, self.n_phid, self.n_shid,
+                                          self.n_vis_statistics, 
+                                          self.n_phid_statistics, 
+                                          self.n_shid_statistics)
         self.parameters = ParameterSet(**parspec)
 
+    @staticmethod
+    def get_parameter_spec(n_views,
+                           n_vis, n_phid, n_shid,
+                           n_vis_statistics, n_phid_statistics, n_shid_statistics):
+        ps = {'bias_shid': (n_shid, n_shid_statistics)}
+        for view in range(n_views):
+            ps['bias_vis[' + view + ']'] = (n_vis[view], n_vis_statistics[view])
+            ps['bias_phid[' + view + ']'] = (n_phid[view], n_phid_statistics[view])
+            ps['weights_priv[' + view + ']'] = (n_phid[view], n_phid_statistics[view],
+                                                n_vis[view], n_vis_statistics[view])
+            ps['weights_shrd[' + view + ']'] = (n_shid, n_shid_statistics,
+                                                n_vis[view], n_vis_statistics[view])
+        return ps
+
     def init_exprs(self):
-        x = T.matrix('x')
-        y = T.matrix('y')
-        x_feature = T.matrix('x_feature')
-        y_feature = T.matrix('y_feature')
-        common_feature = T.matrix('common_feature')
-        n_gs_learn = T.iscalar()
-        n_gs_infer = T.iscalar()
+        x_vis = [T.matrix('x_vis[' + view + ']') for view in range(self.n_views)]
+        x_phid = [T.matrix('x_phid[' + view + ']') for view in range(self.n_views)]
+        x_shid = T.matrix('x_shid')
+
+        n_gs_learn = T.iscalar('n_gs_learn')
+        n_gs_infer = T.iscalar('n_gs_infer')
+
         self.exprs, self.updates = self.make_exprs(
             x, y, x_feature, y_feature, common_feature,
             self.parameters.x_bias, self.parameters.y_bias,
@@ -222,17 +265,6 @@ class MultiViewHarmonium(Model):
             self.parameters.x_to_common_feature, self.parameters.y_to_common_feature,
             n_gs_learn, n_gs_infer, self.srng)
 
-    @staticmethod
-    def get_parameter_spec(n_x, n_y, n_x_feature, n_y_feature, n_common_feature):
-        return {'x_bias': n_x,
-                'y_bias': n_y,
-                'x_feature_bias': n_x_feature,
-                'y_feature_bias': n_y_feature,
-                'common_feature_bias': n_common_feature,
-                'x_to_x_feature': (n_x, n_x_feature),
-                'y_to_y_feature': (n_y, n_y_feature),
-                'x_to_common_feature': (n_x, n_common_feature),
-                'y_to_common_feature': (n_y, n_common_feature)}
 
     @staticmethod
     def make_exprs(x, y, x_feature, y_feature, common_feature, 
