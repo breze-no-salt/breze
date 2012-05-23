@@ -11,9 +11,182 @@ from ...util import ParameterSet, Model, lookup
 from ...component import transfer, distance, norm
 
 
-class MultiViewRestrictedBoltzmannMachine(Model):
+class MultiViewHarmoniumModel:
 
-    def __init__(self, n_x, n_y, n_x_feature, n_y_feature, n_common_feature,
+    # Model hyperparameters:
+    # f_vis[view](x_vis[node]) -> fv_vis[node, statistic]
+    # f_phid[view](x_phid[node]) -> fv_phid[node, statistic]
+    # f_shid(x_shid[node]) -> fv_shid[node, statistic]
+    # lp_vis[view](fac[node, statistic]) -> lp_vis[node]
+    # lp_phid[view](fac[node, statistic]) -> lp_phid[node]
+    # lp_shid(fac[node, statistic]) -> lp_shid[node]
+    # sampler_vis[view](fac[node, statistic]) -> sample_vis[node]
+    # sampler_phid[view](fac[node, statistic]) -> sample_phid[node]
+    # sampler_shid(fac[node, statistic]) -> sample_shid[node]
+
+    # Model parameters:
+    # bias_vis[view][node, statistic]
+    # bias_phid[view][node, statistic]
+    # bias_shid[node, statistic]
+    # weights_priv[view][to_node, to_statistic, from_node, from_statistic]
+    # weights_shrd[view][to_node, to_statistic, from_node, from_statistic]
+
+    # Inputs:
+    # x_vis[view][node]
+    # x_phid[view][node]
+    # x_shid[node]
+
+    def __init__(self, n_views):
+        # Hyperparameters
+        self.f_vis = [None for _ in range(n_views)]
+        self.f_phid = [None for _ in range(n_views)]
+        self.f_shid = None
+        self.lp_vis = [None for _ in range(n_views)]
+        self.lp_phid = [None for _ in range(n_views)]
+        self.lp_shid = None
+        self.sampler_vis = [None for _ in range(n_views)]
+        self.sampler_phid = [None for _ in range(n_views)]
+        self.sampler_shid = None
+
+        # Parameters
+        self.bias_vis = [None for _ in range(n_views)]
+        self.bias_phid = [None for _ in range(n_views)]
+        self.bias_shid = None
+        self.weights_priv = [None for _ in range(n_views)]
+        self.weights_shrd = [None for _ in range(n_views)]
+
+    def check_dimensions(self):
+        n_views = len(self.f_vis)
+        assert len(self.f_phid) == n_views
+        assert len(self.bias_vis) == n_views
+        assert len(self.bias_phid) == n_views
+        assert len(self.weights_priv) == n_views
+        assert len(self.weights_shrd) == n_views
+
+    def fac_shid(self, x_vis):
+        # calculate factor of shared hidden units
+        # fac_shid[node, statistic]
+        n_shid_statistics = len(self.f_shid)
+
+        facv_shid = np.zeros(self.bias_shid.shape)
+        for statistic in range(n_shid_statistics):
+            facv_shid[:, statistic] = self.bias_shid[:, statistic]
+            for from_view in range(n_views):
+                fv_vis = self.f_vis[from_view](x_vis[from_view])
+                for from_statistic in range(n_vis_statistics[from_view]):
+                    facv_shid[statistic] += T.dot(self.weights_shrd[from_view][:, statistic, :, from_statistic].T,
+                                                    fv_vis[:, from_statistic])
+        return facv_shid
+            
+    def p_shid(self, x_shid, x_vis):
+        """Probability p_shid[node] of shared hidden units having values 
+            x_shid[node] given that visible units have values 
+            x_vis[view][node]"""
+        # p_shid[node]
+        fv_shid = self.f_shid(x_shid)
+        facv_shid = self.fac_shid(x_vis)
+        lpv_shid = self.lp_shid(facv_shid)
+        return (facv_shid * fv_shid).sum(axis=1) - lpv_shid
+
+    def sample_shid(self, x_vis):
+        """Sample shared hidden units x_shid[node] given that visible units 
+            have values x_vis[view][node]"""
+        facv_shid = self.fac_shid(x_vis)
+        return self.sampler_shid(facv_shid)
+
+    def fac_phid(self, x_vis):
+        # calculate probability of private hidden units
+        # fac_phid[view][node, statistic]
+        n_views = len(self.f_phid)
+        n_vis_statistics = [len(f) for f in self.f_vis]
+        n_phid_statistics = [len(f) for f in self.f_phid]
+
+        facv_phid = [np.zeros(b.shape) for b in self.bias_phid]
+        for view in range(n_views):      
+            fv_vis = self.f_vis[view](x_vis[view])
+            for statistic in range(n_phid_statistics[view]):
+                facv_phid[view][:, statistic] = self.bias_phid[view][:, statistic]
+                for from_statistic in range(n_vis_statistics[view]):
+                    facv_phid[view][statistic] += T.dot(self.weights_priv[view][:, statistic, :, from_statistic].T,
+                                                        fv_vis[:, from_statistic])
+        return facv_phid
+
+    def p_phid(self, x_phid, x_vis):
+        """Probability p_phid[view][node] of private hidden units having 
+            values x_phid[view][node] given that visible units have values 
+            x_vis[view][node]"""
+        n_views = len(self.f_phid)
+        facv_phid = self.fac_phid(x_vis)
+        pv_phid = []
+        for view in range(n_views):
+            fv_phid = self.f_phid[view](x_phid[view])
+            lpv_phid = self.lp_phid[view](facv_phid[view])
+            pv_phid.append((facv_phid[view] * fv_phid).sum(axis=1) - lpv_phid)
+        return pv_phid
+
+    def sample_phid(self, x_vis):
+        """Sample private hidden units x_phid[view][node] given that 
+            visible units have values x_vis[view][node]"""
+        n_views = len(self.f_phid)
+        facv_phid = self.fac_phid(x_vis)
+        samplev_phid = []
+        for view in range(n_views):
+            samplev_phid.append(self.sampler_phid[view](facv_phid[view]))
+        return samplev_phid
+
+    def fac_vis(self, x_phid, x_shid):
+        # calculate probability of visible units
+        # fac_vis[view][node, statistic]
+        n_views = len(self.f_phid)
+        n_vis_statistics = [len(f) for f in self.f_vis]
+        n_phid_statistics = [len(f) for f in self.f_phid]
+        n_shid_statistics = len(self.f_shid)
+
+        fv_shid = self.f_shid(x_shid)
+        facv_vis = [np.zeros(b.shape) for b in self.bias_vis]
+        for view in range(n_views):      
+            fv_phid = self.f_phid[view](x_phid[view])
+            for statistic in range(n_vis_statistics[view]):
+                facv_vis[view][:, statistic] = self.bias_vis[view][:, statistic]
+                for from_statistic in range(n_phid_statistics[view]):
+                    facv_vis[view][statistic] += T.dot(weights_priv[view][:, statistic, :, from_statistic],
+                                                        fv_phid[:, from_statistic])
+                for from_statistic in range(n_shid_statistics):
+                    facv_vis[view][statistic] += T.dot(weights_shrd[view][:, statistic, :, from_statistic],
+                                                        fv_shid[:, from_statistic])
+        return facv_vis
+
+    def p_vis(self, x_vis, x_phid, x_shid):
+        """Probability p_vis[view][node] of visible units having values 
+            x_vis[view][node] given that private hidden units have values 
+            x_phid[view][node] and shared hidden units have values 
+            x_shid[node]"""
+        n_views = len(self.f_vis)
+        facv_vis = self.fac_vis(x_phid, x_shid)
+        pv_vis = []
+        for view in range(n_views):
+            fv_vis = self.f_vis[view](x_vis[view])
+            lpv_vis = self.lp_vis[view](facv_vis[view])
+            pv_vis.append((facv_vis[view] * fv_vis).sum(axis=1) - lpv_vis)
+        return pv_vis
+
+    def sample_vis(self, x_phid, x_shid):
+        """Sample visible units x_vis[view][node] given that private 
+            hidden units have values x_phid[view][node] and shared hidden 
+            units have values x_shid[node]"""
+        n_views = len(self.f_phid)
+        facv_vis = self.fac_vis(x_phid, x_shid)
+        samplev_vis = []
+        for view in range(n_views):
+            samplev_vis.append(self.sampler_vis[view](facv_vis[view]))
+        return samplev_vis
+
+
+
+class MultiViewHarmonium(Model):
+
+    def __init__(self, n_views, n_vis, n_phid, n_shid, 
+                 n_x, n_y, n_x_feature, n_y_feature, n_common_feature,
                  inpt_dist='bernoulli', seed=1010):
         self.n_x = n_x
         self.n_y = n_y
@@ -24,7 +197,7 @@ class MultiViewRestrictedBoltzmannMachine(Model):
         # TODO check if it is a good idea to have it here; side effects?
         self.srng = RandomStreams(seed=seed)
 
-        super(MultiViewRestrictedBoltzmannMachine, self).__init__()
+        super(MultiViewHarmonium, self).__init__()
 
     def init_pars(self):
         parspec = self.get_parameter_spec(self.n_x, self.n_y, 
@@ -71,78 +244,6 @@ class MultiViewRestrictedBoltzmannMachine(Model):
                    xy_dist, feature_dist, srng):
         pass
 
-    def mwh(f_vis, bias_vis, lp_vis, 
-            f_phid, bias_phid, lp_phid, weights_priv,
-            f_shid, fac_shid, lp_shid):
-
-        # f_vis[view][statistic]
-        # f_phid[view][statistic]
-        # f_shid[statistic]
-        # fac_vis[view][node, statistic]
-        # fac_phid[view][node, statistic]
-        # fac_shid[node, statistic]
-        # lp_vis[view](fac[node, statistic]) -> lp_vis[node]
-        # lp_phid[view](fac[node, statistic]) -> lp_phid[node]
-        # lp_shid(fac[node, statistic]) -> lp_shid[node]
-        # bias_vis[view][node, statistic]
-        # bias_phid[view][node, statistic]
-        # bias_shid[node, statistic]
-        # weights_priv[view][to_node, to_statistic, from_node, from_statistic]
-        # weights_shrd[view][to_node, to_statistic, from_node, from_statistic]
-        # p_vis[view][node]
-        # p_phid[view][node]
-        # p_shid[node]
-        # sample_vis[view](fac[node, statistic]) -> sample_vis[node]
-        # sample_phid[view](fac[node, statistic]) -> sample_phid[node]
-        # sample_shid(fac[node, statistic]) -> sample_shid[node]
-
-        n_views = len(f_vis)
-        assert len(f_phid) == n_views
-        assert len(bias_vis) == n_views
-        assert len(bias_phid) == n_views
-        assert len(weights_priv) == n_views
-        assert len(weights_shrd) == n_views
-
-        n_vis_statistics = [len(f) for f in f_vis]
-        n_phid_statistics = [len(f) for f in f_phid]
-        n_shid_statistics = len(f_shid)
-
-        # calculate probability of shared hidden units
-        fac_shid = np.zeros(bias_shid.shape)
-        for statistic in range(n_shid_statistics):
-            fac_shid[:, statistic] = bias_shid[:, statistic]
-            for from_view in range(n_views):
-                for from_statistic in range(n_vis_statistics[from_view]):
-                    fac_shid[statistic] += T.dot(weights_shrd[from_view][:, statistic, :, from_statistic].T,
-                                                 f_vis[from_view][from_statistic])
-        p_shid = (fac_shid * f_shid).sum(axis=1) - lp_shid(fac_shid)
-
-        # calculate probability of private hidden units
-        fac_phid = [np.zeros(b.shape) for b in bias_phid]
-        for view in range(n_views):      
-            for statistic in range(n_phid_statistics[view]):
-                fac_phid[view][:, statistic] = bias_phid[view][:, statistic]
-                for from_statistic in range(n_vis_statistics[view]):
-                    fac_phid[view][statistic] += T.dot(weights_priv[view][:, statistic, :, from_statistic].T,
-                                                       f_vis[view][from_statistic])
-            p_phid[view] = (fac_phid[view] * f_phid[view]).sum(axis=1) - lp_phid[view](fac_phid[view])
-
-        # calculate probability of visible units
-        fac_vis = [np.zeros(b.shape) for b in bias_vis]
-        for view in range(n_views):      
-            for statistic in range(n_vis_statistics[view]):
-                fac_vis[view][:, statistic] = bias_vis[view][:, statistic]
-                for from_statistic in range(n_phid_statistics[view]):
-                    fac_vis[view][statistic] += T.dot(weights_priv[view][:, statistic, :, from_statistic],
-                                                      f_phid[view][from_statistic])
-                for from_statistic in range(n_shid_statistics):
-                    fac_vis[view][statistic] += T.dot(weights_shrd[view][:, statistic, :, from_statistic],
-                                                      f_shid[from_statistic])
-            p_vis[view] = (fac_vis[view] * f_vis[view]).sum(axis=1) - lp_vis[view](fac_vis[view])
-
-
-
-                    
 
 
 
