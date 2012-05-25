@@ -12,20 +12,55 @@ from ...util import ParameterSet, Model, lookup
 from ...component import transfer, distance, norm
 
 
+class BernoulliLayer:
+
+    def __init__(self, seed=1010):
+        self.srng = RandomStreams(seed=seed)
+
+    @property
+    def n_statistics(self):
+        return 1
+
+    def f(self, x):
+        # x[node, sample] -> f[node, sample, statistic]
+        fv = np.zeros((x.shape[0], x.shape[0], 1))
+        fv[:, :, 0] = x
+        return fv
+
+    def lp(self, fac):
+        # fac[node, sample, statistic] -> lpv[node, sample]
+        return T.log(1 + fac[:, :, 0])
+
+    def dlp(self, fac):
+        # fac[node, sample, statistic] -> dlp[node, sample, statistic]
+        pass
+
+    def sampler(self, fac):
+        # fac[node, sample, statistic] -> sample[node, sample]
+        p = transfer.sigmoid(fac[:, :, 0])
+        return self.srng.binomial(size=p.shape, n=1, p=p, 
+                                  dtype=theano.config.floatX)
+
+
+
 class MultiViewHarmoniumModel:
 
     # Model hyperparameters:
-    # f_vis[view](x_vis[node, sample]) -> fv_vis[node, sample, statistic]
-    # f_phid[view](x_phid[node, sample]) -> fv_phid[node, sample, statistic]
-    # f_shid(x_shid[node, sample]) -> fv_shid[node, sample, statistic]
-    # lp_vis[view](fac[node, sample, statistic]) -> lpv_vis[node, sample]
-    # lp_phid[view](fac[node, sample, statistic]) -> lpv_phid[node, sample]
-    # lp_shid(fac[node, sample, statistic]) -> lpv_shid[node, sample]
-    # dlp_phid[view](fac[node, sample, statistic]) -> dlpv_phid[node, sample, statistic]
-    # dlp_shid(fac[node, sample, statistic]) -> dlpv_shid[node, sample, statistic]
-    # sampler_vis[view](fac[node, sample, statistic]) -> sample_vis[node, sample]
-    # sampler_phid[view](fac[node, sample, statistic]) -> sample_phid[node, sample]
-    # sampler_shid(fac[node, sample, statistic]) -> sample_shid[node, sample]
+    #
+    # vis[view].f(x_vis[node, sample]) -> fv_vis[node, sample, statistic]
+    # phid[view].f(x_phid[node, sample]) -> fv_phid[node, sample, statistic]
+    # shid.f(x_shid[node, sample]) -> fv_shid[node, sample, statistic]
+    #
+    # vis[view].lp(fac[node, sample, statistic]) -> lpv_vis[node, sample]
+    # phid[view].lp(fac[node, sample, statistic]) -> lpv_phid[node, sample]
+    # shid.lp(fac[node, sample, statistic]) -> lpv_shid[node, sample]
+    #
+    # phid[view].dlp(fac[node, sample, statistic]) -> dlpv_phid[node, sample, statistic]
+    # shid.dlp(fac[node, sample, statistic]) -> dlpv_shid[node, sample, statistic]
+    #
+    # vis[view].sampler(fac[node, sample, statistic]) -> sample_vis[node, sample]
+    # phid[view].sampler(fac[node, sample, statistic]) -> sample_phid[node, sample]
+    # shid.sampler(fac[node, sample, statistic]) -> sample_shid[node, sample]
 
     # Model parameters:
     # bias_vis[view][node, statistic]
@@ -41,17 +76,9 @@ class MultiViewHarmoniumModel:
 
     def __init__(self, n_views):
         # Hyperparameters
-        self.f_vis = [None for _ in range(n_views)]
-        self.f_phid = [None for _ in range(n_views)]
-        self.f_shid = None
-        self.lp_vis = [None for _ in range(n_views)]
-        self.lp_phid = [None for _ in range(n_views)]
-        self.lp_shid = None
-        self.dlp_phid = [None for _ in range(n_views)]
-        self.dlp_shid = None
-        self.sampler_vis = [None for _ in range(n_views)]
-        self.sampler_phid = [None for _ in range(n_views)]
-        self.sampler_shid = None
+        self.vis = [None for _ in range(n_views)]
+        self.phid = [None for _ in range(n_views)]
+        self.shid = None
 
         # Parameters
         self.bias_vis = [None for _ in range(n_views)]
@@ -61,36 +88,24 @@ class MultiViewHarmoniumModel:
         self.weights_shrd = [None for _ in range(n_views)]
 
     def check_dimensions(self):
-        n_views = len(self.f_vis)
-        assert len(self.f_phid) == n_views
-        assert len(self.bias_vis) == n_views
-        assert len(self.bias_phid) == n_views
-        assert len(self.weights_priv) == n_views
-        assert len(self.weights_shrd) == n_views
+        assert len(self.vis) == self.n_views
+        assert len(self.phid) == self.n_views
+        assert len(self.bias_vis) == self.n_views
+        assert len(self.bias_phid) == self.n_views
+        assert len(self.weights_priv) == self.n_views
+        assert len(self.weights_shrd) == self.n_views
 
     @property
     def n_views(self):
         return len(self.f_vis)
 
     @property
-    def n_vis_statistics(self):
-        return [len(f) for f in self.f_vis]
-
-    @property
     def n_vis_nodes(self):
         return [f.shape[0] for f in self.bias_vis]
   
     @property
-    def n_phid_statistics(self):
-        return [len(f) for f in self.f_phid]
-
-    @property
     def n_phid_nodes(self):
         return [f.shape[0] for f in self.bias_phid]
-
-    @property
-    def n_shid_statistics(self):
-        return len(self.f_shid)
 
     @property
     def n_shid_nodes(self):
@@ -103,13 +118,13 @@ class MultiViewHarmoniumModel:
         n_samples = x_vis[0].shape[1]
         facv_shid = np.zeros((self.n_shid_nodes, 
                               n_samples, 
-                              self.n_shid_statistics))
-        for statistic in range(self.n_shid_statistics):
+                              self.shid.n_statistics))
+        for statistic in range(self.shid.n_statistics):
             facv_shid[:, :, statistic] = np.tile(self.bias_shid[:, statistic],
                                                  (n_samples, 1)).T
-            for from_view in range(n_views):
-                fv_vis = self.f_vis[from_view](x_vis[from_view])
-                for from_statistic in range(n_vis_statistics[from_view]):
+            for from_view in range(self.n_views):
+                fv_vis = self.vis[from_view].f(x_vis[from_view])
+                for from_statistic in range(self.vis[from_view].n_statistics):
                     facv_shid[:, :, statistic] += \
                         T.dot(self.weights_shrd[from_view][:, statistic, :, from_statistic].T,
                                                 fv_vis[:, :, from_statistic])
@@ -120,16 +135,16 @@ class MultiViewHarmoniumModel:
             x_shid[node, sample] given that visible units have values 
             x_vis[view][node, sample]"""
         # p_shid[node, sample]
-        fv_shid = self.f_shid(x_shid)
+        fv_shid = self.shid.f(x_shid)
         facv_shid = self.fac_shid(x_vis)
-        lpv_shid = self.lp_shid(facv_shid)
+        lpv_shid = self.shid.lp(facv_shid)
         return (facv_shid * fv_shid).sum(axis=2) - lpv_shid
 
     def sample_shid(self, x_vis):
         """Sample shared hidden units x_shid[node, sample] given that visible units 
             have values x_vis[view][node, sample]"""
         facv_shid = self.fac_shid(x_vis)
-        return self.sampler_shid(facv_shid)
+        return self.shid.sampler(facv_shid)
 
     def fac_phid(self, x_vis):
         # calculate probability of private hidden units
@@ -137,14 +152,14 @@ class MultiViewHarmoniumModel:
         n_samples = x_vis[0].shape[1]
         facv_phid = [np.zeros((self.n_phid_nodes[view],
                                n_samples,
-                               self.n_phid_statistics[view])) 
+                               self.phid[view].n_statistics)) 
                      for view in range(self.n_views)]
         for view in range(self.n_views):      
-            fv_vis = self.f_vis[view](x_vis[view])
-            for statistic in range(self.n_phid_statistics[view]):
+            fv_vis = self.vis[view].f(x_vis[view])
+            for statistic in range(self.n_phid_statistics):
                 facv_phid[view][:, :, statistic] = np.tile(self.bias_phid[view][:, statistic],
                                                            (n_samples, 1)).T
-                for from_statistic in range(n_vis_statistics[view]):
+                for from_statistic in range(self.vis[view].n_statistics):
                     facv_phid[view][:, :, statistic] += \
                         T.dot(self.weights_priv[view][:, statistic, :, from_statistic].T,
                               fv_vis[:, :, from_statistic])
@@ -157,8 +172,8 @@ class MultiViewHarmoniumModel:
         facv_phid = self.fac_phid(x_vis)
         pv_phid = []
         for view in range(self.n_views):
-            fv_phid = self.f_phid[view](x_phid[view])
-            lpv_phid = self.lp_phid[view](facv_phid[view])
+            fv_phid = self.phid[view].f(x_phid[view])
+            lpv_phid = self.phid[view].lp(facv_phid[view])
             pv_phid.append((facv_phid[view] * fv_phid).sum(axis=2) - lpv_phid)
         return pv_phid
 
@@ -168,7 +183,7 @@ class MultiViewHarmoniumModel:
         facv_phid = self.fac_phid(x_vis)
         samplev_phid = []
         for view in range(self.n_views):
-            samplev_phid.append(self.sampler_phid[view](facv_phid[view]))
+            samplev_phid.append(self.phid[view].sampler(facv_phid[view]))
         return samplev_phid
 
     def fac_vis(self, x_phid, x_shid):
@@ -177,19 +192,19 @@ class MultiViewHarmoniumModel:
         n_samples = x_vis[0].shape[1]
         facv_vis = [np.zeros((self.n_vis_nodes[view],
                               n_samples,
-                              self.n_vis_statistics[view])) 
+                              self.vis[view].n_statistics)) 
                     for view in range(self.n_views)]
-        fv_shid = self.f_shid(x_shid)
+        fv_shid = self.shid.f(x_shid)
         for view in range(self.n_views):      
-            fv_phid = self.f_phid[view](x_phid[view])
-            for statistic in range(self.n_vis_statistics[view]):
+            fv_phid = self.phid[view].f(x_phid[view])
+            for statistic in range(self.vis[view].n_statistics):
                 facv_vis[view][:, :, statistic] = np.tile(self.bias_vis[view][:, statistic],
-                                                          (n_sample, 1)).T
-                for from_statistic in range(self.n_phid_statistics[view]):
+                                                          (n_samples, 1)).T
+                for from_statistic in range(self.phid[view].n_statistics):
                     facv_vis[view][:, :, statistic] += \
                         T.dot(weights_priv[view][:, statistic, :, from_statistic],
                               fv_phid[:, :, from_statistic])
-                for from_statistic in range(self.n_shid_statistics):
+                for from_statistic in range(self.shid.n_statistics):
                     facv_vis[view][:, :, statistic] += \
                         T.dot(weights_shrd[view][:, statistic, :, from_statistic],
                               fv_shid[:, :, from_statistic])
@@ -203,8 +218,8 @@ class MultiViewHarmoniumModel:
         facv_vis = self.fac_vis(x_phid, x_shid)
         pv_vis = []
         for view in range(self.n_views):
-            fv_vis = self.f_vis[view](x_vis[view])
-            lpv_vis = self.lp_vis[view](facv_vis[view])
+            fv_vis = self.vis[view].f(x_vis[view])
+            lpv_vis = self.vis[view].lp(facv_vis[view])
             pv_vis.append((facv_vis[view] * fv_vis).sum(axis=2) - lpv_vis)
         return pv_vis
 
@@ -215,7 +230,7 @@ class MultiViewHarmoniumModel:
         facv_vis = self.fac_vis(x_phid, x_shid)
         samplev_vis = []
         for view in range(self.n_views):
-            samplev_vis.append(self.sampler_vis[view](facv_vis[view]))
+            samplev_vis.append(self.vis[view].sampler(facv_vis[view]))
         return samplev_vis
 
     def gibbs_sample_vis(self, x_vis_start, x_phid_start, x_shid_start,
@@ -253,19 +268,24 @@ class MultiViewHarmoniumModel:
 
         # fv_vis[from_node, sample, from_statistic]
         # dlpv[to_node, sample, to_statistic]
-        fv_vis = [self.f_vis(x) for x in x_vis]
         dbias_vis = []
+        dbias_hid = []
+        dweights = []
         for view in range(self.n_views):
             if to_multiview:
                 facv = fac[view](x_vis)
                 dlpv = dlp[view](facv)
                 n_hid_statistics_view = n_hid_statistics[view]
 
+            fv_vis = self.vis[view].f(x_vis[view])
+
             dbias_vis.append(fv_vis.sum(axis=1))
             dbias_hid.append(dlpv.sum(axis=1))
+            dweights.append(np.zeros((dlpv.shape[0], n_hid_statistics_view, 
+                                      fv_vis.shape[1], self.vis[view].n_statistics)))
 
             for to_statistic in range(n_hid_statistics_view):
-                for from_statistic in range(self.n_vis_statistics[view]):
+                for from_statistic in range(self.vis[view].n_statistics):
                     dweights[view][:, to_statistic, : from_statistic] = \
                         T.dot(dlpv[:, :, to_statistic], fv_vis[:, :, from_statistic].T)
 
@@ -307,84 +327,63 @@ class MultiViewHarmoniumModel:
                 dweights_priv, dweights_shrd)
 
 
+
 class MultiViewHarmonium(Model):
 
-    def __init__(self, n_views, n_vis, n_phid, n_shid, 
-                 n_vis_statistics, n_phid_statistics, n_shid_statistics,
-                 n_gs_learn,
-                 f_vis, f_phid, f_shid,
-                 lp_vis, lp_phid, lp_shid,
-                 dlp_phid, dlp_shid,
-                 sampler_vis, sampler_phid, sampler_shid,
+    def __init__(self, n_views, n_vis, n_phid, n_shid, n_gs_learn,
+                 vis, phid, shid,
                  seed=1010):
         self.n_views = n_views
         self.n_vis = n_vis
         self.n_phid = n_phid
         self.n_shid = n_shid
-        self.n_vis_statistics = n_vis_statistics
-        self.n_phid_statistics = n_phid_statistics
-        self.n_shid_statistics = n_shid_statistics
         self.n_gs_learn = n_gs_learn
+        self.srng = RandomStreams(seed=seed)
 
         self.model = MultiViewHarmoniumModel(n_views)
-        self.model.f_vis = f_vis
-        self.model.f_phid = f_phid
-        self.model.f_shid = f_shid
-        self.model.lp_vis = lp_vis
-        self.model.lp_phid = lp_phid
-        self.model.lp_shid = lp_shid
-        self.model.dlp_phid = dlp_phid
-        self.model.dlp_shid = dlp_shid
-        self.model.sampler_vis = sampler_vis
-        self.model.sampler_phid = sampler_phid
-        self.model.sampler_shid = sampler_shid
-
-        self.srng = RandomStreams(seed=seed)
+        self.model.vis = vis
+        self.model.phid = phid
+        self.model.shid = shid
 
         super(MultiViewHarmonium, self).__init__()
 
     def init_pars(self):       
-        parspec = self.get_parameter_spec(self.n_views,
-                                          self.n_vis, self.n_phid, self.n_shid,
-                                          self.n_vis_statistics, 
-                                          self.n_phid_statistics, 
-                                          self.n_shid_statistics)
+        parspec = self.get_parameter_spec(self.model,
+                                          self.n_vis, self.n_phid, self.n_shid)
         self.parameters = ParameterSet(**parspec)
 
         self.model.bias_shid = self.parameters['bias_shid']
-        for view in range(self.n_views):
+        for view in range(self.model.n_views):
             self.model.bias_vis[view] = self.parameters['bias_vis[' + view + ']']
             self.model.bias_phid[view] = self.parameters['bias_phid[' + view + ']']
             self.model.weights_priv[view] = self.parameters['weights_priv[' + view + ']']
             self.model.weights_shrd[view] = self.parameters['weights_shrd[' + view + ']']
 
     @staticmethod
-    def get_parameter_spec(n_views,
-                           n_vis, n_phid, n_shid,
-                           n_vis_statistics, n_phid_statistics, n_shid_statistics):
-        ps = {'bias_shid': (n_shid, n_shid_statistics)}
-        for view in range(n_views):
-            ps['bias_vis[' + view + ']'] = (n_vis[view], n_vis_statistics[view])
-            ps['bias_phid[' + view + ']'] = (n_phid[view], n_phid_statistics[view])
-            ps['weights_priv[' + view + ']'] = (n_phid[view], n_phid_statistics[view],
-                                                n_vis[view], n_vis_statistics[view])
-            ps['weights_shrd[' + view + ']'] = (n_shid, n_shid_statistics,
-                                                n_vis[view], n_vis_statistics[view])
+    def get_parameter_spec(model, n_vis, n_phid, n_shid):
+        ps = {'bias_shid': (n_shid, model.shid.n_statistics)}
+        for view in range(model.n_views):
+            ps['bias_vis[' + view + ']'] = (n_vis[view], model.vis[view].n_statistics)
+            ps['bias_phid[' + view + ']'] = (n_phid[view], model.phid[view].n_statistics)
+            ps['weights_priv[' + view + ']'] = (n_phid[view], model.phid[view].n_statistics,
+                                                n_vis[view], model.vis[view].n_statistics)
+            ps['weights_shrd[' + view + ']'] = (n_shid, model.shid.n_statistics,
+                                                n_vis[view], model.vis[view].n_statistics)
         return ps
 
     def init_exprs(self):
-        x_vis = [T.matrix('x_vis[' + view + ']') for view in range(self.n_views)]
-        x_phid = [T.matrix('x_phid[' + view + ']') for view in range(self.n_views)]
+        x_vis = [T.matrix('x_vis[' + view + ']') for view in range(self.model.n_views)]
+        x_phid = [T.matrix('x_phid[' + view + ']') for view in range(self.model.n_views)]
         x_shid = T.matrix('x_shid')
 
         bias_vis = [self.parameters['bias_vis[' + view +']'] 
-                    for view in range(self.n_views)]
+                    for view in range(self.model.n_views)]
         bias_phid = [self.parameters['bias_phid[' + view + ']']
-                     for view in range(self.n_views)]
+                     for view in range(self.model.n_views)]
         weights_priv = [self.parameters['weights_priv[' + view + ']']
-                        for view in range(self.n_views)]
+                        for view in range(self.model.n_views)]
         weights_shrd = [self.parameters['weights_shrd[' + view + ']']
-                        for view in range(self.n_views)]
+                        for view in range(self.model.n_views)]
 
         self.exprs, self.updates = self.make_exprs(self.model,
                                                    x_vis, x_phid, x_shid,
