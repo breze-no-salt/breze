@@ -7,12 +7,13 @@ import numpy as np
 import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
+from math import pi
 
 from ...util import ParameterSet, Model, lookup
 from ...component import transfer, distance, norm
 
 
-class BernoulliLayer:
+class BernoulliDistribution(object):
 
     def __init__(self, seed=1010):
         self.srng = RandomStreams(seed=seed)
@@ -21,9 +22,17 @@ class BernoulliLayer:
     def n_statistics(self):
         return 1
 
+    def fixed_biases(self):
+        # fixed_bias[statistic]
+        return [False]
+
+    def fixed_biases_values(self):
+        # fixed_biases_values[statistic]
+        return [0]
+
     def f(self, x):
         # x[node, sample] -> f[node, sample, statistic]
-        fv = np.zeros((x.shape[0], x.shape[0], 1))
+        fv = T.zeros((x.shape[0], x.shape[0], 1))
         fv[:, :, 0] = x
         return fv
 
@@ -33,7 +42,7 @@ class BernoulliLayer:
 
     def dlp(self, fac):
         # fac[node, sample, statistic] -> dlp[node, sample, statistic]
-        pass
+        return T.nnet.sigmoid(fac[:, :, :])
 
     def sampler(self, fac):
         # fac[node, sample, statistic] -> sample[node, sample]
@@ -41,9 +50,50 @@ class BernoulliLayer:
         return self.srng.binomial(size=p.shape, n=1, p=p, 
                                   dtype=theano.config.floatX)
 
+class NormalDistribution(object):
+
+    def __init__(self, seed=1010):
+        self.srng = RandomStreams(seed=seed)
+
+    @property
+    def n_statistics(self):
+        return 2
+
+    @property
+    def fixed_bias(self):
+        # fixed_bias[statistic]
+        return [False, True]
+
+    @property
+    def fixed_bias_value(self):
+        # fixed_bias_value[statistic]
+        return [0, -1./2.]
+
+    def f(self, x):
+        # x[node, sample] -> f[node, sample, statistic]
+        fv = T.zeros((x.shape[0], x.shape[0], 2))
+        fv[:, :, 0] = x
+        fv[:, :, 1] = T.sqr(x)
+        return fv
+
+    def lp(self, fac):
+        # fac[node, sample, statistic] -> lpv[node, sample]
+        return 1./2. * T.log(2. * math.pi) + fac[:, :, 0]
+
+    def dlp(self, fac):
+        # fac[node, sample, statistic] -> dlp[node, sample, statistic]
+        dlpv = np.copy(fac)
+        dlpv[:, :, 1] = 0
+        return dlpv
+
+    def sampler(self, fac):
+        # fac[node, sample, statistic] -> sample[node, sample]
+        return self.srng.normal(size=(fac.shape[0], fac.shape[1]), 
+                                avg=fac[:, :, 0], std=1.0,  
+                                dtype=theano.config.floatX)
 
 
-class MultiViewHarmoniumModel:
+class MultiViewHarmoniumModel(object):
 
     # Model hyperparameters:
     #
@@ -116,12 +166,15 @@ class MultiViewHarmoniumModel:
         # fac_shid[node, sample, statistic]
 
         n_samples = x_vis[0].shape[1]
-        facv_shid = np.zeros((self.n_shid_nodes, 
-                              n_samples, 
-                              self.shid.n_statistics))
+        facv_shid = T.zeros((self.n_shid_nodes, 
+                             n_samples, 
+                             self.shid.n_statistics))
         for statistic in range(self.shid.n_statistics):
-            facv_shid[:, :, statistic] = np.tile(self.bias_shid[:, statistic],
-                                                 (n_samples, 1)).T
+            facv_shid[:, :, statistic] = T.tile(self.bias_shid[:, statistic],
+                                                (n_samples, 1)).T
+            if self.shid.fixed_bias[statistic]:
+                facv_shid[:, :, statistic] = self.shid.fixed_bias_value[statistic]
+
             for from_view in range(self.n_views):
                 fv_vis = self.vis[from_view].f(x_vis[from_view])
                 for from_statistic in range(self.vis[from_view].n_statistics):
@@ -150,15 +203,18 @@ class MultiViewHarmoniumModel:
         # calculate probability of private hidden units
         # fac_phid[view][node, sample, statistic]
         n_samples = x_vis[0].shape[1]
-        facv_phid = [np.zeros((self.n_phid_nodes[view],
-                               n_samples,
-                               self.phid[view].n_statistics)) 
+        facv_phid = [T.zeros((self.n_phid_nodes[view],
+                              n_samples,
+                              self.phid[view].n_statistics)) 
                      for view in range(self.n_views)]
         for view in range(self.n_views):      
             fv_vis = self.vis[view].f(x_vis[view])
             for statistic in range(self.n_phid_statistics):
-                facv_phid[view][:, :, statistic] = np.tile(self.bias_phid[view][:, statistic],
-                                                           (n_samples, 1)).T
+                facv_phid[view][:, :, statistic] = T.tile(self.bias_phid[view][:, statistic],
+                                                          (n_samples, 1)).T
+                if phid[view].fixed_bias[statistic]:
+                    facv_phid[view][:, :, statistic] = phid[view].fixed_bias_value[statistic]
+
                 for from_statistic in range(self.vis[view].n_statistics):
                     facv_phid[view][:, :, statistic] += \
                         T.dot(self.weights_priv[view][:, statistic, :, from_statistic].T,
@@ -190,16 +246,19 @@ class MultiViewHarmoniumModel:
         # calculate probability of visible units
         # fac_vis[view][node, sample, statistic]
         n_samples = x_vis[0].shape[1]
-        facv_vis = [np.zeros((self.n_vis_nodes[view],
-                              n_samples,
-                              self.vis[view].n_statistics)) 
+        facv_vis = [T.zeros((self.n_vis_nodes[view],
+                             n_samples,
+                             self.vis[view].n_statistics)) 
                     for view in range(self.n_views)]
         fv_shid = self.shid.f(x_shid)
         for view in range(self.n_views):      
             fv_phid = self.phid[view].f(x_phid[view])
             for statistic in range(self.vis[view].n_statistics):
-                facv_vis[view][:, :, statistic] = np.tile(self.bias_vis[view][:, statistic],
-                                                          (n_samples, 1)).T
+                facv_vis[view][:, :, statistic] = T.tile(self.bias_vis[view][:, statistic],
+                                                         (n_samples, 1)).T
+                if vis[view].fixed_bias[statistic]:
+                    facv_vis[view][:, :, statistic] = vis[view].fixed_bias_value[statistic]
+
                 for from_statistic in range(self.phid[view].n_statistics):
                     facv_vis[view][:, :, statistic] += \
                         T.dot(weights_priv[view][:, statistic, :, from_statistic],
@@ -239,12 +298,14 @@ class MultiViewHarmoniumModel:
         n_samples = x_vis_start.shape[1]
         x_vis = x_vis_start
         for i in range(n_iterations):
-            # sample private and shared hiddens given visibles
+            # sample private hiddens given visibles
             x_phid = self.sample_phid(x_vis)
             if phid_clamp is not None:
-                for view in range(n_views):
+                for view in range(self.n_views):
                     if phid_clamp[view]:
                         x_phid[view] = x_phid_start[view]
+
+            # sample shared hiddens given visibles
             if not shid_clamp:
                 x_shid = self.sample_shid(x_vis)
             else:
@@ -253,7 +314,7 @@ class MultiViewHarmoniumModel:
             # sample visibles given hiddens
             x_vis = self.sample_vis(x_phid, x_shid)
             if vis_clamp is not None:
-                for view in range(n_views):
+                for view in range(self.n_views):
                     if vis_clamp[view]:
                         x_vis = x_vis_start[view]
 
@@ -281,8 +342,8 @@ class MultiViewHarmoniumModel:
 
             dbias_vis.append(fv_vis.sum(axis=1))
             dbias_hid.append(dlpv.sum(axis=1))
-            dweights.append(np.zeros((dlpv.shape[0], n_hid_statistics_view, 
-                                      fv_vis.shape[1], self.vis[view].n_statistics)))
+            dweights.append(T.zeros((dlpv.shape[0], n_hid_statistics_view, 
+                                     fv_vis.shape[1], self.vis[view].n_statistics)))
 
             for to_statistic in range(n_hid_statistics_view):
                 for from_statistic in range(self.vis[view].n_statistics):
@@ -354,35 +415,35 @@ class MultiViewHarmonium(Model):
 
         self.model.bias_shid = self.parameters['bias_shid']
         for view in range(self.model.n_views):
-            self.model.bias_vis[view] = self.parameters['bias_vis[' + view + ']']
-            self.model.bias_phid[view] = self.parameters['bias_phid[' + view + ']']
-            self.model.weights_priv[view] = self.parameters['weights_priv[' + view + ']']
-            self.model.weights_shrd[view] = self.parameters['weights_shrd[' + view + ']']
+            self.model.bias_vis[view] = self.parameters['bias_vis_%d' % view]
+            self.model.bias_phid[view] = self.parameters['bias_phid_%d' % view]
+            self.model.weights_priv[view] = self.parameters['weights_priv_%d' % view]
+            self.model.weights_shrd[view] = self.parameters['weights_shrd_%d' % view]
 
     @staticmethod
     def get_parameter_spec(model, n_vis, n_phid, n_shid):
         ps = {'bias_shid': (n_shid, model.shid.n_statistics)}
         for view in range(model.n_views):
-            ps['bias_vis[' + view + ']'] = (n_vis[view], model.vis[view].n_statistics)
-            ps['bias_phid[' + view + ']'] = (n_phid[view], model.phid[view].n_statistics)
-            ps['weights_priv[' + view + ']'] = (n_phid[view], model.phid[view].n_statistics,
-                                                n_vis[view], model.vis[view].n_statistics)
-            ps['weights_shrd[' + view + ']'] = (n_shid, model.shid.n_statistics,
-                                                n_vis[view], model.vis[view].n_statistics)
+            ps['bias_vis_%d' % view] = (n_vis[view], model.vis[view].n_statistics)
+            ps['bias_phid_%d' % view] = (n_phid[view], model.phid[view].n_statistics)
+            ps['weights_priv_%d' % view] = (n_phid[view], model.phid[view].n_statistics,
+                                            n_vis[view], model.vis[view].n_statistics)
+            ps['weights_shrd_%d' % view] = (n_shid, model.shid.n_statistics,
+                                            n_vis[view], model.vis[view].n_statistics)
         return ps
 
     def init_exprs(self):
-        x_vis = [T.matrix('x_vis[' + view + ']') for view in range(self.model.n_views)]
-        x_phid = [T.matrix('x_phid[' + view + ']') for view in range(self.model.n_views)]
+        x_vis = [T.matrix('x_vis_%d' % view) for view in range(self.model.n_views)]
+        x_phid = [T.matrix('x_phid_%d' % view) for view in range(self.model.n_views)]
         x_shid = T.matrix('x_shid')
 
-        bias_vis = [self.parameters['bias_vis[' + view +']'] 
+        bias_vis = [self.parameters['bias_vis_%d' % view] 
                     for view in range(self.model.n_views)]
-        bias_phid = [self.parameters['bias_phid[' + view + ']']
+        bias_phid = [self.parameters['bias_phid_%d' % view]
                      for view in range(self.model.n_views)]
-        weights_priv = [self.parameters['weights_priv[' + view + ']']
+        weights_priv = [self.parameters['weights_priv_%d' % view]
                         for view in range(self.model.n_views)]
-        weights_shrd = [self.parameters['weights_shrd[' + view + ']']
+        weights_shrd = [self.parameters['weights_shrd_%d' % view]
                         for view in range(self.model.n_views)]
 
         self.exprs, self.updates = self.make_exprs(self.model,
@@ -399,105 +460,17 @@ class MultiViewHarmonium(Model):
                    n_gs_learn,
                    srng):
 
-        def p(q, val, dist):
-            if dist == 'bernoulli':
-                if val == 1:
-                    return transfer.sigmoid(q)
-                elif val == 0:
-                    return 1 - transfer.sigmoid(q)
-                else:
-                    assert False
-            elif dist == 'gaussian':
-                return 1/T.sqrt(2*pi) * T.exp(-1/2 * T.sqr(val-q))
-            elif dist == 'relu':
-                if val == 0:
-                    TODO
-                else:
-                    return 1/T.sqrt(2*pi) * T.exp(-1/2 * T.sqr(val-q))
+        exprs = {}
+        exprs.update({'x_vis_%d' % view: x_vis[view] 
+                      for view in range(model.n_views)})
+        exprs.update({'x_phid_%d' % view: x_phid[view] 
+                      for view in range(model.n_views)})
+        exprs['x_shid'] = x_shid
 
-        def features(x, y):                    
-            # p(h_x|x)
-            p_x_feature = transfer.sigmoid(T.dot(x, x_to_x_feature) + x_feature_bias)
-            x_feature_sample = p_x_feature > srng.uniform(p_x_feature.shape)
 
-            # p(h_y|y)
-            p_y_feature = transfer.sigmoid(T.dot(x, y_to_y_feature) + y_feature_bias)
-            y_feature_sample = p_y_feature > srng.uniform(p_y_feature.shape)
 
-            # p(h_c|x,y)
-            p_common_feature = transfer.sigmoid(T.dot(x, x_to_common_feature) + 
-                                                T.dot(y, y_to_common_feature) +
-                                                common_feature_bias)
-            common_feature_sample = (p_common_feature > 
-                                     srng.uniform(p_common_feature.shape))
-
-            return p_x_feature, x_feature_sample, p_y_feature, y_feature_sample, \
-                p_common_feature, common_feature_sample
-
-        def visibles(x_feature, y_feature, common_feature):
-            # p(x|h_x,h_c)
-            p_x = transfer.sigmoid(T.dot(x_feature, x_to_x_feature.T) + 
-                                   T.dot(common_feature, x_to_common_feature.T) +
-                                   x_bias)
-            x_sample = p_x > srng.uniform(p_x.shape)
-
-            # p(y|h_y,h_c)
-            p_y = transfer.sigmoid(T.dot(y_feature, y_to_y_feature.T) + 
-                                   T.dot(common_feature, y_to_common_feature.T) +
-                                   y_bias)
-            y_sample = p_y > srng.uniform(p_y.shape)
-
-            return p_x, x_sample, p_y, y_sample
-
-        def gibbs_step(xy_start, clamp=[]):
-            # does one iteration of gibbs sampling
-            [x_start, y_start] = xy_start
-            _, x_feature_sample, _, y_feature_sample, _, common_feature_sample = \
-                features(x_start, y_start)
-            if 'x_feature' in clamp:
-                x_feature_sample = x_feature
-            if 'y_feature' in clamp:
-                y_feature_sample = y_feature
-            if 'common_feature' in clamp:
-                common_feature_sample = common_feature          
-            p_x_recon, _, p_y_recon, _ = visibles(x_feature_sample,
-                                                  y_feature_sample,
-                                                  common_feature_sample)
-            if 'x' in clamp:
-                p_x_recon = x_start
-            if 'y' in clamp:
-                p_y_recon = y_start
-            return [p_x_recon, p_y_recon]
-
-        # features given visibles
-        p_x_feature, x_feature_sample, p_y_feature, y_feature_sample, \
-            p_common_feature, common_feature_sample = features(x, y)
-
-        # visibles given features
-        p_x, x_sample, p_y, y_sample = visibles(x_feature, y_feature, common_feature)
-
-        # gibbs sampling for learning
-        gs_p_xy, gs_p_xy_updates = theano.scan(lambda inpt: gibbs_step(input, []), 
-                                               outputs_info=[x,y], 
-                                               n_steps=n_gs_learn)
-        gs_p_xy = gs_p_xy[-1]
-        [gs_p_x, gs_p_y] = gs_p_xy
-        gs_p_x_feature, _, gs_p_y_feature, _, gs_p_common_feature, _ = \
-            features(gs_p_x, gs_p_y)
-
-        # gibbs sampling for inference of x from (y,h_x)
-        infer_p_x_with_x_feature, infer_p_x_with_x_feature_updates = \
-            theano.scan(lambda inpt: gibbs_step(inpt, ['y', 'x_feature']),
-                        outputs_info=[x,y], 
-                        n_steps=n_gs_infer)
-        infer_p_x_with_x_feature = infer_p_x_with_x_feature[-1]
-        [infer_p_x_with_x_feature, _] = infer_p_x_with_x_feature
-
+      
         exprs = {
-            'x': x,
-            'y': y,
-            'x_feature': x_feature,
-            'y_feature': y_feature,
             'common_feature': common_feature,
             'n_gs_learn': n_gs_learn,
             'n_gs_infer': n_gs_infer,
