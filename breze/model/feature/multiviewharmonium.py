@@ -16,12 +16,12 @@ from ...component.multiviewharmoniumexprs import MultiViewHarmoniumExprs
 class MultiViewHarmonium(Model):
 
     def __init__(self, 
-                 vis, phid, shid, 
+                 vis_dist, phid_dist, shid_dist, 
                  n_vis_nodes, n_phid_nodes, n_shid_nodes,
-                 n_gs_learn):
-        self.exprs = MultiViewHarmoniumExprs(vis, phid, shid,
+                 n_samples, n_gs_learn):
+        self.exprs = MultiViewHarmoniumExprs(vis_dist, phid_dist, shid_dist,
                                              n_vis_nodes, n_phid_nodes, n_shid_nodes,
-                                             n_gs_learn,
+                                             n_samples, n_gs_learn,
                                              None, None, None,
                                              None, None)
 
@@ -31,12 +31,15 @@ class MultiViewHarmonium(Model):
         parspec = self.get_parameter_spec(self.exprs)
         self.parameters = ParameterSet(**parspec)
 
+        self.exprs.bias_vis = [self.parameters['bias_vis_%d' % view] 
+                               for view in range(self.exprs.n_views)]
+        self.exprs.bias_phid = [self.parameters['bias_phid_%d' % view]
+                                for view in range(self.exprs.n_views)]
         self.exprs.bias_shid = self.parameters['bias_shid']
-        for view in range(self.exprs.n_views):
-            self.exprs.bias_vis[view] = self.parameters['bias_vis_%d' % view]
-            self.exprs.bias_phid[view] = self.parameters['bias_phid_%d' % view]
-            self.exprs.weights_priv[view] = self.parameters['weights_priv_%d' % view]
-            self.exprs.weights_shrd[view] = self.parameters['weights_shrd_%d' % view]
+        self.exprs.weights_priv = [self.parameters['weights_priv_%d' % view]
+                                   for view in range(self.exprs.n_views)]
+        self.exprs.weights_shrd = [self.parameters['weights_shrd_%d' % view]
+                                   for view in range(self.exprs.n_views)]
 
     def init_exprs(self):
         self.x_vis = [T.matrix('x_vis_%d' % view) for view in range(self.exprs.n_views)]

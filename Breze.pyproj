@@ -5,7 +5,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{d4ae010c-e677-44e1-88e4-9127c433ef0b}</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>examples\visual-rbm.py</StartupFile>
+    <StartupFile>examples\mnist-mvh.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>examples\</WorkingDirectory>
@@ -48,6 +48,7 @@
     <Compile Include="breze\__init__.py" />
     <Compile Include="examples\lds.py" />
     <Compile Include="examples\mnist-feature-extract.py" />
+    <Compile Include="examples\mnist-mvh.py" />
     <Compile Include="examples\mnist-nn.py" />
     <Compile Include="examples\mnist-rbm.py" />
     <Compile Include="examples\mnist-stack.py" />
