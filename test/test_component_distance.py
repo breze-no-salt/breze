@@ -7,7 +7,7 @@ import numpy as np
 
 from breze.component.distance import (
     absolute, squared, bernoulli_cross_entropy, cross_entropy,
-    nominal_cross_entropy, distance_matrix, nca)
+    distance_matrix, nominal_cross_entropy, nca)
 from tools import roughly
 
 
@@ -124,9 +124,10 @@ def test_distance_matrix():
 
 
 def test_nca():
-    theano.config.compute_test_value = 'raise'
+    theano.config.compute_test_value = 'off'
     X = T.matrix()
     X.tag.test_value = np.random.random((20, 10))
     Y = T.matrix()
     Y.tag.test_value = np.random.random((20, 1)) > 0.5
     expr = nca(X, Y)
+    theano.config.compute_test_value = 'off'
