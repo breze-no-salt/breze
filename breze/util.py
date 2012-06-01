@@ -10,6 +10,33 @@ import numpy as np
 import theano.tensor as T
 import theano
 
+def flatten(nested):
+    """Flattens nested tuples and/or lists into a flat list"""
+    if isinstance(nested, (tuple, list)):
+        flat = []
+        for elem in nested:
+            flat.extend(flatten(elem))
+        return flat
+    else:
+        return [nested]
+
+def unflatten(tmpl, flat):
+    """Nests the items in flat into the shape of tmpl"""
+    def unflatten_recursive(tmpl, flat):
+        if isinstance(tmpl, (tuple, list)):
+            nested = []
+            for sub_tmpl in tmpl:
+                sub_nested, flat = unflatten_recursive(sub_tmpl, flat)
+                nested.append(sub_nested)
+            if isinstance(tmpl, tuple):
+                nested = tuple(nested)
+            return nested, flat
+        else:
+            return flat[0], flat[1:]
+
+    nested, _ = unflatten_recursive(tmpl, flat)
+    return nested
+
 
 def lookup(what, where):
     """Return where.what if what is a string, else what."""
