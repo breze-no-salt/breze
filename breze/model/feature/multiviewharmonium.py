@@ -46,6 +46,8 @@ class MultiViewHarmonium(Model):
         self.x_phid = [T.matrix('x_phid_%d' % view) for view in range(self.exprs.n_views)]
         self.x_shid = T.matrix('x_shid')
 
+        self.updates = collections.defaultdict(lambda: {})
+
     @staticmethod
     def get_parameter_spec(exprs):
         ps = {'bias_shid': (exprs.n_shid_nodes, exprs.shid.n_statistics)}

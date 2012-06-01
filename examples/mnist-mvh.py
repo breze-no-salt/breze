@@ -41,64 +41,14 @@ f.close()
 slices = draw_mini_slices(X.shape[0], batch_size)
 args = (X[s] for s in slices)
 
-def flatten(nested):
-    if isinstance(nested, (tuple, list)):
-        flat = []
-        for i in nested:
-            flat.extend(flatten(nested))
-        return flat
-    else:
-        return [nested]
-
-def unflatten_recursive(tmpl, flat):
-    if isinstance(tmpl, (tuple, list)):
-        nested = []
-        for sub_tmpl in tmpl:
-            sub_nested, flat = unflatten_recursive(sub_tmpl, flat)
-            nested.append(sub_nested)
-        if isinstance(tmpl, tuple):
-            nested = tuple(nested)
-        return nested, flat
-    else:
-        return flat[0], flat[1:]
-
-def unflatten(tmpl, flat):
-    nested, _ = unflatten_recursive(tmpl, flat)
-    return nested
-    
-
-def list_function(inputs, outputs):
-    flat_inputs = []
-
-
-def build_f_cd_learning_update(mvh, x_vis):
-    dbias_vis, dbias_phid, dbias_shid, dweights_priv, dweights_shrd = \
-        mvh.exprs.cd_learning_update(x_vis)
-    outputs = []
-    outputs.extend(dbias_vis)
-    outputs.extend(dbias_phid)
-    outputs.append(dbias_shid)
-    outputs.extend(dweights_priv)
-    outputs.extend(dweights_shrd)
-
-    f_cd_learn = theano.function([x_vis], outputs)
-
-    def f_cd_learn_unpack(x_val):
-        ret = f_cd_learn(x_val)
-
-
-
-    return f_cd_learn_unpack
-
-
 # Build MVH
 mvh = MultiViewHarmonium(vis_dist, phid_dist, shid_dist,
                          n_vis_nodes, n_phid_nodes, n_shid_nodes,
                          batch_size, n_gs_learn)
 #f_cd_learn = theano.function([mvh.x_vis[0]], 
 #                             [
-f_cd_learn = mvh.function(mvh.x_vis[0],
-                          mvh.exprs.cd_learning_update(mvh.x_vis[0]))
+f_cd_learn = mvh.function(mvh.x_vis,
+                          mvh.exprs.cd_learning_update(mvh.x_vis))
 mvh.parameters.data[:] = np.random.normal(0, 1E-2, mvh.parameters.data.shape)
 
 for i in range(10000):
