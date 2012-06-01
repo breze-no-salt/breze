@@ -4,6 +4,7 @@
 import numpy as np
 import theano
 import theano.tensor as T
+import math
 
 import breze.util
 from breze.util import ParameterSet, Model
@@ -82,4 +83,31 @@ def test_flatten():
     assert nested == renested
     assert rev_renested == \
         (11, 10, [9, 8, 7, [6], [5], (4), ([3, 2, []]), (), ((([[]]))), []], 1)
+
+
+def test_theano_function_with_nested_exprs():
+
+    def expr_generator(a, b):
+        ra = [T.pow(a[i], i) for i in range(len(a))]
+        return ra, T.exp(b)
+
+    a = [T.scalar('a%d' % i) for i in range(5)]
+    b = T.scalar('b')
+
+    f = breze.util.theano_function_with_nested_exprs([a, b],
+                                                     expr_generator(a, b))
+
+    va = [2 for _ in a]
+    vb = 3
+    resa, resb = f(va, vb)
+
+    print "va:   ", va
+    print "vb:   ", vb
+    print "resa: ", resa
+    print "resb: ", resb
+
+    for i in range(len(va)):
+        assert roughly(resa[i], math.pow(va[i], i))
+    assert roughly(resb, math.exp(vb))
+
 
