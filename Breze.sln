@@ -1,0 +1,18 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Breze", "Breze.pyproj", "{D4AE010C-E677-44E1-88E4-9127C433EF0B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D4AE010C-E677-44E1-88E4-9127C433EF0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D4AE010C-E677-44E1-88E4-9127C433EF0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
