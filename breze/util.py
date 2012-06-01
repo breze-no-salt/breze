@@ -46,7 +46,7 @@ class ParameterSet(object):
         # Find out total size of needed parameters and create memory for it.
         sizes = [np.prod(i) for i in kwargs.values()]
         self.n_pars = sum(sizes)
-        self.flat = theano.shared(np.empty(self.n_pars), name='flat')
+        self.flat = theano.shared(np.empty(self.n_pars, dtype=theano.config.floatX), name='flat')
         # Go through parameters and assign space and variable.
         self.views = {}
         n_used = 0 	# Number of used parameters.
