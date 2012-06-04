@@ -24,18 +24,18 @@ from utils import tile_raster_images, one_hot
 theano.config.compute_test_value = 'off'
 
 # model parameters
-vis_dist = [BernoulliDistribution()]
-phid_dist = [BernoulliDistribution()]
+vis_dist = [BernoulliDistribution(), BernoulliDistribution()]
+phid_dist = [BernoulliDistribution(), BernoulliDistribution()]
 shid_dist = BernoulliDistribution()
-n_vis_nodes = [784]
-n_phid_nodes = [512]
-#n_phid_nodes = [1]
-n_shid_nodes = 512
+n_vis_nodes = [784, 784]
+n_phid_nodes = [512, 128]
+n_shid_nodes = 10
 n_gs_learn = 1
 
 # learning parameters
 batch_size = 20
 step_rate = 1E-1
+training_iterations = 500
 
 # Make data.
 f = gzip.open('mnist.pkl.gz', 'rb')
@@ -43,6 +43,7 @@ f = gzip.open('mnist.pkl.gz', 'rb')
 f.close()
 slices = draw_mini_slices(X.shape[0], batch_size)
 args = (X[s] for s in slices)
+x_ref = args.next().T
 
 # Build RBM (for comparison)
 rbm = RestrictedBoltzmannMachine(n_vis_nodes[0], n_phid_nodes[0]) 
@@ -98,6 +99,7 @@ f_sample_hid = mvh.function(mvh.x_vis,
                              mvh.exprs.sample_shid(mvh.x_vis)])
 f_sample_vis = mvh.function([mvh.x_phid, mvh.x_shid],
                             mvh.exprs.sample_vis(mvh.x_phid, mvh.x_shid))
+
 f_gibbs_sample_vis = mvh.function(mvh.x_vis,
                                   mvh.exprs.gibbs_sample_vis(mvh.x_vis,
                                                              None,
@@ -106,22 +108,21 @@ f_gibbs_sample_vis = mvh.function(mvh.x_vis,
                                                              None,
                                                              None,
                                                              1))
-
 f_cd_learn = mvh.function(mvh.x_vis,
                           mvh.exprs.cd_learning_update(mvh.x_vis))
 
+# test simple functions
+print "Testing simple functions...",
 x_vis = args.next().T
-fac_phid = f_fac_phid([x_vis])
-fac_shid = f_fac_shid([x_vis])
-x_phid, x_shid = f_sample_hid(x_vis)
+fac_phid = f_fac_phid([x_vis, x_vis])
+fac_shid = f_fac_shid([x_vis, x_vis])
+x_phid, x_shid = f_sample_hid([x_vis, x_vis])
 x_vis = f_sample_vis(x_phid, x_shid)
+print "Ok"
 
-print "Precheck done"
-
-x_ref = args.next().T
-
-#for i in range(10000):
-for i in range(300):
+# Train
+print "Training",
+for i in range(training_iterations):
     sys.stdout.write('.')
     x_vis = args.next().T
 
@@ -133,7 +134,7 @@ for i in range(300):
 
     # train MVH
     bias_vis_step, bias_phid_step, bias_shid_step, \
-       weights_priv_step, weights_shrd_step = f_cd_learn([x_vis])
+       weights_priv_step, weights_shrd_step = f_cd_learn([x_vis, x_vis])
     for view in range(mvh.exprs.n_views):
         mvh.parameters['bias_vis_%d' % view] += step_rate * bias_vis_step[view]
         mvh.parameters['bias_phid_%d' % view] += step_rate * bias_phid_step[view]
@@ -158,19 +159,20 @@ for i in range(300):
         pilimage.save('rbm-mnist-sample-%05i.png' % i)
 
         # plot MVH
-        W = mvh.parameters['weights_priv_0'][:, 0, :, 0]
-        A = tile_raster_images(W, (28, 28), (8, 8)).astype('float64')
-        pilimage = pil.fromarray(A).convert('RGB')
-        pilimage.save('mvh-mnist-filters-%05i.png' % i)
+        for view in range(mvh.exprs.n_views):
+            W = mvh.parameters['weights_priv_%d' % view][:, 0, :, 0]
+            A = tile_raster_images(W, (28, 28), (8, 8)).astype('float64')
+            pilimage = pil.fromarray(A).convert('RGB')
+            pilimage.save('mvh-mnist-weights-priv%d-%05i.png' % (view, i))
 
-        W = mvh.parameters['weights_shrd_0'][:, 0, :, 0]
-        A = tile_raster_images(W, (28, 28), (8, 8)).astype('float64')
-        pilimage = pil.fromarray(A).convert('RGB')
-        pilimage.save('mvh-mnist-shared-filters-%05i.png' % i)
+            W = mvh.parameters['weights_shrd_%d' % view][:, 0, :, 0]
+            A = tile_raster_images(W, (28, 28), (8, 8)).astype('float64')
+            pilimage = pil.fromarray(A).convert('RGB')
+            pilimage.save('mvh-mnist-weights-shrd%d-%05i.png' % (view, i))
 
-        x_sample = f_gibbs_sample_vis([x_ref])[0]
-        A = tile_raster_images(x_sample.T, (28, 28), (8, 8)).astype('float64')
-        pilimage = pil.fromarray(A).convert('RGB')
-        pilimage.save('mvh-mnist-sample-%05i.png' % i)
+            x_sample = f_gibbs_sample_vis([x_ref, x_ref])[view]
+            A = tile_raster_images(x_sample.T, (28, 28), (8, 8)).astype('float64')
+            pilimage = pil.fromarray(A).convert('RGB')
+            pilimage.save('mvh-mnist-sample%d-%05i.png' % (view, i))
 
-print "Training done"
+print "Done"
