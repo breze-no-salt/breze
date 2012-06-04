@@ -15,9 +15,9 @@ from breze.util import WarnNaNMode
 from breze.component.distribution import BernoulliDistribution
 from breze.component.distribution import NormalDistribution
 
-theano.config.compute_test_value = 'warn'
-
 def test_mvh():   
+    theano.config.compute_test_value = 'raise'
+
     # model parameters
     vis_dist = [BernoulliDistribution(), BernoulliDistribution()]
     phid_dist = [BernoulliDistribution(), BernoulliDistribution()]
@@ -87,3 +87,9 @@ def test_mvh():
     fac_shid = f_fac_shid(x_vis)
     x_phid, x_shid = f_sample_hid(x_vis)
     x_vis = f_sample_vis(x_phid, x_shid)
+
+
+def after_test():
+    theano.config.compute_test_value = 'off'
+
+test_mvh.teardown = after_test
