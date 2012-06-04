@@ -114,7 +114,7 @@ class MultiViewHarmoniumExprs(object):
         """Sample shared hidden units x_shid[node, sample] given that visible units 
             have values x_vis[view][node, sample]"""
         facv_shid = self.fac_shid(x_vis)
-        return self.shid.sampler(facv_shid)
+        return self.shid.sampler(facv_shid, False)
 
     def fac_phid(self, x_vis):
         # calculate probability of private hidden units
@@ -157,7 +157,7 @@ class MultiViewHarmoniumExprs(object):
         facv_phid = self.fac_phid(x_vis)
         samplev_phid = []
         for view in range(self.n_views):
-            samplev_phid.append(self.phid[view].sampler(facv_phid[view]))
+            samplev_phid.append(self.phid[view].sampler(facv_phid[view], False))
         return samplev_phid
 
     def fac_vis(self, x_phid, x_shid):
@@ -202,14 +202,15 @@ class MultiViewHarmoniumExprs(object):
             pv_vis.append((facv_vis[view] * fv_vis).sum(axis=2) - lpv_vis)
         return pv_vis
 
-    def sample_vis(self, x_phid, x_shid):
+    def sample_vis(self, x_phid, x_shid, final_gibbs_sample=False):
         """Sample visible units x_vis[view][node, sample] given that private 
             hidden units have values x_phid[view][node, sample] and shared hidden 
             units have values x_shid[node, sample]"""
         facv_vis = self.fac_vis(x_phid, x_shid)
         samplev_vis = []
         for view in range(self.n_views):
-            samplev_vis.append(self.vis[view].sampler(facv_vis[view]))
+            samplev_vis.append(self.vis[view].sampler(facv_vis[view], 
+                                                      final_gibbs_sample))
         return samplev_vis
 
     def gibbs_sample_vis(self, x_vis_start, x_phid_start, x_shid_start,
@@ -232,7 +233,7 @@ class MultiViewHarmoniumExprs(object):
                 x_shid = x_shid_start
 
             # sample visibles given hiddens
-            x_vis = self.sample_vis(x_phid, x_shid)
+            x_vis = self.sample_vis(x_phid, x_shid, i == n_iterations - 1)
             if vis_clamp is not None:
                 for view in range(self.n_views):
                     if vis_clamp[view]:
@@ -247,8 +248,7 @@ class MultiViewHarmoniumExprs(object):
 
         dbias_vis = []
         dbias_phid = []
-        dbias_shid = T.zeros((self.bias_shid.shape[0],), 
-                             dtype=theano.config.floatX)
+        dbias_shid = T.zeros(self.bias_shid.shape, dtype=theano.config.floatX)
         dweights_priv = []
         dweights_shrd = []
        

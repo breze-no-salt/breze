@@ -44,11 +44,14 @@ class BernoulliDistribution(object):
         # fac[node, sample, statistic] -> dlp[node, sample, statistic]
         return T.nnet.sigmoid(fac[:, :, :])
 
-    def sampler(self, fac):
+    def sampler(self, fac, final_gibbs_sample):
         # fac[node, sample, statistic] -> sample[node, sample]
         p = transfer.sigmoid(fac[:, :, 0])
-        return self.srng.binomial(size=p.shape, n=1, p=p, 
-                                  dtype=theano.config.floatX)
+        if final_gibbs_sample:
+            return p
+        else:
+            return self.srng.binomial(size=p.shape, n=1, p=p, 
+                                      dtype=theano.config.floatX)
 
 class NormalDistribution(object):
 
@@ -86,10 +89,14 @@ class NormalDistribution(object):
         dlpv[:, :, 1] = 0
         return dlpv
 
-    def sampler(self, fac):
+    def sampler(self, fac, final_gibbs_sample):
         # fac[node, sample, statistic] -> sample[node, sample]
-        return self.srng.normal(size=(fac.shape[0], fac.shape[1]), 
-                                avg=fac[:, :, 0], std=1.0,  
-                                dtype=theano.config.floatX)
+        mean = fac[:, :, 0]
+        if final_gibbs_sample:
+            return mean
+        else:
+            return self.srng.normal(size=mean.shape, 
+                                    avg=mean, std=1.0,  
+                                    dtype=theano.config.floatX)
 
 

@@ -29,7 +29,8 @@ phid_dist = [BernoulliDistribution()]
 shid_dist = BernoulliDistribution()
 n_vis_nodes = [784]
 n_phid_nodes = [512]
-n_shid_nodes = 1
+#n_phid_nodes = [1]
+n_shid_nodes = 512
 n_gs_learn = 1
 
 # learning parameters
@@ -161,6 +162,11 @@ for i in range(300):
         A = tile_raster_images(W, (28, 28), (8, 8)).astype('float64')
         pilimage = pil.fromarray(A).convert('RGB')
         pilimage.save('mvh-mnist-filters-%05i.png' % i)
+
+        W = mvh.parameters['weights_shrd_0'][:, 0, :, 0]
+        A = tile_raster_images(W, (28, 28), (8, 8)).astype('float64')
+        pilimage = pil.fromarray(A).convert('RGB')
+        pilimage.save('mvh-mnist-shared-filters-%05i.png' % i)
 
         x_sample = f_gibbs_sample_vis([x_ref])[0]
         A = tile_raster_images(x_sample.T, (28, 28), (8, 8)).astype('float64')
