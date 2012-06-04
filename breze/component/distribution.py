@@ -32,7 +32,7 @@ class BernoulliDistribution(object):
 
     def f(self, x):
         # x[node, sample] -> f[node, sample, statistic]
-        fv = T.zeros((x.shape[0], x.shape[0], 1))
+        fv = T.zeros((x.shape[0], x.shape[1], 1))
         fv = T.set_subtensor(fv[:, :, 0], x)
         return fv
 
@@ -71,7 +71,7 @@ class NormalDistribution(object):
 
     def f(self, x):
         # x[node, sample] -> f[node, sample, statistic]
-        fv = T.zeros((x.shape[0], x.shape[0], 2))
+        fv = T.zeros((x.shape[0], x.shape[1], 2))
         fv[:, :, 0] = x
         fv[:, :, 1] = T.sqr(x)
         return fv

@@ -31,14 +31,14 @@ class MultiViewHarmonium(Model):
         parspec = self.get_parameter_spec(self.exprs)
         self.parameters = ParameterSet(**parspec)
 
-        self.exprs.bias_vis = [self.parameters['bias_vis_%d' % view] 
+        self.exprs.bias_vis = [getattr(self.parameters, 'bias_vis_%d' % view)
                                for view in range(self.exprs.n_views)]
-        self.exprs.bias_phid = [self.parameters['bias_phid_%d' % view]
+        self.exprs.bias_phid = [getattr(self.parameters, 'bias_phid_%d' % view)
                                 for view in range(self.exprs.n_views)]
-        self.exprs.bias_shid = self.parameters['bias_shid']
-        self.exprs.weights_priv = [self.parameters['weights_priv_%d' % view]
+        self.exprs.bias_shid = getattr(self.parameters, 'bias_shid')
+        self.exprs.weights_priv = [getattr(self.parameters, 'weights_priv_%d' % view)
                                    for view in range(self.exprs.n_views)]
-        self.exprs.weights_shrd = [self.parameters['weights_shrd_%d' % view]
+        self.exprs.weights_shrd = [getattr(self.parameters, 'weights_shrd_%d' % view)
                                    for view in range(self.exprs.n_views)]
 
     def init_exprs(self):

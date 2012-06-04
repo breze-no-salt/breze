@@ -83,11 +83,11 @@ class MultiViewHarmoniumExprs(object):
 
         facv_shid = T.zeros((self.n_shid_nodes, 
                              self.n_samples, 
-                             self.shid.n_statistics))
+                             self.shid.n_statistics),
+                            dtype=theano.config.floatX)
         for statistic in range(self.shid.n_statistics):
             facv_shid = T.set_subtensor(facv_shid[:, :, statistic],
-                                        T.tile(self.bias_shid[:, statistic],
-                                               (self.n_samples,)).T)
+                                        self.bias_shid[:, statistic].dimshuffle(0, 'x'))                                               
             if self.shid.fixed_bias[statistic]:
                 facv_shid = T.set_subtensor(facv_shid[:, :, statistic],
                                             self.shid.fixed_bias_value[statistic])
@@ -96,7 +96,7 @@ class MultiViewHarmoniumExprs(object):
                 fv_vis = self.vis[from_view].f(x_vis[from_view])
                 for from_statistic in range(self.vis[from_view].n_statistics):
                     facv_shid = T.set_subtensor(facv_shid[:, :, statistic],
-                        T.dot(self.weights_shrd[from_view][:, statistic, :, from_statistic].T,
+                        T.dot(self.weights_shrd[from_view][:, statistic, :, from_statistic],
                                                 fv_vis[:, :, from_statistic]))
         return facv_shid
             
@@ -121,21 +121,21 @@ class MultiViewHarmoniumExprs(object):
         # fac_phid[view][node, sample, statistic]
         facv_phid = [T.zeros((self.n_phid_nodes[view],
                               self.n_samples,
-                              self.phid[view].n_statistics)) 
+                              self.phid[view].n_statistics),
+                             dtype=theano.config.floatX) 
                      for view in range(self.n_views)]
         for view in range(self.n_views):      
             fv_vis = self.vis[view].f(x_vis[view])
             for statistic in range(self.phid[view].n_statistics):
                 facv_phid[view] = T.set_subtensor(facv_phid[view][:, :, statistic],
-                                                  T.tile(self.bias_phid[view][:, statistic],
-                                                         (self.n_samples,)).T)
+                                                  self.bias_phid[view][:, statistic].dimshuffle(0, 'x'))
                 if self.phid[view].fixed_bias[statistic]:
                     facv_phid[view] = T.set_subtensor(facv_phid[view][:, :, statistic],
                                                       self.phid[view].fixed_bias_value[statistic])
 
                 for from_statistic in range(self.vis[view].n_statistics):
                     facv_phid[view] = T.inc_subtensor(facv_phid[view][:, :, statistic],
-                        T.dot(self.weights_priv[view][:, statistic, :, from_statistic].T,
+                        T.dot(self.weights_priv[view][:, statistic, :, from_statistic],
                               fv_vis[:, :, from_statistic]))
         return facv_phid
 
@@ -166,26 +166,26 @@ class MultiViewHarmoniumExprs(object):
 
         facv_vis = [T.zeros((self.n_vis_nodes[view],
                              self.n_samples,
-                             self.vis[view].n_statistics)) 
+                             self.vis[view].n_statistics),
+                            dtype=theano.config.floatX) 
                     for view in range(self.n_views)]
         fv_shid = self.shid.f(x_shid)
         for view in range(self.n_views):      
             fv_phid = self.phid[view].f(x_phid[view])
             for statistic in range(self.vis[view].n_statistics):
                 facv_vis[view] = T.set_subtensor(facv_vis[view][:, :, statistic],
-                                                 T.tile(self.bias_vis[view][:, statistic],
-                                                       (self.n_samples,)).T)
+                                                 self.bias_vis[view][:, statistic].dimshuffle(0, 'x'))
                 if self.vis[view].fixed_bias[statistic]:
                     facv_vis[view] = T.set_subtensor(facv_vis[view][:, :, statistic],
                                                      self.vis[view].fixed_bias_value[statistic])
 
                 for from_statistic in range(self.phid[view].n_statistics):
                     facv_vis[view] = T.inc_subtensor(facv_vis[view][:, :, statistic], 
-                        T.dot(self.weights_priv[view][:, statistic, :, from_statistic],
+                        T.dot(self.weights_priv[view][:, statistic, :, from_statistic].T,
                               fv_phid[:, :, from_statistic]))
                 for from_statistic in range(self.shid.n_statistics):
                     facv_vis[view] = T.inc_subtensor(facv_vis[view][:, :, statistic],
-                        T.dot(self.weights_shrd[view][:, statistic, :, from_statistic],
+                        T.dot(self.weights_shrd[view][:, statistic, :, from_statistic].T,
                               fv_shid[:, :, from_statistic]))
         return facv_vis
 
@@ -280,16 +280,18 @@ class MultiViewHarmoniumExprs(object):
         # dlpv_hid[to_node, sample, to_statistic]
         dlpv_hid = distr_hid.dlp(facv_hid)
 
-        dbias_vis = fv_vis.sum(axis=1)
-        dbias_hid = dlpv_hid.sum(axis=1)
+        dbias_vis = fv_vis.mean(axis=1)
+        dbias_hid = dlpv_hid.mean(axis=1)
 
         dweights = T.zeros((dlpv_hid.shape[0], distr_hid.n_statistics, 
-                            fv_vis.shape[0], distr_vis.n_statistics))
+                            fv_vis.shape[0], distr_vis.n_statistics),
+                           dtype=theano.config.floatX)
         for to_statistic in range(distr_hid.n_statistics):
             for from_statistic in range(distr_vis.n_statistics):
-                dweights = T.inc_subtensor(dweights[:, to_statistic, : from_statistic],
+                dweights = T.set_subtensor(dweights[:, to_statistic, :, from_statistic],
                                            T.dot(dlpv_hid[:, :, to_statistic], 
-                                                 fv_vis[:, :, from_statistic].T))
+                                                 fv_vis[:, :, from_statistic].T) /
+                                           fv_vis.shape[1])
 
         return dbias_vis, dbias_hid, dweights
 
