@@ -189,9 +189,10 @@ class Model(object):
             givens = []
 
         # Build update dictionary.
-        updates = collections.defaultdict(lambda: {})
+        updates = collections.defaultdict(lambda: {})        
         if isinstance(exprs, (list, tuple)):
-            for expr in exprs:
+            flat_exprs = flatten(exprs)
+            for expr in flat_exprs:
                 # TODO: last takes all, maybe should throw an error.
                 updates.update(self.updates[expr])
         else:

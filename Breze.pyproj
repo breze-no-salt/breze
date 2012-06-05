@@ -5,8 +5,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{d4ae010c-e677-44e1-88e4-9127c433ef0b}</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>
-    </StartupFile>
+    <StartupFile>examples\mnist-mvh.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>examples\</WorkingDirectory>
@@ -27,10 +26,14 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="breze\component\distance.py" />
+    <Compile Include="breze\component\distribution.py" />
+    <Compile Include="breze\component\multiviewharmonium.py" />
     <Compile Include="breze\component\norm.py" />
     <Compile Include="breze\component\transfer.py" />
     <Compile Include="breze\component\__init__.py" />
     <Compile Include="breze\model\feature\autoencoder.py" />
+    <Compile Include="breze\model\feature\multiviewharmonium.py" />
+    <Compile Include="breze\model\feature\rbm.py" />
     <Compile Include="breze\model\feature\rica.py" />
     <Compile Include="breze\model\feature\sparsefiltering.py" />
     <Compile Include="breze\model\feature\util.py" />
@@ -45,14 +48,19 @@
     <Compile Include="breze\__init__.py" />
     <Compile Include="examples\lds.py" />
     <Compile Include="examples\mnist-feature-extract.py" />
+    <Compile Include="examples\mnist-mvh.py" />
     <Compile Include="examples\mnist-nn.py" />
+    <Compile Include="examples\mnist-rbm.py" />
     <Compile Include="examples\mnist-stack.py" />
+    <Compile Include="examples\mv-rdbn.py" />
     <Compile Include="examples\utils.py" />
+    <Compile Include="examples\visual-rbm.py" />
     <Compile Include="examples\xor.py" />
     <Compile Include="test\test_component_distance.py" />
     <Compile Include="test\test_component_norm.py" />
     <Compile Include="test\test_component_transfer.py" />
     <Compile Include="test\test_model.py" />
+    <Compile Include="test\test_mvh.py" />
     <Compile Include="test\test_util.py" />
     <Compile Include="test\tools.py" />
     <Compile Include="test\__init__.py" />
