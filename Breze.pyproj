@@ -27,7 +27,7 @@
   <ItemGroup>
     <Compile Include="breze\component\distance.py" />
     <Compile Include="breze\component\distribution.py" />
-    <Compile Include="breze\component\multiviewharmoniumexprs.py" />
+    <Compile Include="breze\component\multiviewharmonium.py" />
     <Compile Include="breze\component\norm.py" />
     <Compile Include="breze\component\transfer.py" />
     <Compile Include="breze\component\__init__.py" />
@@ -60,6 +60,7 @@
     <Compile Include="test\test_component_norm.py" />
     <Compile Include="test\test_component_transfer.py" />
     <Compile Include="test\test_model.py" />
+    <Compile Include="test\test_mvh.py" />
     <Compile Include="test\test_util.py" />
     <Compile Include="test\tools.py" />
     <Compile Include="test\__init__.py" />

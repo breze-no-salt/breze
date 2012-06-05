@@ -9,8 +9,7 @@ from theano.tensor.shared_randomstreams import RandomStreams
 from math import pi
 
 from ...util import ParameterSet, Model, lookup
-from ...component import transfer, distance, norm
-from ...component.multiviewharmoniumexprs import MultiViewHarmoniumExprs
+from ...component import transfer, distance, norm, multiviewharmonium
 
 
 class MultiViewHarmonium(Model):
@@ -19,11 +18,12 @@ class MultiViewHarmonium(Model):
                  vis_dist, phid_dist, shid_dist, 
                  n_vis_nodes, n_phid_nodes, n_shid_nodes,
                  n_samples, n_gs_learn):
-        self.exprs = MultiViewHarmoniumExprs(vis_dist, phid_dist, shid_dist,
-                                             n_vis_nodes, n_phid_nodes, n_shid_nodes,
-                                             n_samples, n_gs_learn,
-                                             None, None, None,
-                                             None, None)
+        self.exprs = multiviewharmonium.MultiViewHarmonium(
+            vis_dist, phid_dist, shid_dist,
+            n_vis_nodes, n_phid_nodes, n_shid_nodes,
+            n_samples, n_gs_learn,
+            None, None, None,
+            None, None)
 
         super(MultiViewHarmonium, self).__init__()
 

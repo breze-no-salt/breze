@@ -11,7 +11,7 @@ from math import pi
 from . import transfer, distance, norm
 
 
-class MultiViewHarmoniumExprs(object):
+class MultiViewHarmonium(object):
 
     # Model hyperparameters:
     #
