@@ -60,7 +60,7 @@
     <Compile Include="test\test_component_norm.py" />
     <Compile Include="test\test_component_transfer.py" />
     <Compile Include="test\test_model.py" />
-    <Compile Include="test\test_mvh.py" />
+    <Compile Include="test\test_model_feature_multiviewharmonium.py" />
     <Compile Include="test\test_util.py" />
     <Compile Include="test\tools.py" />
     <Compile Include="test\__init__.py" />
