@@ -11,7 +11,61 @@ from math import pi
 from . import transfer, distance, norm
 
 
-class BernoulliDistribution(object):
+class Distribution(object):
+    """A distribution"""
+
+    def __init__(self):
+        raise NotImplementedError()
+
+    @property
+    def n_statistics(self):
+        """Number of sufficient statistics for exponential family harmoniums"""
+        raise NotImplementedError()
+
+    @property
+    def fixed_bias(self):
+        """List of boolean values, one for each statistic determining if bias value
+        is fixed for that statistic"""
+        # fixed_bias[statistic]
+        raise NotImplementedError()
+
+    @property
+    def fixed_bias_value(self):
+        """List of fixed bias values, one for each statistic. Value is only
+        considered for statistics where fixed_bias[statistic] is True."""
+        # fixed_biases_values[statistic]
+        raise NotImplementedError()
+
+    def f(self, x):
+        """Function returning sufficient statistics for given node values,
+        i.e. x[node, sample] -> f[node, sample, statistic]"""
+        raise NotImplementedError()
+
+    def lp(self, fac):
+        """Function returning log-partition function for given statistic
+        factors fac, i.e. fac[node, sample, statistic] -> lp[node, sample]"""
+        raise NotImplementedError()
+
+    def dlp(self, fac):
+        """Function returning partial derivative of log-partition function
+        with regard to all statistics, i.e. 
+        fac[node, sample, statistic] -> dlp[node, sample, statistic]
+        where dlp[node, sample, statistic] is the derivative of 
+        lp[node, sample] with regard to statistic."""
+        raise NotImplementedError()
+
+    def sampler(self, fac, final_gibbs_sample):
+        """Function sampling from the distribution given statistic factors fac,
+        i.e. fac[node, sample, statistic] -> sample[node, sample].
+        
+        :param final_gibbs_sample: Is True on the final iteration during
+                                   Gibbs sampling.
+        """
+        raise NotImplementedError()
+
+
+class BernoulliDistribution(Distribution):
+    """Bernoulli distribution"""
 
     def __init__(self, seed=1010):
         self.srng = RandomStreams(seed=seed)
@@ -53,7 +107,8 @@ class BernoulliDistribution(object):
             return self.srng.binomial(size=p.shape, n=1, p=p, 
                                       dtype=theano.config.floatX)
 
-class NormalDistribution(object):
+
+class NormalDistribution(Distribution):
 
     def __init__(self, seed=1010):
         self.srng = RandomStreams(seed=seed)
@@ -98,5 +153,3 @@ class NormalDistribution(object):
             return self.srng.normal(size=mean.shape, 
                                     avg=mean, std=1.0,  
                                     dtype=theano.config.floatX)
-
-

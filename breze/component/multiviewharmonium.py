@@ -12,7 +12,30 @@ from . import transfer, distance, norm
 
 
 class MultiViewHarmonium(object):
+    """Multi-View Harmonium expression builder
 
+    Implementation of a multi-view harmonium as described in
+    Y. Kang, S. Choi: Restricted Deep Belief Networks for Multi-View Learning,
+    2011
+
+    For an explanation of exponential family harmoniums see
+    M. Welling, M. Rosen-Zvi, G. Hinton: Exponential Family Harmoniums with
+    an Application to Information Retrieval
+
+    This implementation is best unterstood by considering (6) in this paper.
+    The sufficient statistics (i.e. f_ia(x_i)) and 
+    the log-partition function A_i({θ_ia}) are 
+    calculated by the methods f(...) and lp(...) of the supplied distributions.     
+    The weight updates in (9) use the derivative of the log-partition funciton,
+    which is calculated by the method dlp(...) of the supplied distributions.
+    To allow for efficient sampling from the distributions this implementation
+    does not calculate the PDFs but instead uses the sampler(...) method of the 
+    supplied distributions. 
+    """      
+    
+    # Shapes and signatures of instance variables
+    # ===========================================
+    #
     # Model hyperparameters:
     #
     # vis[view].f(x_vis[node, sample]) -> fv_vis[node, sample, statistic]
@@ -29,19 +52,43 @@ class MultiViewHarmonium(object):
     # vis[view].sampler(fac[node, sample, statistic]) -> sample_vis[node, sample]
     # phid[view].sampler(fac[node, sample, statistic]) -> sample_phid[node, sample]
     # shid.sampler(fac[node, sample, statistic]) -> sample_shid[node, sample]
-
+    #
     # Model parameters:
     # bias_vis[view][node, statistic]
     # bias_phid[view][node, statistic]
     # bias_shid[node, statistic]
     # weights_priv[view][to_node, to_statistic, from_node, from_statistic]
     # weights_shrd[view][to_node, to_statistic, from_node, from_statistic]
-
+    #
     # Inputs:
     # x_vis[view][node, sample]
     # x_phid[view][node, sample]
     # x_shid[node, sample]
 
+    """Multi-View Harmonium expression builder
+
+    :param vis_dist: list of distributions for visible nodes of each view
+    :param phid_dist: list of distributions for private latent nodes of each view
+    :param shid_dist: distribution of shared latent nodes
+    :param n_vis_nodes: list of number of visible nodes for each view
+    :param n_phid_nodes: list of number of private latent nodes for each view
+    :param n_shid_nodes: number of shared latent nodes
+    :param n_samples: number of samples per mini-batch
+    :param n_gs_learn: number of Gibbs iterations for contrastive-divergence 
+                       learning
+    :param bias_vis: biases for visible nodes of each view. Form:
+                     bias_vis[view][node, statistic]
+    :param bias_phid: biases for private hidden nodes of each view. Form: 
+                      bias_phid[view][node, statistic]
+    :param bias_shid: biases for shared hidden nodes. Form:
+                      bias_shid[node, statistic]
+    :param weights_priv: weights between visible and private latent nodes
+                         of each view. Form:
+                         weights_priv[view][to_node, to_statistic, from_node, from_statistic]
+    :param weights_shrd: weights between visible nodes of each view and the shared
+                         latent nodes. Form:
+                         weights_shrd[view][to_node, to_statistic, from_node, from_statistic]
+    """
     def __init__(self, 
                  vis_dist, phid_dist, shid_dist, 
                  n_vis_nodes, n_phid_nodes, n_shid_nodes,
@@ -73,6 +120,7 @@ class MultiViewHarmonium(object):
         assert len(self.weights_priv) == self.n_views
         assert len(self.weights_shrd) == self.n_views
 
+    """Number of views"""
     @property
     def n_views(self):
         return len(self.vis)
@@ -216,6 +264,20 @@ class MultiViewHarmonium(object):
     def gibbs_sample_vis(self, x_vis_start, x_phid_start, x_shid_start,
                          vis_clamp, phid_clamp, shid_clamp,
                          n_iterations):
+        """Iteratively sample latent and visble units for n_iterations.
+
+        The visible nodes are initialized with x_vis_start[view][node]. 
+
+        The private nodes are then sampled for each view for which
+        phid_clamp[view] is False; for the views for which phid_clamp[view] is
+        True the value provided by x_phid_start[view][node] is used.
+        The shared nodes are sampled if shid_clamp
+        is False, otherwise the value provided by x_shid_start is used.
+
+        Afterwards the visbles nodes are sampled for each view for
+        which vis_clamp[view] ist False. The process is repeated n_iterations
+        times.
+        """
 
         x_vis = x_vis_start
         for i in range(n_iterations):
@@ -242,7 +304,6 @@ class MultiViewHarmonium(object):
         return x_vis
 
     def _update_part(self, x_vis): 
-
         facv_phid = self.fac_phid(x_vis)
         facv_shid = self.fac_shid(x_vis)
 
@@ -295,8 +356,14 @@ class MultiViewHarmonium(object):
 
         return dbias_vis, dbias_hid, dweights
 
-
     def cd_learning_update(self, x_vis):
+        """Parameter updates for contrastive divergence learning.
+           Given the visibles x_vis[view][node] returns a tuple of updates for 
+           the
+           (visble biases, private latent biases, shared latent biases,
+           private visible to private latent weights, 
+           private visible to shared latent weights)
+        """
 
         # data distribution        
         (data_dbias_vis, data_dbias_phid, data_dbias_shid,
@@ -323,4 +390,3 @@ class MultiViewHarmonium(object):
 
         return (dbias_vis, dbias_phid, dbias_shid,
                 dweights_priv, dweights_shrd)
-

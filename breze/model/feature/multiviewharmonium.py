@@ -13,7 +13,24 @@ from ...component import transfer, distance, norm, multiviewharmonium
 
 
 class MultiViewHarmonium(Model):
+    """Multi-View Harmonium model
+    
+    See breze.component.multiviewharmonium.MultiViewHarmonium for
+    documentation about the implementation of the model.
+    """
 
+    """Multi-View Harmonium model
+
+    :param vis_dist: list of distributions for visible nodes of each view
+    :param phid_dist: list of distributions for private latent nodes of each view
+    :param shid_dist: distribution of shared latent nodes
+    :param n_vis_nodes: list of number of visible nodes for each view
+    :param n_phid_nodes: list of number of private latent nodes for each view
+    :param n_shid_nodes: number of shared latent nodes
+    :param n_samples: number of samples per mini-batch
+    :param n_gs_learn: number of Gibbs iterations for contrastive-divergence 
+                       learning
+    """
     def __init__(self, 
                  vis_dist, phid_dist, shid_dist, 
                  n_vis_nodes, n_phid_nodes, n_shid_nodes,
