@@ -12,6 +12,7 @@ Contents:
    pca
    cca
    sfa
+   mda 
    :maxdepth: 2
 
 

@@ -19,8 +19,10 @@ def mda(X, noise):
 
     :param X: array where each row holds one data item.
     :param noise: float that gives the probability that an entry in a data item
-    is switched off.
-    :returns: (weights, bias)
+        is switched off.
+    :returns: Pair (weights, bias) where `weights` is a square matrix `NxN` and
+        `bias` is an `N`-dimensional vector, where `N` is the size of a single
+        data item.
     """
     # TODO: find better names for q and Q
 
