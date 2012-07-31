@@ -16,9 +16,8 @@ def test_sfa():
     # Feature expansion.
     X = np.vstack([X1, X2, X1 * X2, X1**2, X2**2]).T
 
-    # Normalize.
+    ## Normalize.
     X -= X.mean(axis=0)
-    X /= X.std(axis=0)
 
     # Whiten.
     n, d = X.shape
@@ -33,9 +32,10 @@ def test_sfa():
 
     w = sfa([X], 1)
     desired = np.array(
-        [[  6.95191123e+01],
-         [ -5.67286442e-01],
-         [  5.99855419e+01],
-         [  1.17068631e-02],
-         [ -3.95323189e+01]])
+        [[ 8.03244781e-01],
+         [ -1.23768922e-03],
+         [ 2.21901512e-01],
+         [ -5.92845153e-04],
+         [ 5.52770891e-01]])
     assert roughly(w, desired), 'base not recovered'
+

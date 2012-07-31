@@ -16,7 +16,7 @@ def sfa(X, n_components):
     """Apply slow feature analysis to a dataset and return the corresponding
     weight matrix `w` to extract those components.
 
-    The data set has to be whitened.
+    The data set has to be centered and whitened.
 
     Items can be projected into this space by ``np.dot(X, w)``, where w is the new
     data.
