@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 
-"""Stochastic neighbourhood embedding with Student's t."""
+"""tSNE is a method to find low dimensional representations of data.
+The "crowding" problem is essentially solved, because the error function
+of tSNE favors solutions which represent the data locally.
+
+For details, see Laurens van der Maaten's page on tSNE at
+http://homepage.tudelft.nl/19j49/t-SNE.html.
+"""
 
 import itertools
 
@@ -142,6 +148,19 @@ class TsneMinimizer(Minimizer):
 
 
 def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000):
+    """Return low dimensional representations for the given data set.
+
+    :param X: (N, d) shaped array where N is the number of samples and d is th
+        dimensionality.
+    :param low_dim: Desired dimensionality of the representations, typically 2
+        or 3.
+    :param perplexity: Parameter to indicate how many `neighbours` a point 
+        approximately has.
+    :param early_exaggeration: Hyper parameter to tune optimization.
+    :param max_iter: Number of iterations to perform.
+    
+    :returns: (N, low_dim) shape array with low dimensional representations.
+    """
     if early_exaggeration < 0:
         raise ValueError("early_exaggeration has to be non negative")
     if max_iter < 0:
