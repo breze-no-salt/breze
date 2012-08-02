@@ -199,9 +199,7 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000):
     for i, info in enumerate(opt):
         if i > 20:
             opt.momentum = 0.8
-        print i, f_loss(embeddings_data, p_ji * 4), embeddings_data.sum()
         update = embeddings_data - prev
-        print update.mean(), update.max(), update.min()
         if i + 1 == early_exaggeration:
             break
 
@@ -210,7 +208,6 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000):
     opt = TsneMinimizer(embeddings_data, f_d_loss, args=args, momentum=0.8,
                         steprate=500, min_gain=0.01)
     for i, info in enumerate(opt):
-        print i, f_loss(embeddings_data, p_ji), embeddings_data.sum()
         if i + 1 == max_iter - early_exaggeration:
             break
 

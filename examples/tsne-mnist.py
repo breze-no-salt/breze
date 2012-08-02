@@ -23,11 +23,16 @@ if __name__ == '__main__':
     perplexity = 20
 
     # Load data.
-    with gzip.open(datafile,'rb') as f:
-        train_set, valid_set, test_set = cPickle.load(f)
-        X, Z = train_set
-        X = X[:n_samples]
-        Z = Z[:n_samples]
+    try:
+        with gzip.open(datafile,'rb') as f:
+            train_set, valid_set, test_set = cPickle.load(f)
+    except IOError:
+        print 'did not find mnist data set, you can download it from http://www.iro.umontreal.ca/~lisa/deep/data/mnist/mnist.pkl.gz'
+        sys.exit(1)
+
+    X, Z = train_set
+    X = X[:n_samples]
+    Z = Z[:n_samples]
 
     pca = PCA(n_components, whiten=True)
     X = pca.fit_transform(X)
