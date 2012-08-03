@@ -17,4 +17,5 @@ Data manipulation
 .. autofunction:: brummlearn.data.iter_windows
 .. autofunction:: brummlearn.data.split
 .. autofunction:: brummlearn.data.collapse
-
+.. autofunction:: brummlearn.data.uncollapse
+.. autofunction:: brummlearn.data.consecutive
