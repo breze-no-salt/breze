@@ -6,7 +6,7 @@
 Welcome to brummlearn's documentation!
 ======================================
 
-Contents:
+Learning representations:
 
 .. toctree::
    pca
@@ -14,8 +14,20 @@ Contents:
    sfa
    mda 
    tsne
+   :maxdepth: 1
+
+Learning sequences:
+
+.. toctree::
    rnn
-   :maxdepth: 2
+   :maxdepth: 1
+
+
+Helpers, convenience functions, tools:
+
+.. toctree::
+   data
+   :maxdepth: 1
 
 
 Indices and tables
