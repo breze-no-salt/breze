@@ -12,14 +12,15 @@ from sklearn.decomposition import PCA
 import pylab
 
 from brummlearn.tsne import tsne
+from brummlearn.pca import pca
 
 
 if __name__ == '__main__':
-    n_episodes = 200
+    n_episodes = 1000
     ee = 100
     datafile = 'mnist.pkl.gz'
     n_components = 50
-    n_samples = 1000
+    n_samples = 500
     perplexity = 20
 
     # Load data.
@@ -34,12 +35,13 @@ if __name__ == '__main__':
     X = X[:n_samples]
     Z = Z[:n_samples]
 
-    pca = PCA(n_components, whiten=True)
-    X = pca.fit_transform(X)
+    X -= X.mean(axis=0)
+    w, b = pca(X, n_components)
+    X = scipy.dot(X, w)
 
     # Only keep some dimensions.
     E = tsne(X, 2, perplexity=perplexity, early_exaggeration=ee,
-             max_iter=n_episodes)
+             max_iter=n_episodes, verbose=True)
 
     pylab.scatter(E[:, 0], E[:, 1], c=Z, s=50)
     pylab.show()

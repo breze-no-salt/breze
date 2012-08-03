@@ -27,16 +27,43 @@ def zero_diagonal(X):
     return (X - thisid * X)
 
 
+def euc_dist(X, Y, squared=True):
+    """
+    Compute distances between
+    rows in X and rows in Y.
+
+    See http://blog.smola.org/post/969195661/in-praise-of-the-second-binomial-formula
+    """
+    if X is Y:
+        Xsq = (X**2).sum(axis=1)
+        Ysq = Xsq[np.newaxis, :]
+        Xsq = Xsq[:, np.newaxis]
+    else:
+        Xsq = (X**2).sum(axis=1)[:, np.newaxis]
+        Ysq = (Y**2).sum(axis=1)[np.newaxis, :]
+    distances = Xsq + Ysq - 2 * np.dot(X, Y.T)
+    if squared:
+        return distances
+    else:
+        return np.sqrt(distances)
+
+
 def neighbour_probabilities(X, target_pplx):
     """Return a square matrix containing probabilities that points given by `X`
     in the data are neighbours."""
     N = X.shape[0]
     
     # Calculate the distances.
-    dists = squareform(pdist(X, 'euclidean')**2)
+    dists = euc_dist(X, X)
+
+    #print 'distances', (dists**2).sum(), dists.sum()
+    #1/0
+    #import pylab
+    #pylab.imshow(dists)
+    #pylab.show()
 
     # Parametrize in the log domain for positive standard deviations.
-    logstds = np.ones(X.shape[0]) * 2
+    precisions = np.ones(X.shape[0])
 
     # Do a binary search for good logstds leading to the desired perplexities.
 
@@ -45,41 +72,45 @@ def neighbour_probabilities(X, target_pplx):
     maximums = np.empty(X.shape[0])
     maximums[...] = np.inf
 
-    for j in range(50):
+    target_entropy = np.log(target_pplx)
+    for i in range(50):
         # Calculate perplexities.
-        vars = np.exp(logstds)**2
-        inpt_top = np.exp(-dists / 2 / vars)
+        inpt_top = np.exp(-dists * precisions)
         inpt_top[range(N), range(N)] = 0
         inpt_bottom = inpt_top.sum(axis=0)
 
+        p_inpt_nb_cond = inpt_top / inpt_bottom
         # If we don't add a small term, the logarithm will make NaNs.
-        p_inpt_nb_cond = inpt_top / inpt_bottom + 1E-12
+        p_inpt_nb_cond = np.maximum(1E-12, p_inpt_nb_cond)
         entropy = -(p_inpt_nb_cond * np.log(p_inpt_nb_cond)).sum(axis=0)
-        pplxs = np.exp(entropy)
 
-        diff = pplxs - target_pplx
+        pplxs = np.exp(entropy)
+        #print pplxs.mean(), pplxs.std(), [0], pplxs[0]
+
+        diff = entropy - target_entropy
+        #print precisions[0], pplxs[0], entropy[0], target_entropy
         for j in range(N):
             if abs(diff[j]) < 1e-5:
                 continue
-            elif diff[j] < 0:
-                minimums[j] = logstds[j]
-                if maximums[j] == np.inf:
-                    logstds[j] *= 2
+            elif diff[j] > 0:
+                if maximums[j] == -np.inf or maximums[j] == np.inf:
+                    precisions[j] *= 2
                 else:
-                    logstds[j] = (logstds[j] + maximums[j]) / 2
+                    precisions[j] = (precisions[j] + maximums[j]) / 2
+                minimums[j] = precisions[j]
             else:
-                maximums[j] = logstds[j]
-                if minimums[j] == -np.inf:
-                    logstds[j] /= 2
+                if minimums[j] == -np.inf or minimums[j] == np.inf:
+                    precisions[j] /= 2
                 else:
-                    logstds[j] = (logstds[j] + minimums[j]) / 2
+                    precisions[j] = (precisions[j] + minimums[j]) / 2
+                maximums[j] = precisions[j]
+
 
     # Calculcate p matrix once more and return it.
-    vars = np.exp(logstds)**2
-    inpt_top = np.exp(-dists / 2 / vars)
+    inpt_top = np.exp(-dists * precisions)
     inpt_top[range(N), range(N)] = 0
     inpt_bottom = inpt_top.sum(axis=0)
-    p_inpt_nb_cond = inpt_top / inpt_bottom + 1E-12
+    p_inpt_nb_cond = inpt_top / inpt_bottom
 
     # Symmetrize.
     p_ji = (p_inpt_nb_cond + p_inpt_nb_cond.T)
@@ -87,6 +118,7 @@ def neighbour_probabilities(X, target_pplx):
     # We don't normalize correctly here. But that does not matter, since we 
     # normalize q wrongly in the same way.
     p_ji /= p_ji.sum()
+    p_ji = np.maximum(1E-12, p_ji)
 
     return p_ji
 
@@ -100,19 +132,20 @@ def build_loss(embeddings):
     """
     # Probability that two points are neighbours in the embedding space.
     emb_dists = distance_matrix(embeddings)
-    emb_top = zero_diagonal(1 / (1 + emb_dists)) + 1E-12
+    emb_top = zero_diagonal(1 / (1 + emb_dists))
     emb_bottom = emb_top.sum(axis=0)
     q = emb_top / emb_bottom
 
     # Incorrect normalization which does not matter since we normalize p i 
     # the same way.
     q /= q.sum()
-    q = T.clip(q, 1E-12, 1)
+    q = T.maximum(q, 1E-12)
 
     p_ji_var = T.matrix('neighbour_probabilities')
+    p_ji_var_floored = T.maximum(p_ji_var, 1E-12)
 
     # t-distributed stochastic neighbourhood embedding loss.
-    loss = (p_ji_var * T.log(p_ji_var / q)).sum()
+    loss = (p_ji_var * T.log(p_ji_var_floored / q)).sum()
 
     return loss, p_ji_var
 
@@ -140,14 +173,17 @@ class TsneMinimizer(Minimizer):
             gain += 0.8 * ((gradient > 0) == (step_m1 > 0))         # same signs
             gain[gain < self.min_gain] = self.min_gain
             step = self.momentum * step_m1 
+            #print 'step length', (step**2).sum()
             step -= self.steprate * gradient * gain
             self.wrt += step
             step_m1 = step
+            self.wrt -= self.wrt.mean(axis=0)
             yield dict(gradient=gradient, gain=gain, args=args, kwargs=kwargs,
                        n_iter=i, step=step)
 
 
-def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000):
+def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000,
+         verbose=False):
     """Return low dimensional representations for the given data set.
 
     :param X: (N, d) shaped array where N is the number of samples and d is th
@@ -167,7 +203,7 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000):
         raise ValueError("max_iter has to be non negative")
 
     # Define embeddings shared variable and initialize randomly.
-    embeddings_flat = theano.shared(np.random.normal(0, 1e-4, X.shape[0] * low_dim))
+    embeddings_flat = theano.shared(np.random.normal(0, 1, X.shape[0] * low_dim))
     embeddings = embeddings_flat.reshape((X.shape[0], low_dim))
     embeddings_data = embeddings_flat.get_value(
         borrow=True, return_internal_type=True)
@@ -189,26 +225,21 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000):
 
     # Optimize with early exaggeration.
     p_ji_exaggerated = p_ji * 4
-    p_ji_exaggerated = np.clip(p_ji_exaggerated, 1E-12, 1)
-    args = (([p_ji_exaggerated], {}) for _ in itertools.count())
+    p_ji_exaggerated = np.maximum(p_ji_exaggerated, 1E-12)
+
+    ee_args = [p_ji_exaggerated] * early_exaggeration
+    no_ee_args = itertools.repeat(p_ji)
+    args = (([i], {}) for i in itertools.chain(ee_args, no_ee_args))
 
     opt = TsneMinimizer(embeddings_data, f_d_loss, args=args, momentum=0.5,
                         steprate=500, min_gain=0.01)
-
-    prev = embeddings_data.copy()
     for i, info in enumerate(opt):
-        if i > 20:
-            opt.momentum = 0.8
-        update = embeddings_data - prev
-        if i + 1 == early_exaggeration:
-            break
-
-    # Optimize with no lying about p values.
-    args = (([p_ji], {}) for _ in itertools.count())
-    opt = TsneMinimizer(embeddings_data, f_d_loss, args=args, momentum=0.8,
-                        steprate=500, min_gain=0.01)
-    for i, info in enumerate(opt):
-        if i + 1 == max_iter - early_exaggeration:
+        opt.momentum = 0.5 if i < 20 else 0.8
+        if verbose:
+            print 'loss #%i' % i, f_loss(embeddings_data, p_ji)
+            if i == early_exaggeration - 1:
+                print 'stopping early exaggeration'
+        if i + 1 == max_iter:
             break
 
     return embeddings_data.reshape(X.shape[0], low_dim)
