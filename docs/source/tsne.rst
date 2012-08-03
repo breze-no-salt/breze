@@ -1,4 +1,4 @@
-t-Distributed Stochastic Neighbourhood embedding
+t-Distributed Stochastic Neighbourhood Embedding
 ===============================================
 
 .. automodule:: brummlearn.tsne

@@ -13,6 +13,7 @@ Contents:
    cca
    sfa
    mda 
+   tsne
    :maxdepth: 2
 
 

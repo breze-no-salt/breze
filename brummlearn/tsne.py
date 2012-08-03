@@ -173,7 +173,6 @@ class TsneMinimizer(Minimizer):
             gain += 0.8 * ((gradient > 0) == (step_m1 > 0))         # same signs
             gain[gain < self.min_gain] = self.min_gain
             step = self.momentum * step_m1 
-            #print 'step length', (step**2).sum()
             step -= self.steprate * gradient * gain
             self.wrt += step
             step_m1 = step
@@ -194,6 +193,8 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000,
         approximately has.
     :param early_exaggeration: Hyper parameter to tune optimization.
     :param max_iter: Number of iterations to perform.
+    :param verbose: Flag that indicates whether to print out information during
+        the optimization.
     
     :returns: (N, low_dim) shape array with low dimensional representations.
     """
