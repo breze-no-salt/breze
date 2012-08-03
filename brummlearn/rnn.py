@@ -12,6 +12,11 @@ import theano.tensor as T
 
 
 class Rnn(rnn.RecurrentNetwork):
+    """Class implementing recurrent neural networks for supervised learning..
+    
+    The class inherits from breze's RecurrentNetwork class and adds several
+    sklearn like methods.
+    """
 
     def __init__(self, n_inpt, n_hidden, n_output, 
                  hidden_transfer='tanh', out_transfer='identity', 
@@ -20,11 +25,44 @@ class Rnn(rnn.RecurrentNetwork):
                  pretraining=False,
                  max_iter=1000,
                  verbose=False):
+        """Create and return a ``Rnn`` object.
+
+        :param n_inpt: Number of inputs per time step to the network. 
+        :param n_hidden: Size of the hidden state.
+        :param n_output: Size of the output of the network.
+        :param hidden_transfer: Transfer function to use for the network. This
+            can either (a) be a string and reference a transfer function from
+            ``breze.component.transfer`` or a function which takes a theano
+            tensor3 and returns a tensor of equal size.
+        :param out_transfer: Output function to use for the network. This
+            can either (a) be a string and reference a transfer function from
+            ``breze.component.transfer`` or a function which takes a theano
+            tensor3 and returns a tensor of equal size.
+        :param loss: Loss which is going to be optimized. This can either be a
+            string and reference a loss function found in
+            ``breze.component.distance`` or a function which takes two theano
+            tensors (one being the output of the network, the other some target)
+            and returns a theano scalar.
+        :param pooling: One of ``sum``, ``mean``, ``prod``, ``min``, ``max`` or
+            ``None``. If not None, the output is pooled over the time dimension,
+            essentially making the network return a tensor2 instead of a
+            tensor3.
+        :param optimizer: Either ``ksd`` referring to KrylovSubspaceDescent or
+            ``rprop``.
+        :param pretraining: Flag indicating whether to pre train locally.
+        :param max_iter: Maximum number of optimization iterations to perform.
+        :param verbose: Flag indicating whether to print out information during
+            fitting.
+        """
         super(Rnn, self).__init__(
             n_inpt, n_hidden, n_output, hidden_transfer, out_transfer,
             loss, pooling)
         self.optimizer = optimizer
         self.pretraining = pretraining
+        self.max_iter = max_iter
+        self.verbose = verbose
+
+        self.f_predict = None
         self.parameters.data[:] = np.random.standard_normal(self.parameters.data.shape)
 
     def _gauss_newton_product(self):
@@ -79,6 +117,8 @@ class Rnn(rnn.RecurrentNetwork):
         Each iteration of the learning algorithm is an iteration of the returned
         iterator. The model is in a valid state after each iteration, so that
         the optimization can be broken any time by the caller.
+
+        This method does `not` respect the max_iter attribute.
         
         :param X: A (t, n ,d) array where _t_ is the number of time steps,
             _n_ is the number of data samples and _d_ is the dimensionality of
@@ -122,8 +162,9 @@ class Rnn(rnn.RecurrentNetwork):
             time step.
         """
         itr = self.iter_fit(X, Z)
-        for i in itr:
-            pass
+        for i, info in enumerate(itr):
+            if i + 1 >= self.max_iter:
+                break
 
     def predict(self, X):
         """Return the prediction of the network given input sequences.
@@ -138,4 +179,3 @@ class Rnn(rnn.RecurrentNetwork):
         if self.f_predict is None:
             self.f_predict = self._make_predict_functions()
         return self.f_predict(X)
-

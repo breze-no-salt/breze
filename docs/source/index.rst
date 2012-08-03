@@ -14,6 +14,7 @@ Contents:
    sfa
    mda 
    tsne
+   rnn
    :maxdepth: 2
 
 
