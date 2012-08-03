@@ -56,12 +56,6 @@ def neighbour_probabilities(X, target_pplx):
     # Calculate the distances.
     dists = euc_dist(X, X)
 
-    #print 'distances', (dists**2).sum(), dists.sum()
-    #1/0
-    #import pylab
-    #pylab.imshow(dists)
-    #pylab.show()
-
     # Parametrize in the log domain for positive standard deviations.
     precisions = np.ones(X.shape[0])
 
@@ -85,10 +79,8 @@ def neighbour_probabilities(X, target_pplx):
         entropy = -(p_inpt_nb_cond * np.log(p_inpt_nb_cond)).sum(axis=0)
 
         pplxs = np.exp(entropy)
-        #print pplxs.mean(), pplxs.std(), [0], pplxs[0]
 
         diff = entropy - target_entropy
-        #print precisions[0], pplxs[0], entropy[0], target_entropy
         for j in range(N):
             if abs(diff[j]) < 1e-5:
                 continue
@@ -150,40 +142,7 @@ def build_loss(embeddings):
     return loss, p_ji_var
 
 
-
-# Custom Minimizer for TSNE using a learning rate schedule.
-class TsneMinimizer(Minimizer):
-
-    def __init__(self, wrt, fprime, steprate, momentum, min_gain=1E-2,
-                 args=None, logfunc=None):
-        super(TsneMinimizer, self).__init__(wrt, args=args, logfunc=logfunc)
-
-        self.fprime = fprime
-        self.steprate = steprate
-        self.momentum = momentum
-        self.min_gain = min_gain
-
-    def __iter__(self):
-        step_m1 = np.zeros(self.wrt.shape[0])
-        gain = np.ones(self.wrt.shape[0])
-
-        for i, (args, kwargs) in enumerate(self.args):
-            gradient = self.fprime(self.wrt, *args, **kwargs)
-            gain = (gain + 0.2) * ((gradient > 0) != (step_m1 > 0)) # different signs
-            gain += 0.8 * ((gradient > 0) == (step_m1 > 0))         # same signs
-            gain[gain < self.min_gain] = self.min_gain
-            step = self.momentum * step_m1 
-            #print 'step length', (step**2).sum()
-            step -= self.steprate * gradient * gain
-            self.wrt += step
-            step_m1 = step
-            self.wrt -= self.wrt.mean(axis=0)
-            yield dict(gradient=gradient, gain=gain, args=args, kwargs=kwargs,
-                       n_iter=i, step=step)
-
-
-def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000,
-         verbose=False):
+def tsne(X, low_dim, perplexity=40, max_iter=1000, verbose=False):
     """Return low dimensional representations for the given data set.
 
     :param X: (N, d) shaped array where N is the number of samples and d is th
@@ -192,13 +151,10 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000,
         or 3.
     :param perplexity: Parameter to indicate how many `neighbours` a point 
         approximately has.
-    :param early_exaggeration: Hyper parameter to tune optimization.
     :param max_iter: Number of iterations to perform.
     
     :returns: (N, low_dim) shape array with low dimensional representations.
     """
-    if early_exaggeration < 0:
-        raise ValueError("early_exaggeration has to be non negative")
     if max_iter < 0:
         raise ValueError("max_iter has to be non negative")
 
@@ -223,22 +179,12 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000,
     f_d_loss = theano.function(
         [embeddings_sub, p_ji_var], d_loss_wrt_embeddings_flat, givens=givens)
 
-    # Optimize with early exaggeration.
-    p_ji_exaggerated = p_ji * 4
-    p_ji_exaggerated = np.maximum(p_ji_exaggerated, 1E-12)
+    args = (([i], {}) for i in itertools.repeat(p_ji))
 
-    ee_args = [p_ji_exaggerated] * early_exaggeration
-    no_ee_args = itertools.repeat(p_ji)
-    args = (([i], {}) for i in itertools.chain(ee_args, no_ee_args))
-
-    opt = TsneMinimizer(embeddings_data, f_d_loss, args=args, momentum=0.5,
-                        steprate=500, min_gain=0.01)
+    opt = climin.Lbfgs(embeddings_data, f_loss, f_d_loss, args=args)
     for i, info in enumerate(opt):
-        opt.momentum = 0.5 if i < 20 else 0.8
         if verbose:
             print 'loss #%i' % i, f_loss(embeddings_data, p_ji)
-            if i == early_exaggeration - 1:
-                print 'stopping early exaggeration'
         if i + 1 == max_iter:
             break
 
