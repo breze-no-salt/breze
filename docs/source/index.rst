@@ -12,8 +12,13 @@ Learning representations:
    pca
    cca
    sfa
-   mda 
    tsne
+   :maxdepth: 1
+
+Denoising:
+
+.. toctree::
+   mda
    :maxdepth: 1
 
 Learning sequences:
