@@ -13,6 +13,7 @@ Learning representations:
    cca
    sfa
    tsne
+   sparsefiltering
    :maxdepth: 1
 
 Denoising:
