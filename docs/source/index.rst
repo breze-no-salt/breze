@@ -23,10 +23,11 @@ Denoising:
    mda
    :maxdepth: 1
 
-Learning sequences:
+Neural Networks et al:
 
 .. toctree::
    rnn
+   mlp
    :maxdepth: 1
 
 
