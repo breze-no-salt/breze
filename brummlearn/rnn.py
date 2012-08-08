@@ -12,8 +12,9 @@ import theano.tensor as T
 
 from breze.model.neural import TwoLayerPerceptron
 
+from brummlearn.base import SupervisedBrezeWrapperBase
 
-class Rnn(rnn.RecurrentNetwork):
+class Rnn(rnn.RecurrentNetwork, SupervisedBrezeWrapperBase):
     """Class implementing recurrent neural networks for supervised learning..
     
     The class inherits from breze's RecurrentNetwork class and adds several
@@ -88,11 +89,6 @@ class Rnn(rnn.RecurrentNetwork):
 
         return Hp
 
-    def _d_loss(self):
-        """Return a theano expression for the gradient of the loss wrt the
-        flat parameters of the model."""
-        return T.grad(self.exprs['loss'], self.parameters.flat)
-
     def _make_loss_functions(self):
         """Return triple (f_loss, f_d_loss, f_Hp) of functions.
         
@@ -109,10 +105,6 @@ class Rnn(rnn.RecurrentNetwork):
         f_Hp = self.function(['some-vector', 'inpt', 'target'], Hp,
                              explicit_pars=True)
         return f_loss, f_d_loss, f_Hp
-
-    def _make_predict_functions(self):
-        """Return a function to predict targets from input sequences."""
-        return self.function(['inpt'], 'output')
 
     def _pretrain(self, X, Z):
         # Construct an MLP of same dimensions.
@@ -193,32 +185,3 @@ class Rnn(rnn.RecurrentNetwork):
             info['loss'] = loss
             yield info
 
-    def fit(self, X, Z):
-        """Fit the parameters of the model to the given data with the
-        given error function.
-
-        :param X: A (t, n ,d) array where _t_ is the number of time steps,
-            _n_ is the number of data samples and _d_ is the dimensionality of
-            a data sample at a single time step.
-        :param Z: A (t, n, l) array where _t_ and _n_ are defined as in _X_,
-            but _l_ is the dimensionality of the output sequences at a single
-            time step.
-        """
-        itr = self.iter_fit(X, Z)
-        for i, info in enumerate(itr):
-            if i + 1 >= self.max_iter:
-                break
-
-    def predict(self, X):
-        """Return the prediction of the network given input sequences.
-
-        :param X: A (t, n ,d) array where _t_ is the number of time steps,
-            _n_ is the number of data samples and _d_ is the dimensionality of
-            a data sample at a single time step.
-        :returns: A (t, n, l) array where _t_ and _n_ are defined as in _X_,
-            but _l_ is the dimensionality of the output sequences at a single
-            time step.
-        """
-        if self.f_predict is None:
-            self.f_predict = self._make_predict_functions()
-        return self.f_predict(X)

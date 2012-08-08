@@ -17,9 +17,12 @@ import numpy as np
 import theano.tensor as T
 
 from breze.model.feature import SparseFiltering as _SparseFiltering
+from brummlearn.base import (
+    UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin)
 
 
-class SparseFiltering(_SparseFiltering):
+class SparseFiltering(_SparseFiltering, UnsupervisedBrezeWrapperBase,
+    TransformBrezeWrapperMixin):
 
     def __init__(self, n_inpt, n_feature, feature_transfer='softabs',
         max_iter=1000, verbose=False):
@@ -44,77 +47,3 @@ class SparseFiltering(_SparseFiltering):
             self.parameters.data.shape)
         self.max_iter = max_iter
         self.verbose = verbose
-
-    def _d_loss(self):
-        """Return a theano expression for the gradient of the loss wrt the
-        flat parameters of the model."""
-        return T.grad(self.exprs['loss'], self.parameters.flat)
-
-    def _make_loss_functions(self):
-        """Return pair (f_loss, f_d_loss) of functions.
-        
-         - f_loss returns the current loss,
-         - f_d_loss returns the gradient of that loss wrt parameters,
-        """
-        d_loss = self._d_loss()
-
-        f_loss = self.function(['inpt'], 'loss', explicit_pars=True)
-        f_d_loss = self.function(['inpt'], d_loss, explicit_pars=True)
-        return f_loss, f_d_loss
-
-    def _make_transform_function(self):
-        """Return a callable f which does the feature transform of this model.
-        """
-        f_transform = self.function(['inpt'], 'feature')
-        return f_transform
-
-    def iter_fit(self, X):
-        """Iteratively fit the parameters of the model to the given data with
-        the given error function.
-
-        Each iteration of the learning algorithm is an iteration of the returned
-        iterator. The model is in a valid state after each iteration, so that
-        the optimization can be broken any time by the caller.
-
-        This method does `not` respect the max_iter attribute.
-        
-        :param X: A (t, n ,d) array where _t_ is the number of time steps,
-            _n_ is the number of data samples and _d_ is the dimensionality of
-            a data sample at a single time step.
-        """
-        f_loss, f_d_loss = self._make_loss_functions()
-
-        args = itertools.repeat(([X], {}))
-        opt = climin.Lbfgs(self.parameters.data, f_loss, f_d_loss, args=args)
-
-        for i, info in enumerate(opt):
-            loss = info.get('loss', None)
-            if loss is None:
-                loss = f_loss(self.parameters.data, X)
-            info['loss'] = loss
-            yield info
-
-    def fit(self, X):
-        """Fit the parameters of the model to the given data with the
-        given error function.
-
-        :param X: A (t, n ,d) array where _t_ is the number of time steps,
-            _n_ is the number of data samples and _d_ is the dimensionality of
-            a data sample at a single time step.
-        """
-        itr = self.iter_fit(X)
-        for i, info in enumerate(itr):
-            if i + 1 >= self.max_iter:
-                break
-
-    def transform(self, X):
-        """Return the feature representation of the model given X.
-        
-        :param X: (n, d) array where n is the number of samples and d the input
-            dimensionality.
-        :returns:  (n, h) array where n is the number of samples and h the
-            dimensionality of the feature space.
-        """
-        if self.f_transform is None:
-            self.f_transform = self._make_transform_function()
-        return self.f_transform(X)

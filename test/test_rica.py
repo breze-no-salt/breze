@@ -23,3 +23,9 @@ def test_rica_transform():
     X = np.random.standard_normal((10, 2))
     rica = Rica(2, 10, 'softabs', 'identity', 'squared', 0.5, max_iter=10)
     rica.transform(X)
+
+
+def test_rica_reconstruct():
+    X = np.random.standard_normal((10, 2))
+    rica = Rica(2, 10, 'softabs', 'identity', 'squared', 0.5, max_iter=10)
+    rica.reconstruct(X)
