@@ -52,13 +52,13 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         """
         f_loss, f_d_loss = self._make_loss_functions()
 
-        args = itertools.repeat(([X], {}))
+        args = itertools.repeat(([X, Z], {}))
         opt = climin.Lbfgs(self.parameters.data, f_loss, f_d_loss, args=args)
 
         for i, info in enumerate(opt):
             loss = info.get('loss', None)
             if loss is None:
-                loss = f_loss(self.parameters.data, X)
+                loss = f_loss(self.parameters.data, X, Z)
             info['loss'] = loss
             yield info
 
