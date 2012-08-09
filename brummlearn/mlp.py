@@ -6,6 +6,7 @@
 import itertools 
 
 import climin
+import climin.util
 import numpy as np
 import theano.tensor as T
 
@@ -44,8 +45,6 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
             loss)
 
         self.optimizer = optimizer
-        if optimizer not in ('lbfgs'):
-            raise ValueError('only lbfgs allowed as optimizer for now')
 
         self.max_iter = max_iter
         self.verbose = verbose

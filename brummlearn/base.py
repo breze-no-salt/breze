@@ -7,6 +7,7 @@ learning algorithms."""
 import itertools
 
 import climin
+import climin.util
 import theano.tensor as T
 
 
@@ -17,6 +18,18 @@ class BrezeWrapperBase(object):
         """Return a theano expression for the gradient of the loss wrt the
         flat parameters of the model."""
         return T.grad(self.exprs['loss'], self.parameters.flat)
+
+    def _make_optimizer(self, f, fprime, args):
+        if isinstance(self.optimizer, (str, unicode)):
+            ident = self.optimizer
+            kwargs = {}
+        else:
+            ident, kwargs = self.optimizer
+        kwargs['f'] = f
+        kwargs['fprime'] = fprime
+
+        kwargs['args'] = args
+        return climin.util.optimizer(ident, self.parameters.data, **kwargs)
 
 
 class SupervisedBrezeWrapperBase(BrezeWrapperBase):
@@ -53,7 +66,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         f_loss, f_d_loss = self._make_loss_functions()
 
         args = itertools.repeat(([X, Z], {}))
-        opt = climin.Lbfgs(self.parameters.data, f_loss, f_d_loss, args=args)
+        opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):
             loss = info.get('loss', None)

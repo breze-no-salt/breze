@@ -151,7 +151,7 @@ def tile_raster_images(X, img_shape, tile_shape,tile_spacing = (0,0),
 
 
 def one_hot(array, classes):
-    "Given a flat array `array` containing positive integers indicating a class,
+    """Given a flat array `array` containing positive integers indicating a class,
     starting at 0, return a matrix with one row per item in `array` where that
     element is set to 1, everything else 0."""
     n = array.shape[0]
