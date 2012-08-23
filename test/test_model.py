@@ -312,7 +312,8 @@ def test_rnn():
 
 
 def test_pooling_rnn():
-    l = RecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'nca', 'mean')
+    l = RecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'nca'
+                         ,'mean')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt', 'target'], d_loss_wrt_pars, 

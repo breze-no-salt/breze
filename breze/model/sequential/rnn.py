@@ -33,7 +33,7 @@ class RecurrentNetwork(Model):
         if self.pooling is None:
             target = T.tensor3('target') 
         else:
-            target = T.matrix('tensor3')
+            target = T.matrix('target')
         pars = self.parameters
         self.exprs = self.make_exprs(
             inpt, target,
@@ -108,7 +108,7 @@ class RecurrentNetwork(Model):
 
         output = f_output(output_in)
 
-        loss = f_loss(output, target)
+        loss = f_loss(target, output)
 
         return {'inpt': inpt,
                 'target': target,
@@ -232,7 +232,7 @@ class LstmRecurrentNetwork(RecurrentNetwork):
 
         output = f_output(output_in)
 
-        loss = f_loss(output, target)
+        loss = f_loss(target, output)
 
         return {'inpt': inpt,
                 'target': target,

@@ -52,13 +52,13 @@ def distance_matrix(X, Y=None, norm_=norm.l2):
     return dist_comps
 
 
-def nca(X, Y):
+def nca(target, embedding):
      """Return expression for the negative expected correctly classified
      points given a nearest neighbour classification method.
  
      As introduced in 'Neighbourhood Component Analysis'."""
      # Matrix of the distances of points.
-     dist = distance_matrix(X)
+     dist = distance_matrix(embedding)
      thisid = T.identity_like(dist)
 
      # Probability that a point is neighbour of another point based on
@@ -68,5 +68,5 @@ def nca(X, Y):
      p = top / bottom
 
      # Create a matrix that matches same classes.
-     sameclass = T.eq(distance_matrix(Y), 0) - thisid
-     return -(p * sameclass).sum() / X.shape[0]
+     sameclass = T.eq(distance_matrix(target), 0) - thisid
+     return -(p * sameclass).sum() / embedding.shape[0]
