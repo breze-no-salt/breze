@@ -12,10 +12,10 @@ class RIM_LR(Linear):
         self.c_rim = c_rim
         super(RIM_LR, self).__init__(n_inpt=n_inpt,
                 n_output=n_output, out_transfer='softmax',
-                loss='cross_entropy' )
+                loss='neg_cross_entropy' )
 
     def init_exprs(self):
-        self.exprs = self.make_exprs(T.matrix('inpt'), 
+        self.exprs = self.make_exprs(T.matrix('inpt'),
                 self.parameters.in_to_out, self.parameters.bias,
                 self.out_transfer, self.loss, self.c_rim)
 

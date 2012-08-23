@@ -60,7 +60,7 @@ def test_mlp():
 
 
 def test_autoencoder():
-    l = AutoEncoder(2, 10, 'tanh', 'identity', 'bernoulli_cross_entropy')
+    l = AutoEncoder(2, 10, 'tanh', 'identity', 'bernoulli_neg_cross_entropy')
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt'], grad, mode='FAST_COMPILE')
@@ -71,8 +71,8 @@ def test_autoencoder():
 
 def test_sae():
     l = SparseAutoEncoder(
-        2, 10, 'sigmoid', 'sigmoid', 'bernoulli_cross_entropy',
-        c_sparsity=5, sparsity_loss='bernoulli_cross_entropy', 
+        2, 10, 'sigmoid', 'sigmoid', 'bernoulli_neg_cross_entropy',
+        c_sparsity=5, sparsity_loss='bernoulli_neg_cross_entropy',
         sparsity_target=0.05)
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
@@ -84,7 +84,7 @@ def test_sae():
 
 def test_cae():
     l = ContractiveAutoEncoder(
-        2, 10, 'sigmoid', 'sigmoid', 'bernoulli_cross_entropy',
+        2, 10, 'sigmoid', 'sigmoid', 'bernoulli_neg_cross_entropy',
         c_jacobian=1.5)
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
@@ -114,7 +114,7 @@ def test_rica():
 
 
 def test_dnae():
-    l = DenoisingAutoEncoder(2, 10, 'tanh', 'identity', 'bernoulli_cross_entropy')
+    l = DenoisingAutoEncoder(2, 10, 'tanh', 'identity', 'bernoulli_neg_cross_entropy')
     f = l.function(['corrupted', 'inpt'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['corrupted', 'inpt'], grad, mode='FAST_COMPILE')

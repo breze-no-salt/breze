@@ -8,15 +8,15 @@ import norm
 from ..util import lookup
 
 
-def cross_entropy(X, Y, axis=None):
-    return -(X * T.log(Y)).sum(axis=axis)
+def neg_cross_entropy(target, prediction, axis=None, eps=1e-24):
+    return -(target * T.log(prediction + eps)).sum(axis=axis)
 
 
-def nominal_cross_entropy(X, Y, axis=None):
-    return -(T.log(Y)[T.arange(X.shape[0]), X])
+def nominal_neg_cross_entropy(target, prediction, axis=None):
+    return -(T.log(prediction)[T.arange(target.shape[0]), target])
 
 
-def bernoulli_cross_entropy(X, Y, axis=None):
+def bernoulli_neg_cross_entropy(X, Y, axis=None):
     return -(X * T.log(Y) + (1 - X) * T.log(1 - Y)).sum(axis=axis)
 
 
@@ -53,20 +53,20 @@ def distance_matrix(X, Y=None, norm_=norm.l2):
 
 
 def nca(X, Y):
-  """Return expression for the negative expected correctly classified
-  points given a nearest neighbour classification method.
+     """Return expression for the negative expected correctly classified
+     points given a nearest neighbour classification method.
+ 
+     As introduced in 'Neighbourhood Component Analysis'."""
+     # Matrix of the distances of points.
+     dist = distance_matrix(X)
+     thisid = T.identity_like(dist)
 
-  As introduced in 'Neighbourhood Component Analysis'."""
-  # Matrix of the distances of points.
-  dist = distance_matrix(X)
-  thisid = T.identity_like(dist)
+     # Probability that a point is neighbour of another point based on
+     # the distances.
+     top = T.exp(-dist) + 1E-8 # Add a small constant for stability.
+     bottom = (top - thisid * top).sum(axis=0)
+     p = top / bottom
 
-  # Probability that a point is neighbour of another point based on
-  # the distances.
-  top = T.exp(-dist) + 1E-8 # Add a small constant for stability.
-  bottom = (top - thisid * top).sum(axis=0)
-  p = top / bottom
-
-  # Create a matrix that matches same classes.
-  sameclass = T.eq(distance_matrix(Y), 0) - thisid
-  return -(p * sameclass).sum() / X.shape[0]
+     # Create a matrix that matches same classes.
+     sameclass = T.eq(distance_matrix(Y), 0) - thisid
+     return -(p * sameclass).sum() / X.shape[0]

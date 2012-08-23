@@ -6,8 +6,8 @@ import theano.tensor as T
 import numpy as np
 
 from breze.component.distance import (
-    absolute, squared, bernoulli_cross_entropy, cross_entropy,
-    distance_matrix, nominal_cross_entropy, nca)
+    absolute, squared, bernoulli_neg_cross_entropy, neg_cross_entropy,
+    distance_matrix, nominal_neg_cross_entropy, nca)
 from tools import roughly
 
 
@@ -76,40 +76,40 @@ def test_squared_colwise():
     assert correct, 'squared distance colwise not working'
 
 
-def test_cross_entropy():
+def test_neg_cross_entropy():
     X, Y = T.matrix(), T.matrix()
-    dist = cross_entropy(X, Y)
+    dist = neg_cross_entropy(X, Y)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
     correct = roughly(res, 1.6063716678910529)
-    assert correct, 'cross_entropy distance not working'
+    assert correct, 'neg_cross_entropy distance not working'
 
 
-def test_cross_entropy_rowwise():
+def test_neg_cross_entropy_rowwise():
     X, Y = T.matrix(), T.matrix()
-    dist = cross_entropy(X, Y, axis=1)
+    dist = neg_cross_entropy(X, Y, axis=1)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
     correct = roughly(res, [0.85798192, 0.74838975])
-    assert correct, 'bernoulli_cross_entropy distance rowwise not working'
+    assert correct, 'neg_cross_entropy distance rowwise not working'
 
 
-def test_cross_entropy_colwise():
+def test_neg_cross_entropy_colwise():
     X, Y = T.matrix(), T.matrix()
-    dist = cross_entropy(X, Y, axis=0)
+    dist = neg_cross_entropy(X, Y, axis=0)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
     correct = roughly(res, [[0.49795728, 0.48932523, 0.61908916]])
-    assert correct, 'bernoulli_cross_entropy distance colwise not working'
+    assert correct, 'neg_cross_entropy distance colwise not working'
 
 
-def test_nominal_cross_entropy():
+def test_nominal_neg_cross_entropy():
     Xc, Y = T.ivector(), T.matrix()
-    dist = nominal_cross_entropy(Xc, Y)
+    dist = nominal_neg_cross_entropy(Xc, Y)
     f = theano.function([Xc, Y], dist, mode='FAST_COMPILE')
     res = f(test_Xc, test_Y)
     correct = roughly(res, -np.log(test_Y)[np.arange(test_Xc.shape[0]), test_Xc])
-    assert correct, 'nominal_cross_entropy distance not working'
+    assert correct, 'nominal_neg_cross_entropy distance not working'
 
 
 def test_distance_matrix():
