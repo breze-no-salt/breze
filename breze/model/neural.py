@@ -120,18 +120,17 @@ class MultiLayerPerceptron(Model):
         return spec
 
     @staticmethod
-    def make_exprs(inpt, target, in_to_hidden, 
-                   hidden_to_hiddens, 
-                   hidden_to_out, 
-                   hidden_biases, 
+    def make_exprs(inpt, target, in_to_hidden,
+                   hidden_to_hiddens,
+                   hidden_to_out,
+                   hidden_biases,
                    out_bias,
                    hidden_transfers, output_transfer, loss):
-        
-        f_hidden = lookup(hidden_transfers[0], transfer)
-        hidden_in = T.dot(inpt, in_to_hidden) + hidden_biases[0]
-        hidden = f_hidden(hidden_in)
-
         exprs = {}
+
+        f_hidden = lookup(hidden_transfers[0], transfer)
+        hidden_in = exprs['hidden_in_0'] = T.dot(inpt, in_to_hidden) + hidden_biases[0]
+        hidden = exprs['hidden_0'] =  f_hidden(hidden_in)
 
         zipped = zip(hidden_to_hiddens, hidden_biases[1:], hidden_transfers[1:])
         for i, (w, b, t) in enumerate(zipped):
@@ -139,8 +138,8 @@ class MultiLayerPerceptron(Model):
             hidden_in = T.dot(hidden_m1, w) + b
             f = lookup(t, transfer)
             hidden = f(hidden_in)
-            exprs['hidden_in_%i' % i] = hidden_in
-            exprs['hidden_%i' % i] = hidden
+            exprs['hidden_in_%i' % (i + 1)] = hidden_in
+            exprs['hidden_%i' % (i + 1)] = hidden
 
         f_output = lookup(output_transfer, transfer)
         output_in = T.dot(hidden, hidden_to_out) + out_bias
@@ -152,7 +151,7 @@ class MultiLayerPerceptron(Model):
         loss = loss_rowwise.mean()
 
         exprs.update({
-            'inpt': inpt, 
+            'inpt': inpt,
             'target': target,
             'output_in': output_in,
             'output': output,
