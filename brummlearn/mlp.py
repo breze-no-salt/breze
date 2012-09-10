@@ -61,58 +61,99 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
 
 class DropoutMlp(Mlp):
 
-    def __init__(self, n_inpt, n_hiddens, n_output, 
+    #
+    # TODO
+    #
+    # 1. Droping out of inputs,
+    # 2. making schedule of steprate and momentum right -- for now, it is
+    #    changed each mini batch, not epoch.
+    #
+
+    def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
                  p_dropout_inpt=.2, p_dropout_hidden=.5,
+                 max_norm=15,
+                 optimizer=None,
+                 batch_size=-1,
                  max_iter=1000, verbose=False):
         if len(n_hiddens) > 1:
             raise ValueError('DropoutMlp not ready for multiple hidden layers')
+
+        self.p_dropout_inpt = p_dropout_inpt
+        self.p_dropout_hidden = p_dropout_hidden
+        self.max_norm = max_norm
+
+        if optimizer is None:
+            optimizer = self.standard_optimizer()
+
         super(DropoutMlp, self).__init__(
             n_inpt, n_hiddens, n_output, hidden_transfers, out_transfer,
-            loss, max_iter, verbose)
+            loss=loss, optimizer=optimizer, batch_size=batch_size,
+            max_iter=max_iter, verbose=verbose)
 
+        self.parameters.data[:] = np.random.normal(0, 0.01,
+            self.parameters.data.shape)
 
-    def _make_loss_functions(self):
+    def standard_optimizer(self):
+        """Return a dictionary suitable for climin.util.optimizer which 
+        specifies the standard optimizer for dropout mlps."""
+        steprate_0 = 10
+        steprate_decay = 0.998
+        momentum_0 = 0.5
+        momentum_equilibrium = 0.99
+        n_momentum_anneal_steps = 1000
+
+        momentum_inc = (momentum_equilibrium - momentum_0) / n_momentum_anneal_steps
+        momentum_annealed = (momentum_0 + momentum_inc * t
+                             for t in range(1, n_momentum_anneal_steps))
+        momentum = itertools.chain(momentum_annealed,
+                                   itertools.repeat(momentum_equilibrium))
+
+        # The steprate depends on the momentum. Thus we define it again to
+        # consume it for the step rate iterator.
+        momentum_annealed2 = (momentum_0 + momentum_inc * t
+                              for t in range(1, n_momentum_anneal_steps))
+        momentum2 = itertools.chain(momentum_annealed2,
+                                    itertools.repeat(momentum_equilibrium))
+
+        steprate = ((1 - m) * steprate_0 * steprate_decay**t
+                    for t, m in enumerate(momentum2))
+
+        return 'gd', {
+            'steprate': steprate,
+            'momentum': momentum,
+        }
+
+    def _make_loss_functions(self, mode='FAST_RUN'):
         """Return pair (f_loss, f_d_loss) of functions.
-        
+
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
         """
-        d_loss = self._d_loss()
         hiddens = self.exprs['hidden_0']
         rng = T.shared_randomstreams.RandomStreams()
-        dropout = rng.binomial(hiddens.shape)
-        hiddens_dropped_out = hiddens * dropout
+        dropout = rng.binomial(hiddens.shape, p=self.p_dropout_hidden)
+
+        # TODO check out which one of those two is faster.
+        #hiddens_dropped_out = T.switch(dropout, 0, hiddens)
+        hiddens_dropped_out = dropout * hiddens
 
         givens = {hiddens: hiddens_dropped_out}
         loss = theano.clone(self.exprs['loss'], givens)
-        d_loss = theano.clone(d_loss, givens)
+        d_loss = T.grad(loss, self.parameters.flat)
 
-        f_loss = self.function(['inpt', 'target'], loss, explicit_pars=True)
-        f_d_loss = self.function(['inpt', 'target'], d_loss, explicit_pars=True)
+        f_loss = self.function(['inpt', 'target'], loss, explicit_pars=True,
+                               mode=mode)
+        f_d_loss = self.function(['inpt', 'target'], d_loss, explicit_pars=True,
+                                 mode=mode)
         return f_loss, f_d_loss
 
-    def _make_optimizer(self, f, fprime, args):
-        # TODO make this configurable from the outside.
-        steprate_0 = 0.1
-        steprate_decay = 0.998
-        momentum_0 = 0.5
-        momentum_equilibrum = 0.99 
-        n_momentum_anneal_steps = 1000
-
-        steprate = (steprate0 * steprate_decay**t for t in itertools.count(1))
-        momentum = itertools.chain(
-            (momentum_0 + 
-             min(momentum_equilibrum, 
-                (momentum_equilibrum - momentum_0) / n_momentum_anneal_steps)
-             * t for t in itertools.count(1)),
-            itertools.repeat(momentum_equilibrum))
-
-        # TODO dropout inputs
-
-        return climin.GradientDescent(
-            self.parameters.data, fprime, 
-            steprate=steprate, momentum=momentum, args=args)
+    def normalize_weights(self, W):
+        weight_norms = (W**2).sum(axis=1)
+        non_violated = (weight_norms < self.max_norm)
+        divisor = weight_norms[:, np.newaxis]
+        divisor[np.where(non_violated), :] = 1.
+        W /= divisor
 
     def iter_fit(self, X, Z):
         """Iteratively fit the parameters of the model to the given data with
@@ -123,7 +164,7 @@ class DropoutMlp(Mlp):
         the optimization can be broken any time by the caller.
 
         This method does `not` respect the max_iter attribute.
-        
+
         :param X: A (t, n ,d) array where _t_ is the number of time steps,
             _n_ is the number of data samples and _d_ is the dimensionality of
             a data sample at a single time step.
@@ -133,15 +174,13 @@ class DropoutMlp(Mlp):
         """
         f_loss, f_d_loss = self._make_loss_functions()
 
-        args = itertools.repeat(([X, Z], {}))
+        args = self._make_args(X, Z)
         opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):
-            loss = info.get('loss', None)
-            if loss is None:
-                loss = f_loss(self.parameters.data, X, Z)
-            info['loss'] = loss
             yield info
+            self.normalize_weights(self.parameters['in_to_hidden'])
+            #self.normalize_weights(self.parameters['hidden_to_out'])
 
     def predict(self, X):
         pass
