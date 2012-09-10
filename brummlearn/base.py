@@ -10,6 +10,8 @@ import climin
 import climin.util
 import theano.tensor as T
 
+from brummlearn.data import iter_minibatches
+
 
 class BrezeWrapperBase(object):
     """Class that helps with wrapping Breze models."""
@@ -34,7 +36,7 @@ class BrezeWrapperBase(object):
 
 class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
-    def _make_loss_functions(self):
+    def _make_loss_functions(self, mode='fast_run'):
         """Return pair (f_loss, f_d_loss) of functions.
         
          - f_loss returns the current loss,
@@ -42,9 +44,19 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         """
         d_loss = self._d_loss()
 
-        f_loss = self.function(['inpt', 'target'], 'loss', explicit_pars=True)
-        f_d_loss = self.function(['inpt', 'target'], d_loss, explicit_pars=True)
+        f_loss = self.function(['inpt', 'target'], 'loss', explicit_pars=True,
+                               mode=mode)
+        f_d_loss = self.function(['inpt', 'target'], d_loss, explicit_pars=True,
+                                 mode=mode)
         return f_loss, f_d_loss
+
+    def _make_args(self, X, Z):
+        if getattr(self, 'batch_size', None) is None:
+            data = itertools.repeat([X, Z])
+        else:
+            data = iter_minibatches([X, Z], self.batch_size, (0, 0))
+        args = ((i, {}) for i in data)
+        return args
 
     def iter_fit(self, X, Z):
         """Iteratively fit the parameters of the model to the given data with
@@ -65,7 +77,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         """
         f_loss, f_d_loss = self._make_loss_functions()
 
-        args = itertools.repeat(([X, Z], {}))
+        args = self._make_args(X, Z)
         opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):

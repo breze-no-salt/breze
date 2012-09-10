@@ -21,6 +21,7 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
     def __init__(self, n_inpt, n_hiddens, n_output, 
                  hidden_transfers, out_transfer, loss,
                  optimizer='lbfgs',
+                 batch_size=-1,
                  max_iter=1000, verbose=False):
         """Create an Mlp object.
 
@@ -37,6 +38,8 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
             and returning a tensor of the same shape.
         :param optimizer: String identifying the optimizer to use. Can only be
             ``lbfgs`` for now.
+        :param batch_size: Number of examples per batch when calculing the loss
+            and its derivatives. -1 means to use all samples every time.
         :param max_iter: Maximum number of optimization iterations to perform.
         :param verbose: Flag indicating whether to print out information during
             fitting.
@@ -46,6 +49,7 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
             loss)
 
         self.optimizer = optimizer
+        self.batch_size = batch_size
 
         self.max_iter = max_iter
         self.verbose = verbose
