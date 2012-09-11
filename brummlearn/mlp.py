@@ -64,8 +64,7 @@ class DropoutMlp(Mlp):
     #
     # TODO
     #
-    # 1. Droping out of inputs,
-    # 2. making schedule of steprate and momentum right -- for now, it is
+    #  - making schedule of steprate and momentum right -- for now, it is
     #    changed each mini batch, not epoch.
     #
 
@@ -76,8 +75,6 @@ class DropoutMlp(Mlp):
                  optimizer=None,
                  batch_size=-1,
                  max_iter=1000, verbose=False):
-        if len(n_hiddens) > 1:
-            raise ValueError('DropoutMlp not ready for multiple hidden layers')
 
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hidden = p_dropout_hidden
@@ -98,10 +95,10 @@ class DropoutMlp(Mlp):
         """Return a dictionary suitable for climin.util.optimizer which 
         specifies the standard optimizer for dropout mlps."""
         steprate_0 = 10
-        steprate_decay = 0.998
+        steprate_decay = 0.99995
         momentum_0 = 0.5
         momentum_equilibrium = 0.99
-        n_momentum_anneal_steps = 1000
+        n_momentum_anneal_steps = 500**2
 
         momentum_inc = (momentum_equilibrium - momentum_0) / n_momentum_anneal_steps
         momentum_annealed = (momentum_0 + momentum_inc * t
@@ -130,16 +127,26 @@ class DropoutMlp(Mlp):
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
         """
-        hiddens = self.exprs['hidden_0']
         rng = T.shared_randomstreams.RandomStreams()
-        dropout = rng.binomial(hiddens.shape, p=self.p_dropout_hidden)
 
-        # TODO check out which one of those two is faster.
-        #hiddens_dropped_out = T.switch(dropout, 0, hiddens)
-        hiddens_dropped_out = dropout * hiddens
-
-        givens = {hiddens: hiddens_dropped_out}
+        # Drop out inpts.
+        inpt = self.exprs['inpt']
+        inpt_dropout = rng.binomial(inpt.shape, p=self.p_dropout_inpt)
+        inpt_dropped_out = inpt_dropout * inpt
+        givens = {inpt: inpt_dropped_out}
         loss = theano.clone(self.exprs['loss'], givens)
+
+        n_layers = len(self.n_hiddens)
+        for i in range(n_layers - 1):
+            # Drop out hidden.
+            hidden = self.exprs['hidden_%i' % i]
+            hidden_dropout = rng.binomial(hidden.shape, p=self.p_dropout_hidden)
+            # TODO check out which one of those two is faster.
+            #hiddens_dropped_out = T.switch(dropout, 0, hiddens)
+            hidden_dropped_out = hidden_dropout * hidden
+            givens = {hidden: hidden_dropped_out}
+            loss = theano.clone(loss, givens)
+
         d_loss = T.grad(loss, self.parameters.flat)
 
         f_loss = self.function(['inpt', 'target'], loss, explicit_pars=True,
@@ -180,6 +187,9 @@ class DropoutMlp(Mlp):
         for i, info in enumerate(opt):
             yield info
             self.normalize_weights(self.parameters['in_to_hidden'])
+            n_layers = len(self.n_hiddens)
+            for i in range(n_layers - 1):
+                self.normalize_weights(self.parameters['hidden_to_hidden_%i' % i])
             #self.normalize_weights(self.parameters['hidden_to_out'])
 
     def predict(self, X):
