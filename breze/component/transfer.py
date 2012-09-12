@@ -3,6 +3,7 @@
 
 import theano
 import theano.tensor as T
+import theano.tensor.nnet
 import norm
 
 
@@ -34,8 +35,7 @@ def logproduct_of_t(inpt):
     return T.log(1 + inpt**2)
 
 
-def softmax(inpt):
-    return norm.normalize(inpt, T.exp, axis=1)
+softmax = T.nnet.softmax
 
 
 def logcosh(inpt):
