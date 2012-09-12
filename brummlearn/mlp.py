@@ -3,7 +3,7 @@
 """Module for learning various types of multilayer perceptrons."""
 
 
-import itertools 
+import itertools
 
 import climin
 import climin.util
@@ -18,7 +18,7 @@ from brummlearn.base import SupervisedBrezeWrapperBase
 
 class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
 
-    def __init__(self, n_inpt, n_hiddens, n_output, 
+    def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
                  optimizer='lbfgs',
                  batch_size=-1,
@@ -59,6 +59,23 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
             self.parameters.data.shape)
 
 
+def truncate(arr, max_sqrd_length, axis):
+    if arr.ndim != 2 or axis not in (0, 1):
+        raise ValueError('only 2d arrays allowed')
+
+    sqrd_lengths = (arr**2).sum(axis=axis)
+    too_big_by = sqrd_lengths / max_sqrd_length
+    divisor = np.sqrt(too_big_by)
+    non_violated = sqrd_lengths < max_sqrd_length
+    divisor[np.where(non_violated)] = 1.
+
+    if axis == 0:
+        divisor = divisor[np.newaxis, :]
+    else:
+        divisor = divisor[:, np.newaxis]
+    arr /= divisor
+
+
 class DropoutMlp(Mlp):
 
     #
@@ -92,13 +109,18 @@ class DropoutMlp(Mlp):
             self.parameters.data.shape)
 
     def standard_optimizer(self):
-        """Return a dictionary suitable for climin.util.optimizer which 
+        """Return a dictionary suitable for climin.util.optimizer which
         specifies the standard optimizer for dropout mlps."""
         steprate_0 = 10
-        steprate_decay = 0.99995
+        steprate_decay = 0.998
         momentum_0 = 0.5
         momentum_equilibrium = 0.99
-        n_momentum_anneal_steps = 500**2
+        n_momentum_anneal_steps = 500
+
+        def repeater(iter, n):
+          for i in iter:
+            for j in range(n):
+              yield i
 
         momentum_inc = (momentum_equilibrium - momentum_0) / n_momentum_anneal_steps
         momentum_annealed = (momentum_0 + momentum_inc * t
@@ -115,6 +137,9 @@ class DropoutMlp(Mlp):
 
         steprate = ((1 - m) * steprate_0 * steprate_decay**t
                     for t, m in enumerate(momentum2))
+
+        steprate = repeater(steprate, 500)
+        momentum = repeater(momentum, 500)
 
         return 'gd', {
             'steprate': steprate,
@@ -155,13 +180,6 @@ class DropoutMlp(Mlp):
                                  mode=mode)
         return f_loss, f_d_loss
 
-    def normalize_weights(self, W):
-        weight_norms = (W**2).sum(axis=1)
-        non_violated = (weight_norms < self.max_norm)
-        divisor = weight_norms[:, np.newaxis]
-        divisor[np.where(non_violated), :] = 1.
-        W /= divisor
-
     def iter_fit(self, X, Z):
         """Iteratively fit the parameters of the model to the given data with
         the given error function.
@@ -186,11 +204,13 @@ class DropoutMlp(Mlp):
 
         for i, info in enumerate(opt):
             yield info
-            self.normalize_weights(self.parameters['in_to_hidden'])
+            W = self.parameters['in_to_hidden']
+            truncate(W, self.max_norm, axis=0)
+
             n_layers = len(self.n_hiddens)
             for i in range(n_layers - 1):
-                self.normalize_weights(self.parameters['hidden_to_hidden_%i' % i])
-            #self.normalize_weights(self.parameters['hidden_to_out'])
+                W = self.parameters['hidden_to_hidden_%i' % i]
+                truncate(W, self.max_norm, axis=0)
 
     def predict(self, X):
         pass
