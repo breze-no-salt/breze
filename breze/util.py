@@ -104,6 +104,7 @@ class Model(object):
         self.__dict__.update(state)
 
     def function(self, variables, exprs, mode=None, explicit_pars=False,
+                 givens=None,
                  on_unused_input='raise'):
         """Return a function for the given `exprs` given `variables`.
 
@@ -120,7 +121,7 @@ class Model(object):
                      for i in variables]
 
         if mode is None:
-            mode = theano.Mode(linker='cvm')
+            mode = 'FAST_RUN'
 
         if isinstance(exprs, (str, unicode)):
             # We are only being given a single string expression.
@@ -133,12 +134,21 @@ class Model(object):
             exprs = list(exprs)
             exprs = [self.exprs[i] if isinstance(i, str) else i for i in exprs]
 
+        # We need to clone instead of using the givens parameter of 
+        # theano.function, because otherwise we might get an theano error
+        # with conflicting replacements. (See theano/compile/pfunc.py:162, 
+        # rebuild_collect_shared.)
+        if givens is not None:
+            if isinstance(exprs, list):
+                exprs = [theano.clone(e, givens) for e in exprs]
+            else:
+                exprs = theano.clone(exprs, givens)
+
         if explicit_pars:
             pars = T.dvector(self.parameters.flat.name + '-substitute')
             variables = [pars] + variables
-            givens = [(self.parameters.flat, pars)]
-        else:
-            givens = []
+            givens = {}
+            givens[self.parameters.flat] =  pars
 
         # Build update dictionary.
         updates = collections.defaultdict(lambda: {})
