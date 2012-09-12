@@ -10,6 +10,54 @@ import numpy as np
 import theano.tensor as T
 import theano
 
+def flatten(nested):
+    """Flattens nested tuples and/or lists into a flat list"""
+    if isinstance(nested, (tuple, list)):
+        flat = []
+        for elem in nested:
+            flat.extend(flatten(elem))
+        return flat
+    else:
+        return [nested]
+
+def unflatten(tmpl, flat):
+    """Nests the items in flat into the shape of tmpl"""
+    def unflatten_recursive(tmpl, flat):
+        if isinstance(tmpl, (tuple, list)):
+            nested = []
+            for sub_tmpl in tmpl:
+                sub_nested, flat = unflatten_recursive(sub_tmpl, flat)
+                nested.append(sub_nested)
+            if isinstance(tmpl, tuple):
+                nested = tuple(nested)
+            return nested, flat
+        else:
+            return flat[0], flat[1:]
+
+    nested, _ = unflatten_recursive(tmpl, flat)
+    return nested
+
+
+def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
+    """Creates and returns a theano.function that takes values for `variables` 
+    as arguments, where `variables` may contain nested lists and/or tuples, 
+    and returns values for `exprs`, where again `exprs` may contain nested
+    lists and/or tuples. All other arguments are passed to theano.function 
+    without modification."""
+
+    flat_variables = flatten(variables)
+    flat_exprs = flatten(exprs)
+
+    flat_function = theano.function(flat_variables, flat_exprs, *args, **kwargs)
+
+    def wrapper(*fargs):
+        flat_fargs = flatten(fargs)
+        flat_result = flat_function(*flat_fargs)
+        result = unflatten(exprs, flat_result)
+        return result
+
+    return wrapper
+
 
 def lookup(what, where):
     """Return where.what if what is a string, else what."""
@@ -151,18 +199,20 @@ class Model(object):
             givens[self.parameters.flat] =  pars
 
         # Build update dictionary.
-        updates = collections.defaultdict(lambda: {})
+        updates = collections.defaultdict(lambda: {})        
         if isinstance(exprs, (list, tuple)):
-            for expr in exprs:
+            flat_exprs = flatten(exprs)
+            for expr in flat_exprs:
                 # TODO: last takes all, maybe should throw an error.
                 updates.update(self.updates[expr])
         else:
             updates.update(self.updates[exprs])
 
-
-        return theano.function(variables, exprs, givens=givens, mode=mode,
-                               on_unused_input=on_unused_input,
-                               updates=updates)
+        return theano_function_with_nested_exprs(variables, exprs, 
+                                                 givens=givens, 
+                                                 mode=mode,
+                                                 on_unused_input=on_unused_input,
+                                                 updates=updates)
 
 
 class PrintEverythingMode(theano.Mode):

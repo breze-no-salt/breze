@@ -1,0 +1,5 @@
+*.pyc
+breze.egg-info
+*.suo
+examples/mnist.pkl.gz
+examples/*.png
