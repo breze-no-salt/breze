@@ -75,6 +75,9 @@ class MultiLayerPerceptron(Model):
 
     def __init__(self, n_inpt, n_hiddens, n_output, 
                  hidden_transfers, out_transfer, loss):
+        if len(n_hiddens) != len(hidden_transfers):
+            raise ValueError('n_hiddens and hidden_transfers have to be of the'
+                             'same length')
         self.n_inpt = n_inpt
         self.n_hiddens = n_hiddens
         self.n_output = n_output
