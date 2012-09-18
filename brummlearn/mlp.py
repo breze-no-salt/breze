@@ -7,6 +7,8 @@ import itertools
 
 import climin
 import climin.util
+import climin.gd
+
 import numpy as np
 import theano.tensor as T
 import theano.tensor.shared_randomstreams
@@ -60,6 +62,11 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
 
 
 def truncate(arr, max_sqrd_length, axis):
+    """Truncate rows/columnns (given by `axis` of a 2D array `arr` to be of a
+    maximum squared length of `max_sqrd_length`.
+
+    Works inplace.
+    """
     if arr.ndim != 2 or axis not in (0, 1):
         raise ValueError('only 2d arrays allowed')
 
@@ -76,14 +83,39 @@ def truncate(arr, max_sqrd_length, axis):
     arr /= divisor
 
 
-class DropoutMlp(Mlp):
+def dropout_optimizer_conf(
+        steprate_0=1, steprate_decay=0.998, momentum_0=0.5,
+        momentum_equilibrium=0.99, n_momentum_anneal_steps=500,
+        n_repeats=500
+        ):
+    """Return a dictionary suitable for climin.util.optimizer which
+    specifies the standard optimizer for dropout mlps."""
+    steprate_0 = .1
+    steprate_decay = 0.998
 
-    #
-    # TODO
-    #
-    #  - making schedule of steprate and momentum right -- for now, it is
-    #    changed each mini batch, not epoch.
-    #
+    momentum_0 = 0.5
+    momentum_equilibrium = 0.99
+    n_momentum_anneal_steps = 500
+
+    steprate = climin.gd.decaying(steprate_0, steprate_decay)
+    momentum = climin.gd.linear_annealing(
+        momentum_0, momentum_equilibrium, n_momentum_anneal_steps)
+
+    # Define another time for steprate calculcation.
+    momentum2 = climin.gd.linear_annealing(
+        momentum_0, momentum_equilibrium, n_momentum_anneal_steps)
+    steprate = ((1 - j) * i for i, j in itertools.izip(steprate, momentum2))
+
+    steprate = climin.gd.repeater(steprate, n_repeats)
+    momentum = climin.gd.repeater(momentum, n_repeats)
+
+    return 'gd', {
+        'steprate': steprate,
+        'momentum': momentum,
+    }
+
+
+class DropoutMlp(Mlp):
 
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
@@ -98,7 +130,7 @@ class DropoutMlp(Mlp):
         self.max_norm = max_norm
 
         if optimizer is None:
-            optimizer = self.standard_optimizer()
+            optimizer = dropout_optimizer_conf()
 
         super(DropoutMlp, self).__init__(
             n_inpt, n_hiddens, n_output, hidden_transfers, out_transfer,
@@ -108,45 +140,7 @@ class DropoutMlp(Mlp):
         self.parameters.data[:] = np.random.normal(0, 0.01,
             self.parameters.data.shape)
 
-    def standard_optimizer(self):
-        """Return a dictionary suitable for climin.util.optimizer which
-        specifies the standard optimizer for dropout mlps."""
-        steprate_0 = 10
-        steprate_decay = 0.998
-        momentum_0 = 0.5
-        momentum_equilibrium = 0.99
-        n_momentum_anneal_steps = 500
-
-        def repeater(iter, n):
-          for i in iter:
-            for j in range(n):
-              yield i
-
-        momentum_inc = (momentum_equilibrium - momentum_0) / n_momentum_anneal_steps
-        momentum_annealed = (momentum_0 + momentum_inc * t
-                             for t in range(1, n_momentum_anneal_steps))
-        momentum = itertools.chain(momentum_annealed,
-                                   itertools.repeat(momentum_equilibrium))
-
-        # The steprate depends on the momentum. Thus we define it again to
-        # consume it for the step rate iterator.
-        momentum_annealed2 = (momentum_0 + momentum_inc * t
-                              for t in range(1, n_momentum_anneal_steps))
-        momentum2 = itertools.chain(momentum_annealed2,
-                                    itertools.repeat(momentum_equilibrium))
-
-        steprate = ((1 - m) * steprate_0 * steprate_decay**t
-                    for t, m in enumerate(momentum2))
-
-        steprate = repeater(steprate, 500)
-        momentum = repeater(momentum, 500)
-
-        return 'gd', {
-            'steprate': steprate,
-            'momentum': momentum,
-        }
-
-    def _make_loss_functions(self, mode='FAST_RUN'):
+    def _make_loss_functions(self, mode=None):
         """Return pair (f_loss, f_d_loss) of functions.
 
          - f_loss returns the current loss,
@@ -156,7 +150,7 @@ class DropoutMlp(Mlp):
 
         # Drop out inpts.
         inpt = self.exprs['inpt']
-        inpt_dropout = rng.binomial(inpt.shape, p=self.p_dropout_inpt)
+        inpt_dropout = rng.binomial(inpt.shape, p=1 - self.p_dropout_inpt)
         inpt_dropped_out = inpt_dropout * inpt
         givens = {inpt: inpt_dropped_out}
         loss = theano.clone(self.exprs['loss'], givens)
@@ -165,9 +159,7 @@ class DropoutMlp(Mlp):
         for i in range(n_layers - 1):
             # Drop out hidden.
             hidden = self.exprs['hidden_%i' % i]
-            hidden_dropout = rng.binomial(hidden.shape, p=self.p_dropout_hidden)
-            # TODO check out which one of those two is faster.
-            #hiddens_dropped_out = T.switch(dropout, 0, hiddens)
+            hidden_dropout = rng.binomial(hidden.shape, p=1 - self.p_dropout_hidden)
             hidden_dropped_out = hidden_dropout * hidden
             givens = {hidden: hidden_dropped_out}
             loss = theano.clone(loss, givens)
