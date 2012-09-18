@@ -36,7 +36,7 @@ class BrezeWrapperBase(object):
 
 class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
-    def _make_loss_functions(self, mode='fast_run'):
+    def _make_loss_functions(self, mode=None):
         """Return pair (f_loss, f_d_loss) of functions.
         
          - f_loss returns the current loss,
@@ -51,8 +51,11 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         return f_loss, f_d_loss
 
     def _make_args(self, X, Z):
-        if getattr(self, 'batch_size', None) is None:
+        batch_size = getattr(self, 'batch_size', None)
+        if batch_size is None:
             data = itertools.repeat([X, Z])
+        elif batch_size < 1:
+            raise ValueError('need strictly positive batch size')
         else:
             data = iter_minibatches([X, Z], self.batch_size, (0, 0))
         args = ((i, {}) for i in data)
