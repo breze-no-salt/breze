@@ -38,7 +38,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
     def _make_loss_functions(self, mode=None):
         """Return pair (f_loss, f_d_loss) of functions.
-        
+
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
         """
@@ -70,7 +70,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         the optimization can be broken any time by the caller.
 
         This method does `not` respect the max_iter attribute.
-        
+
         :param X: A (t, n ,d) array where _t_ is the number of time steps,
             _n_ is the number of data samples and _d_ is the dimensionality of
             a data sample at a single time step.
@@ -84,10 +84,6 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):
-            loss = info.get('loss', None)
-            if loss is None:
-                loss = f_loss(self.parameters.data, X, Z)
-            info['loss'] = loss
             yield info
 
     def fit(self, X, Z):
