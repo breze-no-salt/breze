@@ -20,7 +20,7 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
     def __init__(self, n_inpt, n_hiddens, n_output, 
                  hidden_transfers, out_transfer, loss,
                  optimizer='lbfgs',
-                 batch_size=-1,
+                 batch_size=None,
                  max_iter=1000, verbose=False):
         """Create an Mlp object.
 
