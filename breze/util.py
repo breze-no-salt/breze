@@ -160,6 +160,7 @@ class Model(object):
         the Theano default. In case `explicit_pars` is set to True, the first
         argument of the function needs to be a numpy array from which the
         parameters of the LossBased model will be extracted."""
+
         def lookup(varname):
             res = getattr(self.parameters, varname, None)
             if res is None:
@@ -167,9 +168,6 @@ class Model(object):
             return res
         variables = [lookup(i) if isinstance(i, str) else i
                      for i in variables]
-
-        if mode is None:
-            mode = 'FAST_RUN'
 
         if isinstance(exprs, (str, unicode)):
             # We are only being given a single string expression.
@@ -197,6 +195,7 @@ class Model(object):
             variables = [pars] + variables
             givens = {}
             givens[self.parameters.flat] =  pars
+
 
         # Build update dictionary.
         updates = collections.defaultdict(lambda: {})        
