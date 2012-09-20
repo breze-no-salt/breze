@@ -220,8 +220,8 @@ class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
 
         f_loss, f_d_loss, f_Hp = self._make_loss_functions()
 
-        opt = self._make_optimizer(f_loss, f_d_loss, args)
         args = itertools.repeat(([X], {}))
+        opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):
             yield info
