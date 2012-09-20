@@ -182,10 +182,6 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
         opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):
-            loss = info.get('loss', None)
-            if loss is None:
-                loss = f_loss(self.parameters.data, X, Z)
-            info['loss'] = loss
             yield info
 
 
@@ -228,8 +224,4 @@ class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
         args = itertools.repeat(([X], {}))
 
         for i, info in enumerate(opt):
-            loss = info.get('loss', None)
-            if loss is None:
-                loss = f_loss(self.parameters.data, X)
-            info['loss'] = loss
             yield info
