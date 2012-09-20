@@ -36,6 +36,8 @@ class BrezeWrapperBase(object):
 
 class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
+    data_arguments = 'inpt', 'target'
+
     def _make_loss_functions(self, mode=None):
         """Return pair (f_loss, f_d_loss) of functions.
 
@@ -125,6 +127,8 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
 class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
 
+    data_arguments = 'inpt',
+
     def iter_fit(self, X):
         """Iteratively fit the parameters of the model to the given data with
         the given error function.
@@ -179,10 +183,13 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
 
 class TransformBrezeWrapperMixin(object):
 
+    transform_expr_name = 'feature'
+    f_transform = None
+
     def _make_transform_function(self):
         """Return a callable f which does the feature transform of this model.
         """
-        f_transform = self.function(['inpt'], 'feature')
+        f_transform = self.function(['inpt'], self.transform_expr_name)
         return f_transform
 
     def transform(self, X):

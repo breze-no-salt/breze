@@ -12,14 +12,15 @@ import theano.tensor as T
 
 from breze.model.neural import TwoLayerPerceptron
 
-from brummlearn.base import SupervisedBrezeWrapperBase
+from brummlearn.base import (
+        SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase,
+        TransformBrezeWrapperMixin)
 
-class Rnn(rnn.RecurrentNetwork, SupervisedBrezeWrapperBase):
-    """Class implementing recurrent neural networks for supervised learning..
-    
-    The class inherits from breze's RecurrentNetwork class and adds several
-    sklearn like methods.
-    """
+
+class BaseRnn(object):
+
+    # TODO: default loss should not be squared, which makes reordering ofi
+    # arguments necessary.
 
     def __init__(self, n_inpt, n_hidden, n_output, 
                  hidden_transfer='tanh', out_transfer='identity', 
@@ -59,7 +60,7 @@ class Rnn(rnn.RecurrentNetwork, SupervisedBrezeWrapperBase):
         :param verbose: Flag indicating whether to print out information during
             fitting.
         """
-        super(Rnn, self).__init__(
+        super(BaseRnn, self).__init__(
             n_inpt, n_hidden, n_output, hidden_transfer, out_transfer,
             loss, pooling)
         self.optimizer = optimizer
@@ -100,11 +101,21 @@ class Rnn(rnn.RecurrentNetwork, SupervisedBrezeWrapperBase):
         d_loss = self._d_loss()
         Hp = self._gauss_newton_product()
 
-        f_loss = self.function(['inpt', 'target'], 'loss', explicit_pars=True)
-        f_d_loss = self.function(['inpt', 'target'], d_loss, explicit_pars=True)
-        f_Hp = self.function(['some-vector', 'inpt', 'target'], Hp,
+        args = list(self.data_arguments)
+        f_loss = self.function(args, 'loss', explicit_pars=True)
+        f_d_loss = self.function(args, d_loss, explicit_pars=True)
+        f_Hp = self.function(['some-vector'] + args, Hp,
                              explicit_pars=True)
         return f_loss, f_d_loss, f_Hp
+
+
+class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
+    SupervisedBrezeWrapperBase):
+    """Class implementing recurrent neural networks for supervised learning..
+    
+    The class inherits from breze's RecurrentNetwork class and adds several
+    sklearn like methods.
+    """
 
     def _pretrain(self, X, Z):
         # Construct an MLP of same dimensions.
@@ -185,3 +196,56 @@ class Rnn(rnn.RecurrentNetwork, SupervisedBrezeWrapperBase):
             info['loss'] = loss
             yield info
 
+
+class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
+    UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
+    """Class implementing recurrent neural networks for unsupervised learning..
+    
+    The class inherits from breze's RecurrentNetwork class and adds several
+    sklearn like methods.
+    """
+
+    transform_expr_name = 'output'
+
+    def _pretrain(self, X):
+        raise NotImplementedError('not yet implemented for unsupervised RNNs')
+        # TODO: needs to be implemented, but right now not easily possible since
+        # MLPs are not implemented for unsupervised problems. Or find a way to
+        # efficiently do this without an MLP.
+
+    def iter_fit(self, X):
+        """Iteratively fit the parameters of the model to the given data with
+        the given error function.
+
+        Each iteration of the learning algorithm is an iteration of the returned
+        iterator. The model is in a valid state after each iteration, so that
+        the optimization can be broken any time by the caller.
+
+        This method does `not` respect the max_iter attribute.
+        
+        :param X: A (t, n ,d) array where _t_ is the number of time steps,
+            _n_ is the number of data samples and _d_ is the dimensionality of
+            a data sample at a single time step.
+        """
+        if self.pretrain:
+            self._pretrain(X)
+
+        f_loss, f_d_loss, f_Hp = self._make_loss_functions()
+
+        args = itertools.repeat(([X], {}))
+        if self.optimizer == 'ksd':
+            opt = climin.KrylovSubspaceDescent(
+                self.parameters.data, f_loss, f_d_loss, f_Hp, 50,
+                args=args)
+        elif self.optimizer == 'rprop':
+            opt = climin.Rprop(self.parameters.data, f_loss, f_d_loss,
+                args=args)
+        else:
+            raise ValueError('unknown optimizer %s' % self.optimizer)
+
+        for i, info in enumerate(opt):
+            loss = info.get('loss', None)
+            if loss is None:
+                loss = f_loss(self.parameters.data, X)
+            info['loss'] = loss
+            yield info

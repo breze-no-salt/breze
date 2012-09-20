@@ -1,28 +1,49 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import theano.tensor as T
 
-from brummlearn.rnn import Rnn
+from brummlearn.rnn import SupervisedRnn, UnsupervisedRnn
 
 
-def test_rnn_fit():
+def test_srnn_fit():
     X = np.random.standard_normal((10, 5, 2))
     Z = np.random.standard_normal((10, 5, 3))
-    rnn = Rnn(2, 10, 3, max_iter=10)
+    rnn = SupervisedRnn(2, 10, 3, max_iter=10)
     rnn.fit(X, Z)
 
 
-def test_rnn_iter_fit():
+def test_srnn_iter_fit():
     X = np.random.standard_normal((10, 5, 2))
     Z = np.random.standard_normal((10, 5, 3))
-    rnn = Rnn(2, 10, 3, max_iter=10)
+    rnn = SupervisedRnn(2, 10, 3, max_iter=10)
     for i, info in enumerate(rnn.iter_fit(X, Z)):
         if i >= 10:
             break
 
 
-def test_rnn_predict():
+def test_srnn_predict():
     X = np.random.standard_normal((10, 5, 2))
     Z = np.random.standard_normal((10, 5, 3))
-    rnn = Rnn(2, 10, 3, max_iter=10)
+    rnn = SupervisedRnn(2, 10, 3, max_iter=10)
     rnn.predict(X)
+
+
+def test_usrnn_fit():
+    X = np.random.standard_normal((10, 5, 2))
+    rnn = UnsupervisedRnn(2, 10, 3, loss=lambda x: T.log(x.sum()), max_iter=10)
+    rnn.fit(X)
+
+
+def test_usrnn_iter_fit():
+    X = np.random.standard_normal((10, 5, 2))
+    rnn = UnsupervisedRnn(2, 10, 3, loss=lambda x: T.log(x.sum()), max_iter=10)
+    for i, info in enumerate(rnn.iter_fit(X)):
+        if i >= 10:
+            break
+
+
+def test_usrnn_transform():
+    X = np.random.standard_normal((10, 5, 2))
+    rnn = UnsupervisedRnn(2, 10, 3, loss=lambda x: T.log(x.sum()), max_iter=10)
+    rnn.transform(X)
