@@ -179,15 +179,7 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
         f_loss, f_d_loss, f_Hp = self._make_loss_functions()
 
         args = itertools.repeat(([X, Z], {}))
-        if self.optimizer == 'ksd':
-            opt = climin.KrylovSubspaceDescent(
-                self.parameters.data, f_loss, f_d_loss, f_Hp, 50,
-                args=args)
-        elif self.optimizer == 'rprop':
-            opt = climin.Rprop(self.parameters.data, f_loss, f_d_loss,
-                args=args)
-        else:
-            raise ValueError('unknown optimizer %s' % self.optimizer)
+        opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):
             loss = info.get('loss', None)
@@ -232,16 +224,8 @@ class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
 
         f_loss, f_d_loss, f_Hp = self._make_loss_functions()
 
+        opt = self._make_optimizer(f_loss, f_d_loss, args)
         args = itertools.repeat(([X], {}))
-        if self.optimizer == 'ksd':
-            opt = climin.KrylovSubspaceDescent(
-                self.parameters.data, f_loss, f_d_loss, f_Hp, 50,
-                args=args)
-        elif self.optimizer == 'rprop':
-            opt = climin.Rprop(self.parameters.data, f_loss, f_d_loss,
-                args=args)
-        else:
-            raise ValueError('unknown optimizer %s' % self.optimizer)
 
         for i, info in enumerate(opt):
             loss = info.get('loss', None)
