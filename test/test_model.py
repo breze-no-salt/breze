@@ -12,7 +12,8 @@ from breze.model.feature import (
     Rica, DenoisingAutoEncoder, RestrictedBoltzmannMachine)
 from breze.model.rim import RIM_LR
 from breze.model.sequential import (
-        LinearDynamicalSystem, RecurrentNetwork, LstmRecurrentNetwork)
+        LinearDynamicalSystem, SupervisedRecurrentNetwork,
+        UnsupervisedRecurrentNetwork, LstmRecurrentNetwork)
 
 from tools import roughly
 
@@ -308,8 +309,8 @@ def test_lds_shapes():
     theano.config.compute_test_value = 'off'
     
 
-def test_rnn():
-    l = RecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'squared')
+def test_srnn():
+    l = SupervisedRecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt', 'target'], d_loss_wrt_pars, 
@@ -320,6 +321,20 @@ def test_rnn():
 
     f(X, Z)
     fprime(X, Z)
+
+
+def test_usrnn():
+    l = UnsupervisedRecurrentNetwork(2, 3, 1, 'sigmoid', 'identity',
+        lambda x: x.sum())
+    f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
+    d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
+    fprime = l.function(['inpt'], d_loss_wrt_pars, 
+                        mode='FAST_COMPILE')
+
+    X = np.random.random((10, 3, 2)).astype(theano.config.floatX)
+
+    f(X)
+    fprime(X)
 
 
 def test_pooling_rnn():

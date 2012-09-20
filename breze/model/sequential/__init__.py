@@ -1,2 +1,3 @@
 from lds import LinearDynamicalSystem
-from rnn import RecurrentNetwork, LstmRecurrentNetwork
+from rnn import (UnsupervisedRecurrentNetwork, SupervisedRecurrentNetwork,
+    LstmRecurrentNetwork)
