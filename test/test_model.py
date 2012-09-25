@@ -12,8 +12,8 @@ from breze.model.feature import (
     Rica, DenoisingAutoEncoder, RestrictedBoltzmannMachine)
 from breze.model.rim import RIM_LR
 from breze.model.sequential import (
-        LinearDynamicalSystem, SupervisedRecurrentNetwork,
-        UnsupervisedRecurrentNetwork, LstmRecurrentNetwork)
+    LinearDynamicalSystem, SupervisedRecurrentNetwork,
+    UnsupervisedRecurrentNetwork, LstmRecurrentNetwork)
 
 from tools import roughly
 
@@ -40,7 +40,7 @@ def test_2lp():
     fprime(np.random.random((10, 2)), np.random.random((10, 3)))
 
 
-def test_mlp():
+def test_mlp1():
     l = MultiLayerPerceptron(2, [10], 3, ['tanh'], 'softabs', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
@@ -50,7 +50,7 @@ def test_mlp():
     fprime(np.random.random((10, 2)), np.random.random((10, 3)))
 
 
-def test_mlp():
+def test_mlp2():
     l = MultiLayerPerceptron(2, [10, 12], 3, ['tanh', 'sigmoid'], 'softabs', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
@@ -112,6 +112,7 @@ def test_rica():
     fprime = l.function(['inpt'], grad, mode='FAST_COMPILE')
 
     f(np.random.random((10, 2)))
+    fprime(np.random.random((10, 2)))
 
 
 def test_dnae():
@@ -120,7 +121,7 @@ def test_dnae():
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['corrupted', 'inpt'], grad, mode='FAST_COMPILE')
 
-    mtx = np.asarray(np.random.random((10,2)), dtype=theano.config.floatX)
+    mtx = np.asarray(np.random.random((10, 2)), dtype=theano.config.floatX)
     f(mtx, mtx)
     fprime(mtx, mtx)
 
@@ -172,18 +173,15 @@ def test_lds_values():
     l.parameters['visible_noise_mean'] = np.array((-1, 1))
     cov_block = np.arange(1, 5).reshape((2, 2))
     l.parameters['visible_noise_cov'] = (
-    #        np.eye(2))
         np.dot(cov_block, cov_block.T) * 0.2 + np.eye(2) * 100)
 
     l.parameters['hidden_noise_mean'] = np.array((1, 2, 3))
     cov_block = np.arange(1, 10).reshape((3, 3))
     l.parameters['hidden_noise_cov'] = (
-    #        np.eye(3))
         np.dot(cov_block, cov_block.T) + np.eye(3) * 10)
 
     l.parameters['hidden_mean_initial'] = -np.array((.1, .2, .3))
     l.parameters['hidden_cov_initial'] = (
-     #       np.eye(3))
         np.dot(cov_block, cov_block.T) * 0.2 + np.eye(3) * 10)
 
     f_forward = l.function(
@@ -214,7 +212,7 @@ def test_lds_values():
 
     F_desired[0, 0] = [
         [9.4992 , -1.0806 , -1.6604  ],
-        [-1.0806,   7.5570,  -3.8054] ,
+        [-1.0806,   7.5570,  -3.8054],
         [-1.6604,  -3.8054,   4.0497 ],
     ]
 
@@ -302,18 +300,18 @@ def test_lds_shapes():
     hidden_cov_initial = T.matrix('hidden_cov_initial')
     hidden_cov_initial.tag.test_value = np.random.random((n_hidden, n_hidden))
 
-    LinearDynamicalSystem.make_exprs(inpt, transition, emission, 
+    LinearDynamicalSystem.make_exprs(inpt, transition, emission,
                    visible_noise_mean, visible_noise_cov,
                    hidden_noise_mean, hidden_noise_cov,
                    hidden_mean_initial, hidden_cov_initial)
     theano.config.compute_test_value = 'off'
-    
+
 
 def test_srnn():
     l = SupervisedRecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
-    fprime = l.function(['inpt', 'target'], d_loss_wrt_pars, 
+    fprime = l.function(['inpt', 'target'], d_loss_wrt_pars,
                         mode='FAST_COMPILE')
 
     X = np.random.random((10, 3, 2)).astype(theano.config.floatX)
@@ -328,7 +326,7 @@ def test_usrnn():
         lambda x: x.sum())
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
-    fprime = l.function(['inpt'], d_loss_wrt_pars, 
+    fprime = l.function(['inpt'], d_loss_wrt_pars,
                         mode='FAST_COMPILE')
 
     X = np.random.random((10, 3, 2)).astype(theano.config.floatX)
@@ -338,11 +336,10 @@ def test_usrnn():
 
 
 def test_pooling_rnn():
-    l = RecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'nca'
-                         ,'mean')
+    l = SupervisedRecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'nca', 'mean')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
-    fprime = l.function(['inpt', 'target'], d_loss_wrt_pars, 
+    fprime = l.function(['inpt', 'target'], d_loss_wrt_pars,
                         mode='FAST_COMPILE')
 
     X = np.random.random((10, 30, 2)).astype(theano.config.floatX)
@@ -356,7 +353,7 @@ def test_lstmrnn():
 
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
-    fprime = l.function(['inpt', 'target'], d_loss_wrt_pars, 
+    fprime = l.function(['inpt', 'target'], d_loss_wrt_pars,
                         mode='FAST_COMPILE')
 
     X = np.random.random((10, 3, 2)).astype(theano.config.floatX)
@@ -370,7 +367,7 @@ def test_pooling_lstmrnn():
     l = LstmRecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'nca', 'mean')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
-    fprime = l.function(['inpt', 'target'], d_loss_wrt_pars, 
+    fprime = l.function(['inpt', 'target'], d_loss_wrt_pars,
                         mode='FAST_COMPILE')
 
     X = np.random.random((10, 30, 2)).astype(theano.config.floatX)
