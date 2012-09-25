@@ -186,6 +186,8 @@ class UnsupervisedRecurrentNetwork(BaseRecurrentNetwork):
             output_in = T.min(output_in, axis=0)
         elif pooling == 'max':
             output_in = T.max(output_in, axis=0)
+        elif pooling == 'last':
+            output_in = output_in[-1]
         else:
             raise ValueError('unknown pooling operator %s' % self.pooling)
 
