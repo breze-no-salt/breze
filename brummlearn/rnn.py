@@ -200,6 +200,8 @@ class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
         # MLPs are not implemented for unsupervised problems. Or find a way to
         # efficiently do this without an MLP.
 
+    # TODO: this is a hack; gauss newton matrix does fail sometimes (e.g. with
+    # softmax) and there is no real solution right now for how to solve that.
     def _make_loss_functions(self):
         """Return triple (f_loss, f_d_loss, f_Hp) of functions.
 
@@ -333,6 +335,24 @@ class UnsupervisedLstm(BaseLstm, rnn.UnsupervisedLstmRecurrentNetwork,
     # TODO fix docstring
     transform_expr_name = 'output'
 
+    # TODO: this is a hack; gauss newton matrix does fail sometimes (e.g. with
+    # softmax) and there is no real solution right now for how to solve that.
+    def _make_loss_functions(self):
+        """Return triple (f_loss, f_d_loss, f_Hp) of functions.
+
+         - f_loss returns the current loss,
+         - f_d_loss returns the gradient of that loss wrt parameters,
+         - f_Hp returns the product of an arbitrary vector of the Gauss Newton
+           matrix of the loss.
+        """
+        d_loss = self._d_loss()
+
+        args = list(self.data_arguments)
+        f_loss = self.function(args, 'loss', explicit_pars=True)
+        f_d_loss = self.function(args, d_loss, explicit_pars=True)
+        return f_loss, f_d_loss
+
+
     def iter_fit(self, X):
         """Iteratively fit the parameters of the model to the given data with
         the given error function.
@@ -348,7 +368,7 @@ class UnsupervisedLstm(BaseLstm, rnn.UnsupervisedLstmRecurrentNetwork,
             a data sample at a single time step.
         """
 
-        f_loss, f_d_loss, f_Hp = self._make_loss_functions()
+        f_loss, f_d_loss = self._make_loss_functions()
 
         args = itertools.repeat(([X], {}))
         opt = self._make_optimizer(f_loss, f_d_loss, args)
