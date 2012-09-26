@@ -12,8 +12,9 @@ from breze.model.feature import (
     Rica, DenoisingAutoEncoder, RestrictedBoltzmannMachine)
 from breze.model.rim import RIM_LR
 from breze.model.sequential import (
-    LinearDynamicalSystem, SupervisedRecurrentNetwork,
-    UnsupervisedRecurrentNetwork, LstmRecurrentNetwork)
+    LinearDynamicalSystem,
+    SupervisedRecurrentNetwork, UnsupervisedRecurrentNetwork,
+    SupervisedLstmRecurrentNetwork, UnsupervisedLstmRecurrentNetwork)
 
 from tools import roughly
 
@@ -154,7 +155,7 @@ def test_rbm():
     m.parameters.data[:] = np.random.random(m.parameters.data.shape)
 
     for name, expr in m.exprs.items():
-        f = m.function(
+        m.function(
             [m.exprs['inpt'], m.exprs['feature'], m.exprs['n_gibbs_steps']],
             expr,
             on_unused_input='ignore')
@@ -211,27 +212,27 @@ def test_lds_values():
     F_desired = np.zeros((4, 1, 3, 3))
 
     F_desired[0, 0] = [
-        [9.4992 , -1.0806 , -1.6604  ],
-        [-1.0806,   7.5570,  -3.8054],
-        [-1.6604,  -3.8054,   4.0497 ],
+        [9.4992, -1.0806, -1.6604],
+        [-1.0806, 7.5570, -3.8054],
+        [-1.6604, -3.8054, 4.0497],
     ]
 
     F_desired[1, 0] = [
-        [16.0466,   0.6834,  -4.6797],
-        [0.6834 ,  8.0361 , -4.6112 ],
-        [-4.6797,  -4.6112,   5.4574],
+        [16.0466, 0.6834, -4.6797],
+        [0.6834, 8.0361, -4.6112],
+        [-4.6797, -4.6112, 5.4574],
     ]
 
     F_desired[2, 0] = [
-        [18.8713,   1.4414,  -5.9885],
-        [1.4414 ,  8.2395 , -4.9624 ],
-        [-5.9885,  -4.9624,   6.0637],
+        [18.8713, 1.4414, -5.9885],
+        [1.4414, 8.2395, -4.9624],
+        [-5.9885, -4.9624, 6.0637],
     ]
 
     F_desired[3, 0] = [
-        [19.7744,   1.6837,  -6.4070],
-        [1.6837 ,  8.3045 , -5.0747 ],
-        [-6.4070,  -5.0747,   6.2577],
+        [19.7744, 1.6837, -6.4070],
+        [1.6837, 8.3045, -5.0747],
+        [-6.4070, -5.0747, 6.2577],
     ]
 
     assert roughly(f, f_desired, 1E-4), 'filtered means not correct'
@@ -243,29 +244,27 @@ def test_lds_values():
     s_desired = np.array([
         [-0.2173, 0.1706, -0.5076, 0.8622],
         [-0.0597, 0.0528, -0.0275, 0.5272],
-        [0.0978 , -0.0651 , 0.4526 , 0.1921]]).T
+        [0.0978, -0.0651, 0.4526, 0.1921]]).T
 
     S_desired = np.zeros((4, 1, 3, 3))
-    S_desired[0, 0] = np.array([[ 5.5498, -2.5166, -0.583 ],
-                                [-2.5166,  6.9683, -3.5468],
-                                [-0.583 , -3.5468,  3.4894]])
+    S_desired[0, 0] = np.array([[5.5498, -2.5166, -0.583],
+                                [-2.5166, 6.9683, -3.5468],
+                                [-0.583, -3.5468, 3.4894]])
 
-    S_desired[1, 0] = np.array([[ 7.3348, -2.1811, -1.697 ],
-                                [-2.1811,  7.0324, -3.7542],
-                                [-1.697 , -3.7542,  4.1886]])
+    S_desired[1, 0] = np.array([[7.3348, -2.1811, -1.697],
+                                [-2.1811, 7.0324, -3.7542],
+                                [-1.697, -3.7542, 4.1886]])
 
+    S_desired[2, 0] = np.array([[9.8391, -1.7404, -3.3199],
+                                [-1.7404, 7.11, -4.0396],
+                                [-3.3199, -4.0396, 5.2407]])
 
-    S_desired[2, 0] = np.array([[ 9.8391, -1.7404, -3.3199],
-                                [-1.7404,  7.11  , -4.0396],
-                                [-3.3199, -4.0396,  5.2407]])
-
-    S_desired[3, 0] = np.array([[ 19.7744,   1.6837,  -6.407 ],
-                                [  1.6837,   8.3045,  -5.0747],
-                                [ -6.407 ,  -5.0747,   6.2577]])
+    S_desired[3, 0] = np.array([[19.7744, 1.6837, -6.407 ],
+                                [1.6837, 8.3045, -5.0747],
+                                [-6.407, -5.0747, 6.2577]])
 
     assert roughly(s[:, 0, :], s_desired, 1E-4), 'smooooothed means not correct'
     assert roughly(S, S_desired, 1E-4), 'smooooothed covs not correct'
-
 
 
 def test_lds_shapes():
@@ -348,8 +347,10 @@ def test_pooling_rnn():
     f(X, Z)
     fprime(X, Z)
 
-def test_lstmrnn():
-    l = LstmRecurrentNetwork(2, 5, 1, 'sigmoid', 'identity', 'squared')
+
+def test_slstmrnn():
+    l = SupervisedLstmRecurrentNetwork(
+        2, 5, 1, 'sigmoid', 'identity', 'squared')
 
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
@@ -363,8 +364,9 @@ def test_lstmrnn():
     fprime(X, Z)
 
 
-def test_pooling_lstmrnn():
-    l = LstmRecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'nca', 'mean')
+def test_pooling_slstmrnn():
+    l = SupervisedLstmRecurrentNetwork(
+        2, 3, 1, 'sigmoid', 'identity', 'nca', 'mean')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt', 'target'], d_loss_wrt_pars,
@@ -375,3 +377,33 @@ def test_pooling_lstmrnn():
 
     f(X, Z)
     fprime(X, Z)
+
+
+def test_uslstmrnn():
+    l = UnsupervisedLstmRecurrentNetwork(
+        2, 5, 1, 'sigmoid', 'identity', lambda X: X.sum())
+
+    f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
+    d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
+    fprime = l.function(['inpt'], d_loss_wrt_pars,
+                        mode='FAST_COMPILE')
+
+    X = np.random.random((10, 3, 2)).astype(theano.config.floatX)
+
+    f(X)
+    fprime(X)
+
+
+def test_pooling_uslstmrnn():
+    l = UnsupervisedLstmRecurrentNetwork(
+        2, 3, 1, 'sigmoid', 'identity', lambda X: X.sum(), 'mean')
+
+    f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
+    d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
+    fprime = l.function(['inpt'], d_loss_wrt_pars,
+                        mode='FAST_COMPILE')
+
+    X = np.random.random((10, 30, 2)).astype(theano.config.floatX)
+
+    f(X)
+    fprime(X)

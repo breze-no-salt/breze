@@ -208,7 +208,7 @@ class SupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
     def __init__(self, n_inpt, n_hidden, n_output,
                  hidden_transfer, out_transfer='identity', loss='squared',
                  pooling=None):
-        super(LstmRecurrentNetwork, self).__init__(
+        super(SupervisedLstmRecurrentNetwork, self).__init__(
             n_inpt, n_hidden, n_output, hidden_transfer, out_transfer, loss,
             pooling)
 
@@ -242,9 +242,10 @@ class SupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
 
     @staticmethod
     def make_exprs(inpt, target,
-        in_to_hidden, hidden_to_hidden, hidden_to_out, hidden_bias, out_bias,
-        ingate_peephole, outgate_peephole, forgetgate_peephole,
-        hidden_transfer, out_transfer, loss, pooling):
+                   in_to_hidden, hidden_to_hidden, hidden_to_out,
+                   hidden_bias, out_bias,
+                   ingate_peephole, outgate_peephole, forgetgate_peephole,
+                   hidden_transfer, out_transfer, loss, pooling):
 
         f_hidden = lookup(hidden_transfer, transfer)
         f_output = lookup(out_transfer, transfer)
@@ -271,15 +272,15 @@ class SupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
             forgetpeep = 0 if not peepholes else s_tm1 * forgetgate_peephole
 
             ingate = f_hidden(gates[:, :n_hidden_out] + inpeep)
-            forgetgate = f_hidden(gates[:, n_hidden_out:2 * n_hidden_out] + forgetpeep)
+            forgetgate = f_hidden(
+                gates[:, n_hidden_out:2 * n_hidden_out] + forgetpeep)
             outgate = f_hidden(gates[:, 2 * n_hidden_out:] + outpeep)
 
             s_t = inpt * ingate + s_tm1 * forgetgate
             h_t = f_hidden(s_t) * outgate
             return [s_t, h_t]
 
-        inpt_flat = inpt.reshape((
-                n_time_steps * n_samples, n_inpt))
+        inpt_flat = inpt.reshape((n_time_steps * n_samples, n_inpt))
         hidden_flat = T.dot(inpt_flat, in_to_hidden)
         hidden = hidden_flat.reshape((n_time_steps, n_samples, n_hidden_in))
         hidden += hidden_bias.dimshuffle('x', 'x', 0)
@@ -292,7 +293,7 @@ class SupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
                           ])
 
         hidden_rec_flat = hidden_rec.reshape(
-                (n_time_steps * n_samples, n_hidden_out))
+            (n_time_steps * n_samples, n_hidden_out))
 
         output_flat = T.dot(hidden_rec_flat, hidden_to_out)
         output_in = output_flat.reshape((n_time_steps, n_samples, n_output))
@@ -311,7 +312,7 @@ class SupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
         elif pooling == 'max':
             output_in = T.max(output_in, axis=0)
         else:
-            raise ValueError('unknown pooling operator %s' % self.pooling)
+            raise ValueError('unknown pooling operator %s' % pooling)
 
         output = f_output(output_in)
 
@@ -326,7 +327,7 @@ class SupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
                 'loss': loss}
 
 
-class UnupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
+class UnsupervisedLstmRecurrentNetwork(UnsupervisedRecurrentNetwork):
 
     def __init__(self, n_inpt, n_hidden, n_output,
                  hidden_transfer, out_transfer='identity', loss='squared',
@@ -361,9 +362,10 @@ class UnupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
 
     @staticmethod
     def make_exprs(inpt,
-        in_to_hidden, hidden_to_hidden, hidden_to_out, hidden_bias, out_bias,
-        ingate_peephole, outgate_peephole, forgetgate_peephole,
-        hidden_transfer, out_transfer, loss, pooling):
+                   in_to_hidden, hidden_to_hidden, hidden_to_out,
+                   hidden_bias, out_bias,
+                   ingate_peephole, outgate_peephole, forgetgate_peephole,
+                   hidden_transfer, out_transfer, loss, pooling):
 
         f_hidden = lookup(hidden_transfer, transfer)
         f_output = lookup(out_transfer, transfer)
@@ -390,7 +392,8 @@ class UnupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
             forgetpeep = 0 if not peepholes else s_tm1 * forgetgate_peephole
 
             ingate = f_hidden(gates[:, :n_hidden_out] + inpeep)
-            forgetgate = f_hidden(gates[:, n_hidden_out:2 * n_hidden_out] + forgetpeep)
+            forgetgate = f_hidden(
+                gates[:, n_hidden_out:2 * n_hidden_out] + forgetpeep)
             outgate = f_hidden(gates[:, 2 * n_hidden_out:] + outpeep)
 
             s_t = inpt * ingate + s_tm1 * forgetgate
@@ -398,7 +401,7 @@ class UnupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
             return [s_t, h_t]
 
         inpt_flat = inpt.reshape((
-                n_time_steps * n_samples, n_inpt))
+            n_time_steps * n_samples, n_inpt))
         hidden_flat = T.dot(inpt_flat, in_to_hidden)
         hidden = hidden_flat.reshape((n_time_steps, n_samples, n_hidden_in))
         hidden += hidden_bias.dimshuffle('x', 'x', 0)
@@ -411,7 +414,7 @@ class UnupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
                           ])
 
         hidden_rec_flat = hidden_rec.reshape(
-                (n_time_steps * n_samples, n_hidden_out))
+            (n_time_steps * n_samples, n_hidden_out))
 
         output_flat = T.dot(hidden_rec_flat, hidden_to_out)
         output_in = output_flat.reshape((n_time_steps, n_samples, n_output))
@@ -430,14 +433,13 @@ class UnupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
         elif pooling == 'max':
             output_in = T.max(output_in, axis=0)
         else:
-            raise ValueError('unknown pooling operator %s' % self.pooling)
+            raise ValueError('unknown pooling operator %s' % pooling)
 
         output = f_output(output_in)
 
         loss = f_loss(output)
 
         return {'inpt': inpt,
-                'target': target,
                 'states': states,
                 'hidden': hidden_rec,
                 'output-in': output_in,
