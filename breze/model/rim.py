@@ -13,7 +13,7 @@ class Rim(Linear):
         super(Rim, self).__init__(
             n_inpt=n_inpt,
             n_output=n_output, out_transfer='softmax',
-            loss='neg_cross_entropy' )
+            loss='neg_cross_entropy')
 
     def init_exprs(self):
         self.exprs = self.make_exprs(
@@ -37,6 +37,6 @@ class Rim(Linear):
         exprs['neg_mi'] = neg_mi
         exprs['l2'] = l2
 
-        exprs['loss_reg'] = neg_mi + c_rmi * l2
+        exprs['loss'] = neg_mi + c_rmi * l2
 
         return exprs
