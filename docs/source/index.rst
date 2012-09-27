@@ -31,6 +31,12 @@ Neural Networks et al:
    :maxdepth: 1
 
 
+Clustering
+
+.. toctree::
+   rim
+
+
 Helpers, convenience functions, tools:
 
 .. toctree::
