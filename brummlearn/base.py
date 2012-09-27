@@ -21,7 +21,7 @@ class BrezeWrapperBase(object):
         flat parameters of the model."""
         return T.grad(self.exprs['loss'], self.parameters.flat)
 
-    def _make_optimizer(self, f, fprime, args):
+    def _make_optimizer(self, f, fprime, args, f_Hp=None):
         if isinstance(self.optimizer, (str, unicode)):
             ident = self.optimizer
             kwargs = {}
@@ -29,6 +29,9 @@ class BrezeWrapperBase(object):
             ident, kwargs = self.optimizer
         kwargs['f'] = f
         kwargs['fprime'] = fprime
+
+        if f_Hp is not None:
+            kwargs['f_Hp'] = f_Hp
 
         kwargs['args'] = args
         return climin.util.optimizer(ident, self.parameters.data, **kwargs)
@@ -138,7 +141,7 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
         the optimization can be broken any time by the caller.
 
         This method does `not` respect the max_iter attribute.
-        
+
         :param X: A (t, n ,d) array where _t_ is the number of time steps,
             _n_ is the number of data samples and _d_ is the dimensionality of
             a data sample at a single time step.
@@ -170,7 +173,7 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
 
     def _make_loss_functions(self):
         """Return pair (f_loss, f_d_loss) of functions.
-        
+
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
         """
@@ -194,7 +197,7 @@ class TransformBrezeWrapperMixin(object):
 
     def transform(self, X):
         """Return the feature representation of the model given X.
-        
+
         :param X: (n, d) array where n is the number of samples and d the input
             dimensionality.
         :returns:  (n, h) array where n is the number of samples and h the
@@ -215,7 +218,7 @@ class ReconstructBrezeWrapperMixin(object):
 
     def reconstruct(self, X):
         """Return the input reconstruction of the model given X.
-        
+
         :param X: (n, d) array where n is the number of samples and d the input
             dimensionality.
         :returns:  (n, d) array where n is the number of samples and d the

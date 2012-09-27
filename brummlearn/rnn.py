@@ -83,7 +83,7 @@ class BaseRnn(object):
 
         Jp = T.Rop(output_in, flat_pars, p)
         HJp = T.grad(T.sum(T.grad(loss, output_in) * Jp),
-                 output_in, consider_constant=[Jp])
+            output_in, consider_constant=[Jp])
         Hp = T.grad(T.sum(HJp * output_in),
                     flat_pars, consider_constant=[HJp, Jp])
 
@@ -109,7 +109,7 @@ class BaseRnn(object):
 
 
 class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
-    SupervisedBrezeWrapperBase):
+                    SupervisedBrezeWrapperBase):
     """Class implementing recurrent neural networks for supervised learning..
 
     The class inherits from breze's RecurrentNetwork class and adds several
@@ -185,7 +185,7 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
 
 
 class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
-    UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
+                      UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
     """Class implementing recurrent neural networks for unsupervised learning..
 
     The class inherits from breze's RecurrentNetwork class and adds several
@@ -199,23 +199,6 @@ class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
         # TODO: needs to be implemented, but right now not easily possible since
         # MLPs are not implemented for unsupervised problems. Or find a way to
         # efficiently do this without an MLP.
-
-    # TODO: this is a hack; gauss newton matrix does fail sometimes (e.g. with
-    # softmax) and there is no real solution right now for how to solve that.
-    def _make_loss_functions(self):
-        """Return triple (f_loss, f_d_loss, f_Hp) of functions.
-
-         - f_loss returns the current loss,
-         - f_d_loss returns the gradient of that loss wrt parameters,
-         - f_Hp returns the product of an arbitrary vector of the Gauss Newton
-           matrix of the loss.
-        """
-        d_loss = self._d_loss()
-
-        args = list(self.data_arguments)
-        f_loss = self.function(args, 'loss', explicit_pars=True)
-        f_d_loss = self.function(args, d_loss, explicit_pars=True)
-        return f_loss, f_d_loss
 
     def iter_fit(self, X):
         """Iteratively fit the parameters of the model to the given data with
@@ -234,11 +217,10 @@ class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
         if self.pretrain:
             self._pretrain(X)
 
-        #f_loss, f_d_loss, f_Hp = self._make_loss_functions()
-        f_loss, f_d_loss = self._make_loss_functions()
+        f_loss, f_d_loss, f_Hp = self._make_loss_functions()
 
         args = itertools.repeat(([X], {}))
-        opt = self._make_optimizer(f_loss, f_d_loss, args)
+        opt = self._make_optimizer(f_loss, f_d_loss, args, f_Hp)
 
         for i, info in enumerate(opt):
             yield info
@@ -335,24 +317,6 @@ class UnsupervisedLstm(BaseLstm, rnn.UnsupervisedLstmRecurrentNetwork,
     # TODO fix docstring
     transform_expr_name = 'output'
 
-    # TODO: this is a hack; gauss newton matrix does fail sometimes (e.g. with
-    # softmax) and there is no real solution right now for how to solve that.
-    def _make_loss_functions(self):
-        """Return triple (f_loss, f_d_loss, f_Hp) of functions.
-
-         - f_loss returns the current loss,
-         - f_d_loss returns the gradient of that loss wrt parameters,
-         - f_Hp returns the product of an arbitrary vector of the Gauss Newton
-           matrix of the loss.
-        """
-        d_loss = self._d_loss()
-
-        args = list(self.data_arguments)
-        f_loss = self.function(args, 'loss', explicit_pars=True)
-        f_d_loss = self.function(args, d_loss, explicit_pars=True)
-        return f_loss, f_d_loss
-
-
     def iter_fit(self, X):
         """Iteratively fit the parameters of the model to the given data with
         the given error function.
@@ -368,10 +332,10 @@ class UnsupervisedLstm(BaseLstm, rnn.UnsupervisedLstmRecurrentNetwork,
             a data sample at a single time step.
         """
 
-        f_loss, f_d_loss = self._make_loss_functions()
+        f_loss, f_d_loss, f_Hp = self._make_loss_functions()
 
         args = itertools.repeat(([X], {}))
-        opt = self._make_optimizer(f_loss, f_d_loss, args)
+        opt = self._make_optimizer(f_loss, f_d_loss, args, f_Hp=f_Hp)
 
         for i, info in enumerate(opt):
             yield info
