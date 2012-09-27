@@ -39,10 +39,10 @@ def unflatten(tmpl, flat):
 
 
 def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
-    """Creates and returns a theano.function that takes values for `variables` 
-    as arguments, where `variables` may contain nested lists and/or tuples, 
+    """Creates and returns a theano.function that takes values for `variables`
+    as arguments, where `variables` may contain nested lists and/or tuples,
     and returns values for `exprs`, where again `exprs` may contain nested
-    lists and/or tuples. All other arguments are passed to theano.function 
+    lists and/or tuples. All other arguments are passed to theano.function
     without modification."""
 
     flat_variables = flatten(variables)
@@ -55,6 +55,10 @@ def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
         flat_result = flat_function(*flat_fargs)
         result = unflatten(exprs, flat_result)
         return result
+
+    # Expose this to the outside so that fields of theano can be accessed, eg
+    # for debug or graph information.
+    wrapper.flat_function = flat_function
 
     return wrapper
 
@@ -103,23 +107,23 @@ class ParameterSet(object):
             # Make sure the key is legit -- that it does not overwrite anything.
             if hasattr(self, key):
                 raise ValueError("%s is an illegal name for a variable")
-  
+
             # Get the region from the big flat array.
             region = self.data[n_used:n_used + size]
             # Then shape it correctly and make it accessible from the outside.
             region.shape = shape
             self.views[key] = region
-  
+
             # Get the right variable as a subtensor.
             var = self.flat[n_used:n_used + size].reshape(shape)
             var.name = key
             setattr(self, key, var)
-  
+
             n_used += size
 
     def __contains__(self, key):
         return key in self.views
-  
+
     def __getitem__(self, key):
         return self.views[key]
 
@@ -146,7 +150,7 @@ class Model(object):
         return dct
 
     def __setstate__(self, state):
-        dct = state['updates'] 
+        dct = state['updates']
         state['updates'] = collections.defaultdict(lambda: {})
         state['updates'].update(dct)
         self.__dict__.update(state)
@@ -180,9 +184,9 @@ class Model(object):
             exprs = list(exprs)
             exprs = [self.exprs[i] if isinstance(i, str) else i for i in exprs]
 
-        # We need to clone instead of using the givens parameter of 
+        # We need to clone instead of using the givens parameter of
         # theano.function, because otherwise we might get an theano error
-        # with conflicting replacements. (See theano/compile/pfunc.py:162, 
+        # with conflicting replacements. (See theano/compile/pfunc.py:162,
         # rebuild_collect_shared.)
         if givens is not None:
             if isinstance(exprs, list):
@@ -198,7 +202,7 @@ class Model(object):
 
 
         # Build update dictionary.
-        updates = collections.defaultdict(lambda: {})        
+        updates = collections.defaultdict(lambda: {})
         if isinstance(exprs, (list, tuple)):
             flat_exprs = flatten(exprs)
             for expr in flat_exprs:
@@ -207,8 +211,8 @@ class Model(object):
         else:
             updates.update(self.updates[exprs])
 
-        return theano_function_with_nested_exprs(variables, exprs, 
-                                                 givens=givens, 
+        return theano_function_with_nested_exprs(variables, exprs,
+                                                 givens=givens,
                                                  mode=mode,
                                                  on_unused_input=on_unused_input,
                                                  updates=updates)
