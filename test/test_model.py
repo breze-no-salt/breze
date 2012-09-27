@@ -10,7 +10,7 @@ from breze.model.neural import MultiLayerPerceptron, TwoLayerPerceptron
 from breze.model.feature import (
     AutoEncoder, ContractiveAutoEncoder, SparseAutoEncoder, SparseFiltering,
     Rica, DenoisingAutoEncoder, RestrictedBoltzmannMachine)
-from breze.model.rim import RIM_LR
+from breze.model.rim import Rim
 from breze.model.sequential import (
     LinearDynamicalSystem,
     SupervisedRecurrentNetwork, UnsupervisedRecurrentNetwork,
@@ -128,7 +128,7 @@ def test_dnae():
 
 
 def test_rim():
-    l = RIM_LR(2, 3, 1e-4)
+    l = Rim(2, 3, 1e-4)
     f = l.function(['inpt'], 'loss_reg', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss_reg'], l.parameters.flat)
     fprime = l.function(['inpt'], d_loss_wrt_pars, mode='FAST_COMPILE')
@@ -259,7 +259,7 @@ def test_lds_values():
                                 [-1.7404, 7.11, -4.0396],
                                 [-3.3199, -4.0396, 5.2407]])
 
-    S_desired[3, 0] = np.array([[19.7744, 1.6837, -6.407 ],
+    S_desired[3, 0] = np.array([[19.7744, 1.6837, -6.407],
                                 [1.6837, 8.3045, -5.0747],
                                 [-6.407, -5.0747, 6.2577]])
 
@@ -299,10 +299,11 @@ def test_lds_shapes():
     hidden_cov_initial = T.matrix('hidden_cov_initial')
     hidden_cov_initial.tag.test_value = np.random.random((n_hidden, n_hidden))
 
-    LinearDynamicalSystem.make_exprs(inpt, transition, emission,
-                   visible_noise_mean, visible_noise_cov,
-                   hidden_noise_mean, hidden_noise_cov,
-                   hidden_mean_initial, hidden_cov_initial)
+    LinearDynamicalSystem.make_exprs(
+        inpt, transition, emission,
+        visible_noise_mean, visible_noise_cov,
+        hidden_noise_mean, hidden_noise_cov,
+        hidden_mean_initial, hidden_cov_initial)
     theano.config.compute_test_value = 'off'
 
 
@@ -321,8 +322,8 @@ def test_srnn():
 
 
 def test_usrnn():
-    l = UnsupervisedRecurrentNetwork(2, 3, 1, 'sigmoid', 'identity',
-        lambda x: x.sum())
+    l = UnsupervisedRecurrentNetwork(
+        2, 3, 1, 'sigmoid', 'identity', lambda x: x.sum())
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt'], d_loss_wrt_pars,

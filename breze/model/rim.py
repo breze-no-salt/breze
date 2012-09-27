@@ -1,23 +1,25 @@
 # -*- coding: utf-8 -*-
 
-
-import numpy as np
 import theano.tensor as T
 
 from ..component import distance
 from linear import Linear
 
-class RIM_LR(Linear):
+
+class Rim(Linear):
+
     def __init__(self, n_inpt, n_output, c_rim):
         self.c_rim = c_rim
-        super(RIM_LR, self).__init__(n_inpt=n_inpt,
-                n_output=n_output, out_transfer='softmax',
-                loss='neg_cross_entropy' )
+        super(Rim, self).__init__(
+            n_inpt=n_inpt,
+            n_output=n_output, out_transfer='softmax',
+            loss='neg_cross_entropy' )
 
     def init_exprs(self):
-        self.exprs = self.make_exprs(T.matrix('inpt'),
-                self.parameters.in_to_out, self.parameters.bias,
-                self.out_transfer, self.loss, self.c_rim)
+        self.exprs = self.make_exprs(
+            T.matrix('inpt'),
+            self.parameters.in_to_out, self.parameters.bias,
+            self.out_transfer, self.loss, self.c_rim)
 
     @staticmethod
     def make_exprs(inpt, in_to_out, bias, out_transfer, loss, c_rmi):
@@ -36,5 +38,5 @@ class RIM_LR(Linear):
         exprs['l2'] = l2
 
         exprs['loss_reg'] = neg_mi + c_rmi * l2
-        
+
         return exprs
