@@ -41,6 +41,7 @@ Helpers, convenience functions, tools:
 
 .. toctree::
    data
+   utils
    :maxdepth: 1
 
 
