@@ -4,7 +4,24 @@ import itertools
 import math
 import random
 
+import numpy as np
 import scipy.interpolate
+
+
+def one_hot(array, n_classes=None):
+    """Return one of k vectors for an array of class indices.
+
+    :param array: 1D array containing N integers from 0 to k-1.
+    :param classes: Amount of classes, k. If None, this will be inferred
+        from array (and might take longer).
+    :returns: A 2D array of shape (N, k).
+    """
+    if n_classes is None:
+        n_classes = len(set(array.tolist()))
+    n = array.shape[0]
+    arr = np.zeros((n, n_classes), dtype=np.float32)
+    arr[xrange(n), array] = 1.
+    return arr
 
 
 def shuffle(data):
@@ -28,7 +45,7 @@ def padzeros(lst):
     restshape = list(lst[0].shape)[1:]
     item_shape = [maxlength] + restshape
     total_shape = [n_items] + item_shape
-    
+
     data = scipy.zeros(total_shape)
     for i in range(n_items):
         thislength = lst[i].shape[0]
@@ -58,7 +75,7 @@ def uncollapse_seq_borders(arr, shape):
 
 
 def skip(X, n, d=1):
-    """Return an array X with the same number of rows, but only each `n`'th 
+    """Return an array X with the same number of rows, but only each `n`'th
     block of `d` consecutive columns is kept.
 
     Crude way of reducing the dimensionality of time series."""
@@ -66,7 +83,7 @@ def skip(X, n, d=1):
     X_ = X_[:, ::n, :]
     return X_.reshape((X.shape[0], X_.size / X.shape[0]))
 
-    
+
 def minibatches(arr, batchsize, d=0):
     """Return a list of views of the given arr.
 
@@ -75,7 +92,7 @@ def minibatches(arr, batchsize, d=0):
     n_batches, rest = divmod(arr.shape[d], batchsize)
     if rest != 0:
         n_batches += 1
-        
+
     slices = (slice(i * batchsize, (i + 1) * batchsize)
               for i in range(n_batches))
     if d == 0:
@@ -161,7 +178,7 @@ def iter_windows(X, size, offset=1):
     """Return an iterator that goes over a sequential dataset with a sliding
     time window.
 
-    `X` is expected to be a list of arrays, where each array represents a 
+    `X` is expected to be a list of arrays, where each array represents a
     sequence along its first axis."""
     x_count = itertools.count(0)
     for seq in X:
@@ -186,8 +203,8 @@ def split(X, maxlength):
 
 
 def collapse(X, n):
-    """Return a list of sequences, where `n` consecutive timesteps have been 
-    collapsed into a single timestep by concatenation for each sequence. 
+    """Return a list of sequences, where `n` consecutive timesteps have been
+    collapsed into a single timestep by concatenation for each sequence.
 
     Timesteps are cut off to ensure divisibility by `n`."""
     dim = X[0].shape[1]
