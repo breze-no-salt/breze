@@ -7,7 +7,9 @@ import itertools
 
 import breze.model.sequential.rnn as rnn
 import climin
+import climin.stops
 import numpy as np
+import theano
 import theano.tensor as T
 
 from breze.model.neural import TwoLayerPerceptron
@@ -195,10 +197,22 @@ class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
     transform_expr_name = 'output'
 
     def _pretrain(self, X):
-        raise NotImplementedError('not yet implemented for unsupervised RNNs')
-        # TODO: needs to be implemented, but right now not easily possible since
-        # MLPs are not implemented for unsupervised problems. Or find a way to
-        # efficiently do this without an MLP.
+        loss = theano.clone(self.exprs['loss'], {self.parameters.hidden_to_hidden: 0})
+        d_loss = T.grad(loss, self.parameters.flat)
+
+        self.parameters['hidden_to_hidden'] *= 0
+
+        f_loss = self.function(['inpt'], loss, explicit_pars=True)
+        f_d_loss = self.function(['inpt'], d_loss,explicit_pars=True)
+
+        args = itertools.repeat(([X], {}))
+        opt = self._make_optimizer(f_loss, f_d_loss, args)
+
+        # TODO: include stopping criterion for pretraining
+        stop = climin.stops.after_n_iterations(50)
+        for i, info in enumerate(opt):
+            if stop(info):
+                break
 
     def iter_fit(self, X):
         """Iteratively fit the parameters of the model to the given data with
@@ -224,7 +238,6 @@ class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
 
         for i, info in enumerate(opt):
             yield info
-
 
 
 class BaseLstm(BaseRnn):

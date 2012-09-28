@@ -18,6 +18,13 @@ def test_srnn_fit():
     rnn.fit(X, Z)
 
 
+def test_srnn_fit_with_pretrain():
+    X = np.random.standard_normal((10, 5, 2))
+    Z = np.random.standard_normal((10, 5, 3))
+    rnn = SupervisedRnn(2, 10, 3, pretrain=True, max_iter=10)
+    rnn.fit(X, Z)
+
+
 def test_srnn_iter_fit():
     X = np.random.standard_normal((10, 5, 2))
     Z = np.random.standard_normal((10, 5, 3))
@@ -36,6 +43,13 @@ def test_srnn_predict():
 def test_usrnn_fit():
     X = np.random.standard_normal((10, 5, 2))
     rnn = UnsupervisedRnn(2, 10, 3, loss=lambda x: T.log(x.sum()), max_iter=10)
+    rnn.fit(X)
+
+
+def test_usrnn_fit_with_pretrain():
+    X = np.random.standard_normal((10, 5, 2))
+    rnn = UnsupervisedRnn(2, 10, 3, loss=lambda x: T.log(x.sum()), max_iter=10,
+                          pretrain=True)
     rnn.fit(X)
 
 
