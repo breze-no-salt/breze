@@ -89,25 +89,17 @@ def truncate(arr, max_sqrd_length, axis):
 
 def dropout_optimizer_conf(
         steprate_0=1, steprate_decay=0.998, momentum_0=0.5,
-        momentum_equilibrium=0.99, n_momentum_anneal_steps=500,
-        n_repeats=500
-        ):
+        momentum_eq=0.99, n_momentum_anneal_steps=500,
+        n_repeats=500):
     """Return a dictionary suitable for climin.util.optimizer which
     specifies the standard optimizer for dropout mlps."""
-    steprate_0 = .1
-    steprate_decay = 0.998
-
-    momentum_0 = 0.5
-    momentum_equilibrium = 0.99
-    n_momentum_anneal_steps = 500
-
     steprate = climin.gd.decaying(steprate_0, steprate_decay)
     momentum = climin.gd.linear_annealing(
-        momentum_0, momentum_equilibrium, n_momentum_anneal_steps)
+        momentum_0, momentum_eq, n_momentum_anneal_steps)
 
     # Define another time for steprate calculcation.
     momentum2 = climin.gd.linear_annealing(
-        momentum_0, momentum_equilibrium, n_momentum_anneal_steps)
+        momentum_0, momentum_eq, n_momentum_anneal_steps)
     steprate = ((1 - j) * i for i, j in itertools.izip(steprate, momentum2))
 
     steprate = climin.gd.repeater(steprate, n_repeats)
