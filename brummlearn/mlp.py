@@ -23,7 +23,7 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
                  optimizer='lbfgs',
-                 batch_size=-1,
+                 batch_size=None,
                  max_iter=1000, verbose=False):
         """Create an Mlp object.
 
@@ -38,10 +38,14 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
             is either a string pointing to a function in
             ``breze.component.transfer`` or a function taking a theano 2D tensor
             and returning a tensor of the same shape.
-        :param optimizer: String identifying the optimizer to use. Can only be
-            ``lbfgs`` for now.
+        :param optimizer: Can be either a string or a pair. In any case,
+            climin.util.optimizer is used to construct an optimizer. In the case
+            of a string, the string is used as an identifier for the optimizer
+            which is then instantiated with default arguments. If a pair,
+            expected to be (`identifier`, `kwargs`) for more fine control of the
+            optimizer.
         :param batch_size: Number of examples per batch when calculing the loss
-            and its derivatives. -1 means to use all samples every time.
+            and its derivatives. None means to use all samples every time.
         :param max_iter: Maximum number of optimization iterations to perform.
         :param verbose: Flag indicating whether to print out information during
             fitting.

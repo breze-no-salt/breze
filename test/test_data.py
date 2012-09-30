@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 
+import numpy as np
 import scipy
 import nose.tools
 
 from brummlearn.data import (shuffle, padzeros, minibatches, windowify,
-    interpolate, skip)
+    interpolate, skip, one_hot)
+
+from base import roughly
 
 
 @nose.tools.nottest
@@ -36,7 +39,7 @@ def test_padzeros():
     ]
 
     seqs = padzeros(seqs)
-    
+
     assert (seqs[0] == scipy.array((0, 0, 0, 0, 0, 1, 1)).reshape(7, 1)).all(), \
             "padding went wrong"
     assert (seqs[1] == scipy.array((0, 0, 1, 1, 1, 1, 1)).reshape(7, 1)).all(), \
@@ -51,7 +54,7 @@ def test_minibatches():
     batches = minibatches(D, batchsize=5)
     assert batches[0].shape[0] == 5
     assert batches[1].shape[0] == 5
-    assert batches[2].shape[0] == 3    
+    assert batches[2].shape[0] == 3
 
 
 def test_skip():
@@ -59,7 +62,7 @@ def test_skip():
     X = scipy.vstack((scipy.arange(25), scipy.arange(25)))
     X_ = skip(X, 2, 5)
     print X_
-    des = scipy.vstack((scipy.array([0, 1, 2, 3, 4, 10, 11, 12, 13, 14, 20, 21, 22, 23 ,24]), 
+    des = scipy.vstack((scipy.array([0, 1, 2, 3, 4, 10, 11, 12, 13, 14, 20, 21, 22, 23 ,24]),
                        scipy.array([0, 1, 2, 3, 4, 10, 11, 12, 13, 14, 20, 21, 22, 23 ,24])))
 
     assert (X_ == des).all(), 'wrong result'
@@ -106,6 +109,17 @@ def test_interpolate():
                            [ 2.4,  3.4,  4.4],
                            [ 3.6,  4.6,  5.6],
                            [ 4.8,  5.8,  6.8],
-                           [ 6. ,  7. ,  8. ]]) 
+                           [ 6. ,  7. ,  8. ]])
     x_ = interpolate(x, 2)
     assert roughly(x_, desired).all(), "result has wrong values"
+
+
+def test_one_hot():
+    arr = np.array([0, 1, 2, 1, 3])
+    desired = np.zeros((5, 4))
+    for i, j in enumerate(arr):
+        desired[i, j] = 1
+
+    assert roughly(desired, one_hot(arr)).all()
+    assert roughly(desired, one_hot(arr, 4)).all()
+

@@ -21,7 +21,7 @@ class BrezeWrapperBase(object):
         flat parameters of the model."""
         return T.grad(self.exprs['loss'], self.parameters.flat)
 
-    def _make_optimizer(self, f, fprime, args):
+    def _make_optimizer(self, f, fprime, args, f_Hp=None):
         if isinstance(self.optimizer, (str, unicode)):
             ident = self.optimizer
             kwargs = {}
@@ -30,15 +30,20 @@ class BrezeWrapperBase(object):
         kwargs['f'] = f
         kwargs['fprime'] = fprime
 
+        if f_Hp is not None:
+            kwargs['f_Hp'] = f_Hp
+
         kwargs['args'] = args
         return climin.util.optimizer(ident, self.parameters.data, **kwargs)
 
 
 class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
-    def _make_loss_functions(self, mode='fast_run'):
+    data_arguments = 'inpt', 'target'
+
+    def _make_loss_functions(self, mode=None):
         """Return pair (f_loss, f_d_loss) of functions.
-        
+
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
         """
@@ -51,8 +56,11 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         return f_loss, f_d_loss
 
     def _make_args(self, X, Z):
-        if getattr(self, 'batch_size', None) is None:
+        batch_size = getattr(self, 'batch_size', None)
+        if batch_size is None:
             data = itertools.repeat([X, Z])
+        elif batch_size < 1:
+            raise ValueError('need strictly positive batch size')
         else:
             data = iter_minibatches([X, Z], self.batch_size, (0, 0))
         args = ((i, {}) for i in data)
@@ -67,7 +75,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         the optimization can be broken any time by the caller.
 
         This method does `not` respect the max_iter attribute.
-        
+
         :param X: A (t, n ,d) array where _t_ is the number of time steps,
             _n_ is the number of data samples and _d_ is the dimensionality of
             a data sample at a single time step.
@@ -81,10 +89,6 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):
-            loss = info.get('loss', None)
-            if loss is None:
-                loss = f_loss(self.parameters.data, X, Z)
-            info['loss'] = loss
             yield info
 
     def fit(self, X, Z):
@@ -126,6 +130,8 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
 class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
 
+    data_arguments = 'inpt',
+
     def iter_fit(self, X):
         """Iteratively fit the parameters of the model to the given data with
         the given error function.
@@ -135,7 +141,7 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
         the optimization can be broken any time by the caller.
 
         This method does `not` respect the max_iter attribute.
-        
+
         :param X: A (t, n ,d) array where _t_ is the number of time steps,
             _n_ is the number of data samples and _d_ is the dimensionality of
             a data sample at a single time step.
@@ -167,7 +173,7 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
 
     def _make_loss_functions(self):
         """Return pair (f_loss, f_d_loss) of functions.
-        
+
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
         """
@@ -180,15 +186,18 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
 
 class TransformBrezeWrapperMixin(object):
 
+    transform_expr_name = 'feature'
+    f_transform = None
+
     def _make_transform_function(self):
         """Return a callable f which does the feature transform of this model.
         """
-        f_transform = self.function(['inpt'], 'feature')
+        f_transform = self.function(['inpt'], self.transform_expr_name)
         return f_transform
 
     def transform(self, X):
         """Return the feature representation of the model given X.
-        
+
         :param X: (n, d) array where n is the number of samples and d the input
             dimensionality.
         :returns:  (n, h) array where n is the number of samples and h the
@@ -209,7 +218,7 @@ class ReconstructBrezeWrapperMixin(object):
 
     def reconstruct(self, X):
         """Return the input reconstruction of the model given X.
-        
+
         :param X: (n, d) array where n is the number of samples and d the input
             dimensionality.
         :returns:  (n, d) array where n is the number of samples and d the
