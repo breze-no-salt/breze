@@ -18,4 +18,4 @@ Data manipulation
 .. autofunction:: brummlearn.data.split
 .. autofunction:: brummlearn.data.collapse
 .. autofunction:: brummlearn.data.uncollapse
-.. autofunction:: brummlearn.data.consecutive
+.. autofunction:: brummlearn.data.consecutify

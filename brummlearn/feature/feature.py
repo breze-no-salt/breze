@@ -5,7 +5,7 @@
 
 import itertools
 
-import np
+import numpy as np
 
 
 def rbf(X, n_centers):
