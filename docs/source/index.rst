@@ -40,6 +40,7 @@ Clustering
 Helpers, convenience functions, tools:
 
 .. toctree::
+   feature
    data
    utils
    :maxdepth: 1
