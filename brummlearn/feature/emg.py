@@ -106,8 +106,11 @@ def zero_crossing(X, threshold=1E-8):
     :param threshold: Changes below this value are ignored. Useful to surpress
         noise.
     :returns: An (n, d) array."""
-    crossings = (np.sign(X[1:]) != np.sign(X[:-1]) &
-                 abs(X[1:] - X[:-1]) > threshold)
+    sign_change = np.sign(X[1:]) != np.sign(X[:-1])
+    significant_diff = abs(X[1:] - X[:-1]) > threshold
+
+    crossings =  sign_change.astype('bool') & significant_diff.astype('bool')
+
     n_crossings = crossings.sum(axis=0)
     return n_crossings
 
