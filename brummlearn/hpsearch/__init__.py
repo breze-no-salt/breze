@@ -2,4 +2,5 @@
 """
 
 from .searchspace import SearchSpace, Uniform, LogUniform, OneOf
-from .searcher import RandomSearcher
+from .searcher import (
+    RandomSearcher, GaussianProcessSearcher, RandomForestSearcher)
