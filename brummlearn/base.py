@@ -107,7 +107,6 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
             if i + 1 >= self.max_iter:
                 break
 
-
     def _make_predict_functions(self):
         """Return a function to predict targets from input sequences."""
         return self.function(['inpt'], 'output')
@@ -125,7 +124,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         """
         if self.f_predict is None:
             self.f_predict = self._make_predict_functions()
-        return self.f_predict(X)
+        return self.f_predict(X - self.mean_x) + self.mean_z
 
 
 class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
