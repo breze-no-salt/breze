@@ -107,7 +107,7 @@ def main():
         print 'unknown strategy'
         sys.exit(1)
     losses = []
-    for i in range(200):
+    for i in range(500):
         handle, candidate = searcher.pull_candidate()
         kwargs = s.transform(candidate)
         print '-' * 20
@@ -125,11 +125,12 @@ def main():
 
     infos = []
     for handle, pars, loss in searcher.results:
-        info = searcher.transform(pars)
-        info['loss'] = loss
+        info = s.transform(pars)
+        info['loss'] = float(loss)
+        infos.append(info)
+    print infos
     with open('latest-%s.json' % strategy, 'w') as fp:
         json.dump(infos, fp)
-
 
 
 if __name__ == '__main__':

@@ -40,6 +40,7 @@ Clustering
 Helpers, convenience functions, tools:
 
 .. toctree::
+   hpsearch
    feature
    data
    utils

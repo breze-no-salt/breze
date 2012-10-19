@@ -87,10 +87,11 @@ class GaussianProcessSearcher(ModelBasedSearcher):
     def _fit_model_cost(self, X, Z):
         while True:
             model = GaussianProcess(
-                theta0=self.theta0, thetaL=.1, thetaU=2., nugget=0.01)
+                corr='absolute_exponential',
+                theta0=1e-4, thetaL=1e-2, thetaU=1e-1)
             try:
                 model.fit(X, Z)
-            except Exception:
+            except Exception, e:
                 self.theta0 *= 1.5
                 continue
             break
