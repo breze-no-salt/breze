@@ -94,9 +94,28 @@ def sample(f_energy, f_energy_prime, position, n_steps,
            step_size_grow=1.02, step_size_shrink=0.98,
            step_size_min=1E-4, step_size_max=0.25,
            avg_accept_slowness=0.9,
-           logfunc=None,
            sample_dim=0):
-    """Return a sample from the distribution given by `f_energy`."""
+    """Return a sample from the distribution given by `f_energy`.
+
+    :param f_energy: Log of a function proportional to the density.
+    :param f_energy_prime: Derivative of `f_energy` wrt to the current position.
+    :param position: An numpy array of any desired shape which represents
+        multiple particles.
+    :param n_steps: Amount of steps to perform for the next sample.
+    :param desired_accept: Desired acceptance rate of the underlying Metropolis
+        hastings.
+    :param initial_step_size: Initial size of a step along the energy landscape.
+    :param step_size_grow: If the acceptance rate is too high, increase the step
+        size by this factor.
+    :param step_size_shrink: If the acceptance rate is too low, decrease the
+        step size by this factor.
+    :param step_size_min: Don't decrease the step size below this value.
+    :param step_size_max: Don't increase the step size above this value.
+    :param avg_accept_slowness: When calculating the acceptance rate, use this
+        value as a decay for an exponential average.
+    :param sample_dim: The axis which discriminates the different particles
+        given in the `position` array from each other.
+    """
     avg_accept_rate = None
     step_size = initial_step_size
     while True:

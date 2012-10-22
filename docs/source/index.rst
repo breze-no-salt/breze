@@ -37,6 +37,12 @@ Clustering
    rim
 
 
+Sampling
+
+.. toctree::
+   sampling/hmc
+
+
 Helpers, convenience functions, tools:
 
 .. toctree::
