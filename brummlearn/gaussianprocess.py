@@ -52,7 +52,7 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
 
         f_loss, f_d_loss = self._make_loss_functions()
 
-        args = self._make_args(X, Z)
+        args = self._make_args(self.stored_X, self.stored_Z)
         opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):
