@@ -44,7 +44,7 @@ def discrete_entropy(X, axis=None):
 
 def distance_matrix(X, Y=None, norm_=norm.l2):
     """Return an expression containing the distances given the norm."""
-    if isinstance(norm, (str, unicode)):
+    if isinstance(norm_, (str, unicode)):
         norm_ = lookup(norm_, norm)
     Y = X if Y is None else Y
     diffs = X.dimshuffle(0, 1, 'x') - Y.dimshuffle('x', 1, 0)
@@ -55,7 +55,7 @@ def distance_matrix(X, Y=None, norm_=norm.l2):
 def nca(target, embedding):
      """Return expression for the negative expected correctly classified
      points given a nearest neighbour classification method.
- 
+
      As introduced in 'Neighbourhood Component Analysis'."""
      # Matrix of the distances of points.
      dist = distance_matrix(embedding)
