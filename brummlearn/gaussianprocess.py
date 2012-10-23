@@ -19,7 +19,8 @@ from brummlearn.base import SupervisedBrezeWrapperBase
 
 class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
 
-    def __init__(self, n_inpt, kernel='linear', noise=1e-6,
+    def __init__(self, n_inpt, kernel='linear', optimizer='lbfgs',
+                 max_iter=1000, verbose=False):
         """Create a GaussianProcess object.
 
         :param n_inpt: Input dimensionality of a single input.
@@ -35,9 +36,7 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         :param verbose: Flag indicating whether to print out information during
             fitting.
         """
-                 optimizer='lbfgs', max_iter=1000, verbose=False):
-        super(GaussianProcess, self).__init__(
-            n_inpt, kernel=kernel, noise=noise)
+        super(GaussianProcess, self).__init__(n_inpt, kernel=kernel)
 
         self.optimizer = optimizer
         self.max_iter = max_iter

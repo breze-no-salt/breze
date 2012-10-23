@@ -39,7 +39,7 @@ def test_gp_predict_linear():
     Z = np.sin(X)
     Z += np.random.normal(0, 1e-1, X.shape)
 
-    gp = GaussianProcess(1, max_iter=1, kernel='linear', noise=1e-2)
+    gp = GaussianProcess(1, max_iter=1, kernel='linear')
     gp.fit(X, Z)
     print gp.predict(X)
 
@@ -52,6 +52,6 @@ def test_gp_predict_matern52():
     Z = np.sin(X)
     Z += np.random.normal(0, 1e-1, X.shape)
 
-    gp = GaussianProcess(1, max_iter=10, kernel='matern52', noise=1e-2)
+    gp = GaussianProcess(1, max_iter=10, kernel='matern52')
     gp.fit(X, Z)
     print gp.predict(X)
