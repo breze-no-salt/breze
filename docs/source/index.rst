@@ -23,11 +23,12 @@ Denoising:
    mda
    :maxdepth: 1
 
-Neural Networks et al:
+Supervised Learning
 
 .. toctree::
    rnn
    mlp
+   gaussianprocess
    :maxdepth: 1
 
 
