@@ -2,6 +2,7 @@
 
 
 import itertools
+import math
 
 
 import climin
@@ -72,20 +73,38 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         for i, info in enumerate(opt):
             yield info
 
-    def predict(self, X, std=False):
+    def predict(self, X, std=False, max_rows=100):
         """Return the prediction of the Gaussian process given input sequences.
 
         :param X: A (n, d) array where _n_ is the number of data samples and
             _d_ is the dimensionality of a data sample.
         :param std: If True, returns the stanard deviation of the prediction as
             well.
+        :param max_rows: Maximum number of predictions to do in one step; a
+            lower number might help performance if the call stalls.
         :returns: A (n, 1) array where _n_ is the same as in _X_.
         """
         if self.f_predict is None:
             self.f_predict, self.f_predict_std = self._make_predict_functions(
                 self.stored_X, self.stored_Z)
 
+        n_steps, rest = divmod(X.shape[0], max_rows)
+        if rest != 0:
+            n_steps += 1
+        steps = [(i * max_rows, (i + 1) * max_rows) for i in range(n_steps)]
+
         if std:
-            return self.f_predict_std(X - self.mean_x) + self.mean_z
+            Y = np.empty((X.shape[0], 1))
+            Y_std = np.empty((X.shape[0], 1))
+            for start, stop in steps:
+                this_x = X[start:stop]
+                m, s = self.f_predict_std(this_x - self.mean_x) + self.mean_z
+                Y[start:stop] = m
+                Y_std[start:stop] = s
+            return Y, Y_std
         else:
-            return self.f_predict(X - self.mean_x) + self.mean_z
+            Y = np.empty((X.shape[0], 1))
+            for start, stop in steps:
+                this_x = X[start:stop]
+                Y[start:stop] = self.f_predict(this_x - self.mean_x) + self.mean_z
+            return Y

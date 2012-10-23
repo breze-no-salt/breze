@@ -55,3 +55,21 @@ def test_gp_predict_matern52():
     gp = GaussianProcess(1, max_iter=10, kernel='matern52')
     gp.fit(X, Z)
     print gp.predict(X)
+
+
+def test_gp_predict_maxrows():
+    X = np.arange(-2, 2, .01)[:, np.newaxis]
+    idxs = range(X.shape[0])
+    idxs = random.sample(idxs, 6)
+    X = X[idxs]
+    Z = np.sin(X)
+    Z += np.random.normal(0, 1e-1, X.shape)
+
+    gp = GaussianProcess(1, max_iter=10, kernel='matern52')
+    gp.fit(X, Z)
+    Y = gp.predict(X)
+    Y2 = gp.predict(X, max_rows=2)
+
+    assert (Y == Y2).all()
+
+
