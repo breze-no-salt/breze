@@ -124,7 +124,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         """
         if self.f_predict is None:
             self.f_predict = self._make_predict_functions()
-        return self.f_predict(X - self.mean_x) + self.mean_z
+        return self.f_predict(X)
 
 
 class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):

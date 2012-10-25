@@ -23,11 +23,12 @@ Denoising:
    mda
    :maxdepth: 1
 
-Neural Networks et al:
+Supervised Learning
 
 .. toctree::
    rnn
    mlp
+   gaussianprocess
    :maxdepth: 1
 
 
@@ -35,6 +36,12 @@ Clustering
 
 .. toctree::
    rim
+
+
+Sampling
+
+.. toctree::
+   sampling/hmc
 
 
 Helpers, convenience functions, tools:
