@@ -16,6 +16,7 @@ import theano.tensor as T
 from breze.model.gaussianprocess import GaussianProcess as GaussianProcess_
 
 from brummlearn.base import SupervisedBrezeWrapperBase
+from brummlearn.sampling import slice_
 
 
 class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
@@ -59,11 +60,14 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
 
         return f_predict, f_predict_std
 
-    def iter_fit(self, X, Z):
+    def store_dataset(self, X, Z):
         self.mean_x = X.mean(axis=0)
         self.mean_z = Z.mean(axis=0)
         self.stored_X = X - self.mean_x
         self.stored_Z = Z - self.mean_z
+
+    def iter_fit(self, X, Z):
+        self.store_dataset(X, Z)
 
         f_loss, f_d_loss = self._make_loss_functions()
 
@@ -84,7 +88,7 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
             lower number might help performance if the call stalls.
         :returns: A (n, 1) array where _n_ is the same as in _X_.
         """
-        if self.f_predict is None:
+        if self.f_predict is None or self.f_predict_std is None:
             self.f_predict, self.f_predict_std = self._make_predict_functions(
                 self.stored_X, self.stored_Z)
 
@@ -99,8 +103,8 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
             for start, stop in steps:
                 this_x = X[start:stop]
                 m, s = self.f_predict_std(this_x - self.mean_x) + self.mean_z
-                Y[start:stop] = m
-                Y_std[start:stop] = s
+                Y[start:stop, 0] = m
+                Y_std[start:stop, 0] = s
             return Y, Y_std
         else:
             Y = np.empty((X.shape[0], 1))
@@ -108,3 +112,23 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
                 this_x = X[start:stop]
                 Y[start:stop] = self.f_predict(this_x - self.mean_x) + self.mean_z
             return Y
+
+    def sample_parameters(self):
+        """Use slice sampling to sample a hyper parameters from the posterior
+        given the observations.
+
+        One step of slice sampling is performed with the current parameters as
+        a starting point. The current parameters are overwritten by the sample.
+
+        :param X: A (n, d) array where _n_ is the number of data samples and
+            _d_ is the dimensionality of a data sample containing the input
+            data.
+        :param Z: A (n, 1) array where _n_ is the number of data samples
+            containing the output data.
+        """
+        if getattr(self, 'f_nll_expl', None) is None:
+            self.f_nll_expl = self.function(['inpt', 'target'], 'nll', explicit_pars=True)
+
+        f_ll = lambda pars: -self.f_nll_expl(pars, self.stored_X, self.stored_Z)
+
+        self.parameters.data[:] = slice_.sample(f_ll, self.parameters.data)

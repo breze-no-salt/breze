@@ -73,3 +73,15 @@ def test_gp_predict_maxrows():
     assert (Y == Y2).all()
 
 
+def test_gp_sample_parameters():
+    X = np.arange(-2, 2, .01)[:, np.newaxis]
+    idxs = range(X.shape[0])
+    idxs = random.sample(idxs, 200)
+    X = X[idxs]
+    Z = np.sin(X)
+    Z += np.random.normal(0, 1e-1, X.shape)
+
+    gp = GaussianProcess(1, max_iter=1, kernel='linear')
+    gp.store_dataset(X, Z)
+    gp.sample_parameters()
+    print gp.predict(X, True)
