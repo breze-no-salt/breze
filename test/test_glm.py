@@ -4,72 +4,41 @@ import random
 
 import numpy as np
 
-from brummlearn.gaussianprocess import GaussianProcess
+from brummlearn.glm import GeneralizedLinearModel
 
 
-def test_gp_fit():
+def test_glm_fit():
     X = np.arange(-2, 2, .01)[:, np.newaxis]
     idxs = range(X.shape[0])
     idxs = random.sample(idxs, 200)
     X = X[idxs]
     Z = np.sin(X)
 
-    gp = GaussianProcess(1, max_iter=10)
-    gp.fit(X, Z)
+    glm = GeneralizedLinearModel(1, 1, max_iter=10)
+    glm.fit(X, Z)
 
 
-def test_gp_iter_fit():
+def test_glm_iter_fit():
     X = np.arange(-2, 2, .01)[:, np.newaxis]
     idxs = range(X.shape[0])
     idxs = random.sample(idxs, 200)
     X = X[idxs]
     Z = np.sin(X)
 
-    gp = GaussianProcess(1, max_iter=10)
-    for i, info in enumerate(gp.iter_fit(X, Z)):
+    glm = GeneralizedLinearModel(1, 1, max_iter=10)
+    for i, info in enumerate(glm.iter_fit(X, Z)):
         if i >= 10:
             break
 
 
-def test_gp_predict_linear():
+def test_glm_predict_linear():
     X = np.arange(-2, 2, .01)[:, np.newaxis]
     idxs = range(X.shape[0])
     idxs = random.sample(idxs, 200)
     X = X[idxs]
     Z = np.sin(X)
-    Z += np.random.normal(0, 1e-1, X.shape)
 
-    gp = GaussianProcess(1, max_iter=1, kernel='linear')
-    gp.fit(X, Z)
-    print gp.predict(X)
-
-
-def test_gp_predict_matern52():
-    X = np.arange(-2, 2, .01)[:, np.newaxis]
-    idxs = range(X.shape[0])
-    idxs = random.sample(idxs, 200)
-    X = X[idxs]
-    Z = np.sin(X)
-    Z += np.random.normal(0, 1e-1, X.shape)
-
-    gp = GaussianProcess(1, max_iter=10, kernel='matern52')
-    gp.fit(X, Z)
-    print gp.predict(X)
-
-
-def test_gp_predict_maxrows():
-    X = np.arange(-2, 2, .01)[:, np.newaxis]
-    idxs = range(X.shape[0])
-    idxs = random.sample(idxs, 6)
-    X = X[idxs]
-    Z = np.sin(X)
-    Z += np.random.normal(0, 1e-1, X.shape)
-
-    gp = GaussianProcess(1, max_iter=10, kernel='matern52')
-    gp.fit(X, Z)
-    Y = gp.predict(X)
-    Y2 = gp.predict(X, max_rows=2)
-
-    assert (Y == Y2).all()
-
+    glm = GeneralizedLinearModel(1, 1, max_iter=10)
+    glm.fit(X, Z)
+    glm.predict(X)
 
