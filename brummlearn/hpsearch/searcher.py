@@ -4,8 +4,8 @@
 import itertools
 
 import numpy as np
-from sklearn.gaussian_process import GaussianProcess
 from sklearn.ensemble import RandomForestRegressor
+from brummlearn.gaussianprocess import GaussianProcess
 
 from .acquisition import expected_improvement
 
@@ -85,17 +85,14 @@ class GaussianProcessSearcher(ModelBasedSearcher):
         self.theta0 = .1
 
     def _fit_model_cost(self, X, Z):
-        while True:
-            model = GaussianProcess(
-                corr='absolute_exponential',
-                theta0=1e-4, thetaL=1e-2, thetaU=1e-1)
-            try:
-                model.fit(X, Z)
-            except Exception, e:
-                self.theta0 *= 1.5
-                continue
-            break
-        f_model_cost = lambda x: model.predict(x, eval_MSE=True)
+        model = GaussianProcess(
+            X.shape[1], kernel='matern52', optimizer='lbfgs',
+            max_iter=10)
+        print X.shape, Z.shape
+        model.parameters.data[:] = 1
+        model.fit(X, Z[:, np.newaxis])
+        print model.parameters.data
+        f_model_cost = lambda x: model.predict(x, True)
         return f_model_cost
 
 

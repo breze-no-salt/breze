@@ -79,7 +79,7 @@ def f(step_rate, momentum=0, n_hidden=10, batch_size=10, par_std=0.1):
         if stop(i):
             break
 
-    loss = f_loss(TX, TZ)
+    loss = f_loss(TX, TZ) / TX.shape[0]
 
     # Check for NaN.
     if np.isnan(loss):
@@ -100,7 +100,7 @@ def main():
     if strategy == 'random':
         searcher = hpsearch.RandomSearcher(s.seed_size)
     elif strategy == 'gp':
-        searcher = hpsearch.GaussianProcessSearcher(s.seed_size, 50)
+        searcher = hpsearch.GaussianProcessSearcher(s.seed_size, 1000, 10)
     elif strategy == 'rf':
         searcher = hpsearch.RandomForestSearcher(s.seed_size, 50)
     else:
