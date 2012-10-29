@@ -41,13 +41,15 @@ def rbf_kernel(X, X_, length_scales):
 
 class GaussianProcess(Model):
 
+    minimal_noise = 1e-6
+    maximal_length_scales = 20
+
     def __init__(self, n_inpt, kernel='linear'):
         self.n_inpt = n_inpt
         self.kernel = kernel
         self.f_predict = None
 
         super(GaussianProcess, self).__init__()
-
         self.parameters.data[:] = np.random.normal(0, 1e-1, self.parameters.data.shape)
 
     def init_pars(self):
@@ -68,16 +70,22 @@ class GaussianProcess(Model):
     @staticmethod
     def make_exprs(inpt, test_inpt, target,
                    length_scales, noise, kernel):
+        noise = T.maximum(softabs(noise), GaussianProcess.minimal_noise)
+        length_scales = T.minimum(softabs(length_scales),
+                                  GaussianProcess.maximal_length_scales)
+
         kernel_func = globals()['%s_kernel' % kernel]
 
         # For training.
         K = kernel_func(inpt, inpt, length_scales)
-        K += T.identity_like(K) * softabs(noise)
 
-        # This is an informed choice. I played around a little with various
-        # methods (e.g. using cholesky first) and came to the conclusion that
-        # this way of doing it was way faster than anything else in my case.
-        # (Justin)
+        # We add the noise variable, but at least 1e-4 for
+        # numerical stability.
+        K += T.identity_like(K) * noise
+        # Justin: This is an informed choice. I played around a little
+        # with various methods (e.g. using cholesky first) and came to
+        # the conclusion that this way of doing it was way faster than
+        # anything else in my case.
         psd(K)
         inv_K = minv(K)
 
