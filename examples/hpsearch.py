@@ -4,6 +4,7 @@
 import math
 import json
 import random
+import sys
 
 import numpy as np
 
@@ -79,13 +80,14 @@ def f(step_rate, momentum=0, n_hidden=10, batch_size=10, par_std=0.1):
         if stop(i):
             break
 
-    loss = f_loss(TX, TZ) / TX.shape[0]
+    loss = f_loss(TX, TZ)
 
     # Check for NaN.
     if np.isnan(loss):
         loss = 1E6
 
     return loss
+
 
 def main():
     s = hpsearch.SearchSpace()
@@ -95,14 +97,16 @@ def main():
     s.add('n_hidden', hpsearch.Uniform(10, 25, intify=True))
     s.add('batch_size', hpsearch.Uniform(1, 150, intify=True))
 
-    strategy = 'gp'
+    strategy = 'bgp'
 
     if strategy == 'random':
         searcher = hpsearch.RandomSearcher(s.seed_size)
     elif strategy == 'gp':
         searcher = hpsearch.GaussianProcessSearcher(s.seed_size, 1000, 10)
+    elif strategy == 'bgp':
+        searcher = hpsearch.BayesianGaussianProcessSearcher(s.seed_size, 1000, 2)
     elif strategy == 'rf':
-        searcher = hpsearch.RandomForestSearcher(s.seed_size, 50)
+        searcher = hpsearch.RandomForestSearcher(s.seed_size, 1000, 50)
     else:
         print 'unknown strategy'
         sys.exit(1)
@@ -135,5 +139,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-

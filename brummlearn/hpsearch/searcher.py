@@ -30,7 +30,6 @@ class RandomSearcher(Searcher):
         self.results.append((handle, self.candidates[handle], result))
 
 
-
 class ModelBasedSearcher(RandomSearcher):
 
     def __init__(self, size, n_candidates=1000, initial_random_tries=10):
@@ -54,44 +53,37 @@ class ModelBasedSearcher(RandomSearcher):
         if len(self.results) < self.initial_random_tries:
             return RandomSearcher.pull_candidate(self)
 
-        # Create data set.
-        X, Z = self._data_sets()
-
-        # Create model and fit it to get a p(c|x) defined by its mean and its
-        # std.
-        f_model_cost = self._fit_model_cost(X, Z)
-
         # Create function that measures how good it is to try out a solution.
         best = min(i for _, _, i in self.results)
-        acq_func = expected_improvement(f_model_cost, best)
 
         # Randomly sample a set of candidates.
         candidates = np.random.random((self.n_candidates, self.size))
 
+        # Determine the acquisition values.
+        acquisitions = self.expected_improvement(candidates, best)
+
         # Return the best of those candidates according to the acquisition
         # function.
-        point = candidates[acq_func(candidates).argmin()]
+        point = candidates[acquisitions.argmin()]
 
         handle = self.handles.next()
         self.candidates[handle] = point
         return handle, point
 
+    def expected_improvement(self, candidates):
+        f_model_cost = self._fit_model_cost()
+        mean, var = f_model_cost(candidates)
+        return expected_improvement(mean, var)
+
 
 class GaussianProcessSearcher(ModelBasedSearcher):
 
-    def __init__(self, size, n_candidates=1000, initial_random_tries=10):
-        super(GaussianProcessSearcher, self).__init__(
-            size, n_candidates, initial_random_tries)
-        self.theta0 = .1
-
-    def _fit_model_cost(self, X, Z):
-        model = GaussianProcess(
+    def _fit_model_cost(self):
+        X, Z = self._data_sets()
+        model = self.model = GaussianProcess(
             X.shape[1], kernel='matern52', optimizer='lbfgs',
-            max_iter=10)
-        print X.shape, Z.shape
-        model.parameters.data[:] = 1
+            max_iter=20)
         model.fit(X, Z[:, np.newaxis])
-        print model.parameters.data
         f_model_cost = lambda x: model.predict(x, True)
         return f_model_cost
 
@@ -99,7 +91,8 @@ class GaussianProcessSearcher(ModelBasedSearcher):
 class RandomForestSearcher(ModelBasedSearcher):
 
     def _fit_model_cost(self, X, Z):
-        model = RandomForestRegressor()
+        X, Z = self._data_sets()
+        model = self.model = RandomForestRegressor()
         model.fit(X, Z)
 
         def f_model_cost(x):
@@ -107,3 +100,25 @@ class RandomForestSearcher(ModelBasedSearcher):
             return predictions.mean(), [predictions.std()**2]
 
         return f_model_cost
+
+
+class BayesianGaussianProcessSearcher(GaussianProcessSearcher):
+
+    def __init__(self, size, n_candidates=1000, initial_random_tries=10,
+                 n_samples=10):
+        super(BayesianGaussianProcessSearcher, self).__init__(
+            size, n_candidates, initial_random_tries)
+        self.n_samples = n_samples
+
+    def expected_improvement(self, candidates, best):
+        ei = np.empty((self.n_samples, candidates.shape[0]))
+        m = np.empty((self.n_samples, candidates.shape[0]))
+        v = np.empty((self.n_samples, candidates.shape[0]))
+
+        f_model_cost = self._fit_model_cost()
+
+        for i in range(self.n_samples):
+            self.model.sample_parameters()
+            m, v = f_model_cost(candidates)
+            ei[i] = expected_improvement(m[:, 0], v[:, 0], best)
+        return ei.mean(axis=0)

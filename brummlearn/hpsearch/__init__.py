@@ -3,4 +3,5 @@
 
 from .searchspace import SearchSpace, Uniform, LogUniform, OneOf
 from .searcher import (
-    RandomSearcher, GaussianProcessSearcher, RandomForestSearcher)
+    RandomSearcher, GaussianProcessSearcher, BayesianGaussianProcessSearcher,
+    RandomForestSearcher)
