@@ -47,6 +47,9 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         self.f_predict = None
         self.f_predict_std = None
 
+        sample = np.random.random(self.parameters.data.shape) * 0.5 + 0.5
+        self.parameters.data[:] = sample
+
     def _make_predict_functions(self, stored_inpt, stored_target):
         """Return a function to predict targets from input sequences."""
         givens = {
