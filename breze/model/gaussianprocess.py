@@ -41,8 +41,8 @@ def rbf_kernel(X, X_, length_scales):
 
 class GaussianProcess(Model):
 
-    minimal_noise = 1e-6
-    maximal_length_scales = 20
+    minimal_noise = 1e-4
+    maximal_length_scales = 10
 
     def __init__(self, n_inpt, kernel='linear'):
         self.n_inpt = n_inpt

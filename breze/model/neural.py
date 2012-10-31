@@ -10,7 +10,7 @@ from ..component import transfer, distance
 
 class TwoLayerPerceptron(Model):
 
-    def __init__(self, n_inpt, n_hidden, n_output, 
+    def __init__(self, n_inpt, n_hidden, n_output,
                  hidden_transfer, out_transfer, loss):
         self.n_inpt = n_inpt
         self.n_hidden = n_hidden
@@ -42,7 +42,7 @@ class TwoLayerPerceptron(Model):
                     out_bias=n_output)
 
     @staticmethod
-    def make_exprs(inpt, target, in_to_hidden, hidden_to_out, 
+    def make_exprs(inpt, target, in_to_hidden, hidden_to_out,
                    hidden_bias, out_bias,
                    hidden_transfer, output_transfer, loss):
 
@@ -60,7 +60,7 @@ class TwoLayerPerceptron(Model):
         loss = loss_rowwise.mean()
 
         return {
-            'inpt': inpt, 
+            'inpt': inpt,
             'target': target,
             'hidden_in': hidden_in,
             'hidden': hidden,
@@ -73,7 +73,7 @@ class TwoLayerPerceptron(Model):
 
 class MultiLayerPerceptron(Model):
 
-    def __init__(self, n_inpt, n_hiddens, n_output, 
+    def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss):
         if len(n_hiddens) != len(hidden_transfers):
             raise ValueError('n_hiddens and hidden_transfers have to be of the'
@@ -101,7 +101,7 @@ class MultiLayerPerceptron(Model):
         self.exprs = self.make_exprs(
             T.matrix('inpt'), T.matrix('target'),
             self.parameters.in_to_hidden,
-            hidden_to_hiddens, 
+            hidden_to_hiddens,
             self.parameters.hidden_to_out,
             hidden_biases,
             self.parameters.out_bias,
