@@ -8,6 +8,7 @@ import sys
 
 import numpy as np
 
+from brummlearn.pca import pca
 from brummlearn.mlp import Mlp
 from brummlearn import hpsearch
 from brummlearn.data import one_hot
@@ -51,6 +52,10 @@ def iris_data(fn):
 X, Z = iris_data('iris.data')
 Z = one_hot(Z.astype('int'), 3)
 
+w, s = pca(X, whiten=True)
+print w.shape, X.shape
+X = np.dot(X, w)
+
 idxs = set(range(X.shape[0]))
 train_idxs = random.sample(idxs, X.shape[0] / 2)
 test_idxs = list(idxs - set(train_idxs))
@@ -61,13 +66,13 @@ X, Z = X[train_idxs], Z[train_idxs]
 
 def f(step_rate, momentum=0, n_hidden=10, batch_size=10, par_std=0.1):
     opt = 'gd', {'steprate': step_rate, 'momentum': momentum}
-    net = Mlp(4, [n_hidden], 3, hidden_transfers=['sigmoid'],
+    net = Mlp(4, [n_hidden], 3, hidden_transfers=['tanh'],
               out_transfer='softmax', loss='neg_cross_entropy',
               optimizer=opt, batch_size=batch_size)
     net.parameters.data[:] = np.random.normal(
         0, par_std, net.parameters.data.shape)
 
-    max_iter = 1000
+    max_iter = 10000
 
     stop = climin.stops.any_([
         climin.stops.time_elapsed(10),
@@ -76,22 +81,19 @@ def f(step_rate, momentum=0, n_hidden=10, batch_size=10, par_std=0.1):
     ])
 
     f_loss = net.function(['inpt', 'target'], 'loss')
+    losses = []
     for i in net.iter_fit(X, Z):
+        losses.append(f_loss(TX, TZ))
         if stop(i):
             break
 
-    loss = f_loss(TX, TZ)
 
-    # Check for NaN.
-    if np.isnan(loss):
-        loss = 1E6
-
-    return loss
+    return min(i for i in losses if not np.isnan(i))
 
 
 def main():
     s = hpsearch.SearchSpace()
-    s.add('step_rate', hpsearch.Uniform(0, .5))
+    s.add('step_rate', hpsearch.Uniform(0.0001, .5))
     s.add('par_std', hpsearch.Uniform(0, 1))
     s.add('momentum', hpsearch.Uniform(0, .99))
     s.add('n_hidden', hpsearch.Uniform(10, 25, intify=True))
@@ -111,7 +113,7 @@ def main():
         print 'unknown strategy'
         sys.exit(1)
     losses = []
-    for i in range(500):
+    for i in range(200):
         handle, candidate = searcher.pull_candidate()
         kwargs = s.transform(candidate)
         print '-' * 20
