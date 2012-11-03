@@ -80,6 +80,7 @@ class GaussianProcessSearcher(ModelBasedSearcher):
 
     def _fit_model_cost(self):
         X, Z = self._data_sets()
+
         model = self.model = GaussianProcess(
             X.shape[1], kernel='matern52', optimizer='lbfgs',
             max_iter=20)
