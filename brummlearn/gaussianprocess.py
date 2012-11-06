@@ -1,17 +1,8 @@
 # -*- coding: utf-8 -*-
 
 
-import itertools
-import math
-
-
-import climin
-import climin.util
-import climin.gd
-
 import numpy as np
 import theano
-import theano.tensor as T
 
 from breze.model.gaussianprocess import GaussianProcess as GaussianProcess_
 
@@ -45,7 +36,7 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         self.verbose = verbose
 
         self.f_predict = None
-        self.f_predict_std = None
+        self.f_predict_var = None
 
         sample = np.random.random(self.parameters.data.shape) * 0.5 + 0.5
         self.parameters.data[:] = sample
@@ -58,16 +49,18 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         }
 
         f_predict = self.function(['test_inpt'], 'output', givens=givens)
-        f_predict_std = self.function(
-            ['test_inpt'], ['output', 'output_std'], givens=givens)
+        f_predict_var = self.function(
+            ['test_inpt'], ['output', 'output_var'], givens=givens)
 
-        return f_predict, f_predict_std
+        return f_predict, f_predict_var
 
     def store_dataset(self, X, Z):
         self.mean_x = X.mean(axis=0)
         self.mean_z = Z.mean(axis=0)
-        self.stored_X = X - self.mean_x
-        self.stored_Z = Z - self.mean_z
+        self.std_x = X.std(axis=0)
+        self.std_z = Z.std(axis=0)
+        self.stored_X = (X - self.mean_x) / self.std_x
+        self.stored_Z = (Z - self.mean_z) / self.std_z
 
     def iter_fit(self, X, Z):
         self.store_dataset(X, Z)
@@ -80,19 +73,19 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         for i, info in enumerate(opt):
             yield info
 
-    def predict(self, X, std=False, max_rows=100):
+    def predict(self, X, var=False, max_rows=100):
         """Return the prediction of the Gaussian process given input sequences.
 
         :param X: A (n, d) array where _n_ is the number of data samples and
             _d_ is the dimensionality of a data sample.
-        :param std: If True, returns the stanard deviation of the prediction as
+        :param var: If True, returns the variance of the prediction as
             well.
         :param max_rows: Maximum number of predictions to do in one step; a
             lower number might help performance if the call stalls.
         :returns: A (n, 1) array where _n_ is the same as in _X_.
         """
-        if self.f_predict is None or self.f_predict_std is None:
-            self.f_predict, self.f_predict_std = self._make_predict_functions(
+        if self.f_predict is None or self.f_predict_var is None:
+            self.f_predict, self.f_predict_var = self._make_predict_functions(
                 self.stored_X, self.stored_Z)
 
         n_steps, rest = divmod(X.shape[0], max_rows)
@@ -100,20 +93,26 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
             n_steps += 1
         steps = [(i * max_rows, (i + 1) * max_rows) for i in range(n_steps)]
 
-        if std:
+        X = (X - self.mean_x) / self.std_x
+
+        if var:
             Y = np.empty((X.shape[0], 1))
-            Y_std = np.empty((X.shape[0], 1))
+            Y_var = np.empty((X.shape[0], 1))
             for start, stop in steps:
                 this_x = X[start:stop]
-                m, s = self.f_predict_std(this_x - self.mean_x) + self.mean_z
-                Y[start:stop, 0] = m
-                Y_std[start:stop, 0] = s
-            return Y, Y_std
+                m, s = self.f_predict_var(this_x)
+                Y[start:stop] = m
+                Y_var[start:stop] = s
+            Y = (Y * self.std_z) + self.mean_z
+            Y_var = Y_var * self.std_z
+
+            return Y, Y_var
         else:
             Y = np.empty((X.shape[0], 1))
             for start, stop in steps:
                 this_x = X[start:stop]
-                Y[start:stop] = self.f_predict(this_x - self.mean_x) + self.mean_z
+                Y[start:stop] = self.f_predict(this_x)
+            Y = (Y * self.std_z) + self.mean_z
             return Y
 
     def sample_parameters(self):
