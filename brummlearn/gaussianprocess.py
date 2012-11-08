@@ -37,12 +37,24 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
 
         self.f_predict = None
         self.f_predict_var = None
+        self.f_gram_matrix = None
+
+        sample = np.random.random(self.parameters.data.shape) * 0.5 + 0.5
+        self.parameters.data[:] = sample
+        self._gram_matrix = None
 
     def _make_predict_functions(self, stored_inpt, stored_target):
         """Return a function to predict targets from input sequences."""
+        if self.f_gram_matrix is None:
+            self.f_gram_matrix = self.function(['inpt'], 'gram_matrix')
+
+        if self._gram_matrix is None:
+            self._gram_matrix = self.f_gram_matrix(stored_inpt)
+
         givens = {
+            self.exprs['gram_matrix']: theano.shared(self._gram_matrix),
+            self.exprs['target']: theano.shared(stored_target),
             self.exprs['inpt']: theano.shared(stored_inpt),
-            self.exprs['target']: theano.shared(stored_target)
         }
 
         f_predict = self.function(['test_inpt'], 'output', givens=givens)
@@ -52,6 +64,7 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         return f_predict, f_predict_var
 
     def store_dataset(self, X, Z):
+        self._gram_matrix = None
         self.mean_x = X.mean(axis=0)
         self.mean_z = Z.mean(axis=0)
         self.std_x = X.std(axis=0)
@@ -70,7 +83,7 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         for i, info in enumerate(opt):
             yield info
 
-    def predict(self, X, var=False, max_rows=100):
+    def predict(self, X, var=False, max_rows=1000):
         """Return the prediction of the Gaussian process given input sequences.
 
         :param X: A (n, d) array where _n_ is the number of data samples and
