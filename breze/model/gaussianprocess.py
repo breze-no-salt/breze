@@ -2,35 +2,47 @@
 
 
 import numpy as np
+import theano
 import theano.tensor as T
 
-from theano.sandbox.linalg.ops import MatrixInverse, Det, psd
+from theano.sandbox.linalg.ops import MatrixInverse, Det, psd, Cholesky
 minv = MatrixInverse()
 det = Det()
+cholesky = Cholesky()
 
 from ..util import ParameterSet, Model, lookup
 from ..component import distance
 
 
-def linear_kernel(X, X_, length_scales):
+def linear_kernel(X, X_, length_scales, amplitude, diag=False):
     X = X * length_scales.dimshuffle('x', 0)
     X_ = X_ * length_scales.dimshuffle('x', 0)
-    return T.dot(X, X_.T)
+    if diag:
+        return amplitude * (X * X_).sum(axis=1)
+    else:
+        return amplitude * T.dot(X, X_.T)
 
 
-def matern52_kernel(X, X_, length_scales):
+def matern52_kernel(X, X_, length_scales, amplitude, diag=False):
     X = X * length_scales.dimshuffle('x', 0)
     X_ = X_ * length_scales.dimshuffle('x', 0)
-    D2 = distance.distance_matrix(X, X_, 'l2')
+    if not diag:
+        D2 = distance.distance_matrix(X, X_, 'l2')
+    else:
+        D2 = ((X - X_)**2).sum(axis=1)
     D = T.sqrt(D2)
-    return (1.0 + T.sqrt(5.) * D + (5. / 3.) * D2) * T.exp(-T.sqrt(5.) * D)
+    return amplitude * (1.0 + T.sqrt(5.) * D + (5. / 3.) * D2) * T.exp(-T.sqrt(5.) * D)
 
 
-def rbf_kernel(X, X_, length_scales):
+def rbf_kernel(X, X_, length_scales, amplitude, diag=False):
     X = X * length_scales.dimshuffle('x', 0)
     X_ = X_ * length_scales.dimshuffle('x', 0)
-    D2 = distance.distance_matrix(X, X_, 'l2')
-    return T.exp(-D2)
+    if not diag:
+        D2 = distance.distance_matrix(X, X_, 'l2')
+    else:
+        D2 = ((X - X_)**2).sum(axis=1)
+
+    return amplitude * T.exp(-D2)
 
 
 class GaussianProcess(Model):
@@ -55,15 +67,16 @@ class GaussianProcess(Model):
             T.matrix('inpt'), T.matrix('test_inpt'),
             T.matrix('target'),
             self.parameters.length_scales, self.parameters.noise,
+            self.parameters.amplitude,
             self.kernel)
 
     @staticmethod
     def get_parameter_spec(n_inpt):
-        return dict(length_scales=n_inpt, noise=1)
+        return dict(length_scales=n_inpt, noise=1, amplitude=1)
 
     @staticmethod
     def make_exprs(inpt, test_inpt, target,
-                   length_scales, noise, kernel):
+                   length_scales, noise, amplitude, kernel):
 
         # To stay compatible to the prediction api, target will
         # be a matrix to the outside. But in the following, it's easier
@@ -77,7 +90,7 @@ class GaussianProcess(Model):
         kernel_func = globals()['%s_kernel' % kernel]
 
         # For training.
-        K = kernel_func(inpt, inpt, length_scales)
+        K = kernel_func(inpt, inpt, length_scales, amplitude)
 
         K += T.identity_like(K) * noise
 
@@ -95,23 +108,28 @@ class GaussianProcess(Model):
             + 0.5 * n_samples * T.log(2 * np.pi))
 
         # For prediction.
-        inference_kernelrows = kernel_func(inpt, test_inpt, length_scales)
-        test_K = kernel_func(test_inpt, test_inpt, length_scales)
+        inference_kernelrows = kernel_func(inpt, test_inpt, length_scales,
+                                           amplitude)
 
         kTK = T.dot(inference_kernelrows.T, inv_K)
         output_mean = T.dot(kTK, target).dimshuffle(0, 'x')
 
         kTKk = T.dot(kTK, inference_kernelrows)
 
-        d = test_inpt.shape[0]
-        diag_coords = T.arange(d), T.arange(d)
-        output_var = ((test_K - kTKk)[diag_coords]).dimshuffle(0, 'x')
+        chol_inv_K = cholesky(inv_K)
+
+        diag_kTKk = (T.dot(chol_inv_K.T, inference_kernelrows)**2).sum(axis=0)
+        test_K = kernel_func(test_inpt, test_inpt, length_scales, amplitude,
+                             diag=True)
+        output_var = ((test_K - diag_kTKk)).dimshuffle(0, 'x')
 
         return {
             'inpt': inpt,
             'test_inpt': test_inpt,
             'target': target_,
             'gram_matrix': K,
+            'inv_gram_matrix': inv_K,
+            'chol_inv_gram_matrix': chol_inv_K,
             'nll': nll,
             'loss': nll,
             'output': output_mean,
