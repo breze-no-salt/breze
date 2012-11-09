@@ -29,7 +29,7 @@ def matern52_kernel(X, X_, length_scales, amplitude, diag=False):
         D2 = distance.distance_matrix(X, X_, 'l2')
     else:
         D2 = ((X - X_)**2).sum(axis=1)
-    D = T.sqrt(D2)
+    D = T.sqrt(D2 + 1e-8)
     return amplitude * (1.0 + T.sqrt(5.) * D + (5. / 3.) * D2) * T.exp(-T.sqrt(5.) * D)
 
 
