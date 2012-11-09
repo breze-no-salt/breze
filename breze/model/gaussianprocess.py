@@ -87,7 +87,10 @@ class GaussianProcess(Model):
         length_scales = T.exp(length_scales) + GaussianProcess.minimal_length_scale
         amplitude = T.exp(amplitude) + 1e-4
 
-        kernel_func = globals()['%s_kernel' % kernel]
+        if isinstance(kernel, (unicode, str)):
+            kernel_func = globals()['%s_kernel' % kernel]
+        else:
+            kernel_func = kernel
 
         # For training.
         K = kernel_func(inpt, inpt, length_scales, amplitude)
