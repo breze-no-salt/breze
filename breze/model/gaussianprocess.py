@@ -86,6 +86,7 @@ class GaussianProcess(Model):
         target = target[:, 0]
         noise = T.exp(noise) + GaussianProcess.minimal_noise
         length_scales = T.exp(length_scales) + GaussianProcess.minimal_length_scale
+        amplitude = T.exp(amplitude) + 1e-4
 
         kernel_func = globals()['%s_kernel' % kernel]
 
