@@ -2,7 +2,6 @@
 
 
 import numpy as np
-import theano
 import theano.tensor as T
 
 from theano.sandbox.linalg.ops import MatrixInverse, Det, psd, Cholesky
@@ -10,7 +9,7 @@ minv = MatrixInverse()
 det = Det()
 cholesky = Cholesky()
 
-from ..util import ParameterSet, Model, lookup
+from ..util import ParameterSet, Model
 from ..component import distance
 
 
