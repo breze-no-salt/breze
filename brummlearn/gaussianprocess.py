@@ -12,7 +12,7 @@ from brummlearn.sampling import slice_
 
 class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
 
-    def __init__(self, n_inpt, kernel='linear', optimizer='lbfgs',
+    def __init__(self, n_inpt, kernel='linear', optimizer='rprop',
                  max_iter=1000, verbose=False):
         """Create a GaussianProcess object.
 
@@ -143,4 +143,7 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
 
         f_ll = lambda pars: -self.f_nll_expl(pars, self.stored_X, self.stored_Z)
 
-        self.parameters.data[:] = slice_.sample(f_ll, self.parameters.data)
+        self.parameters.data[:] = slice_.sample(f_ll, self.parameters.data, window_inc=1.)
+        self._gram_matrix = None
+        self.f_predict = None
+        self.f_predict_var = None
