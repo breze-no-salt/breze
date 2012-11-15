@@ -9,6 +9,9 @@ from brummlearn.gaussianprocess import GaussianProcess
 
 from .acquisition import expected_improvement
 
+import climin
+import climin.stops
+
 
 class Searcher(object):
 
@@ -18,6 +21,9 @@ class Searcher(object):
         self.results = []
         self.candidates = {}
 
+    def push_result(self, handle, result):
+        self.results.append((handle, self.candidates[handle], result))
+
 
 class RandomSearcher(Searcher):
 
@@ -26,15 +32,13 @@ class RandomSearcher(Searcher):
         self.candidates[handle] = point
         return handle, point
 
-    def push_result(self, handle, result):
-        self.results.append((handle, self.candidates[handle], result))
-
 
 class ModelBasedSearcher(RandomSearcher):
 
     def __init__(self, size, n_candidates=1000, initial_random_tries=10):
         self.n_candidates = n_candidates
         self.initial_random_tries = initial_random_tries
+        self.model = None
 
         super(ModelBasedSearcher, self).__init__(size)
 
@@ -70,22 +74,35 @@ class ModelBasedSearcher(RandomSearcher):
         self.candidates[handle] = point
         return handle, point
 
-    def expected_improvement(self, candidates):
+    ei_plots = itertools.count()
+
+    def expected_improvement(self, candidates, best):
         f_model_cost = self._fit_model_cost()
         mean, var = f_model_cost(candidates)
-        return expected_improvement(mean, var)
+        return expected_improvement(mean, var, best)
 
 
 class GaussianProcessSearcher(ModelBasedSearcher):
 
     def _fit_model_cost(self):
         X, Z = self._data_sets()
+        Z = Z[:, np.newaxis]
 
-        model = self.model = GaussianProcess(
-            X.shape[1], kernel='matern52', optimizer='lbfgs',
-            max_iter=20)
-        model.fit(X, Z[:, np.newaxis])
-        f_model_cost = lambda x: model.predict(x, True)
+        if self.model is None:
+            self.model = GaussianProcess(
+                X.shape[1], kernel='matern52', optimizer='lbfgs', max_iter=100)
+            self.model.parameters.data[:] = np.log(1.)
+            self.f_nll = self.model.function(['inpt', 'target'], 'nll')
+
+        stop = climin.stops.any_([
+            climin.stops.converged(lambda: self.f_nll(X, Z),
+                                   epsilon=1e-3, patience=5),
+            climin.stops.after_n_iterations(100)])
+        for i, info in enumerate(self.model.iter_fit(X, Z)):
+            if stop(info):
+                break
+
+        f_model_cost = lambda x: self.model.predict(x, True)
         return f_model_cost
 
 
