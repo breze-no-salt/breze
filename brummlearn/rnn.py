@@ -28,6 +28,7 @@ class BaseRnn(object):
                  hidden_transfer='tanh', out_transfer='identity',
                  loss='squared', pooling=None,
                  optimizer='rprop',
+                 batch_size=None,
                  pretrain=False,
                  max_iter=1000,
                  verbose=False):
@@ -55,6 +56,8 @@ class BaseRnn(object):
             tensor3.
         :param optimizer: Either ``ksd`` referring to KrylovSubspaceDescent or
             ``rprop``.
+        :param batch_size: Number of examples per batch when calculing the loss
+            and its derivatives. None means to use all samples every time.
         :param pretrain: Number of pretrain iterations to do. This will perform
             training locally, i.e. with all recurrent connections set to 0 and
             not applying any updates to them.
@@ -118,6 +121,22 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
     sklearn like methods.
     """
 
+    def __init__(self, n_inpt, n_hidden, n_output,
+                 hidden_transfer='tanh', out_transfer='identity',
+                 loss='squared', pooling=None,
+                 optimizer='rprop',
+                 batch_size=None,
+                 pretrain=False,
+                 max_iter=1000,
+                 verbose=False):
+        if pooling is None:
+            self.sample_dim = 1, 1
+        else:
+            self.sample_dim = 1, 0
+        super(SupervisedRnn, self).__init__(
+            n_inpt, n_hidden, n_output, hidden_transfer, out_transfer, loss,
+            pooling, optimizer, batch_size, pretrain, max_iter, verbose)
+
     def _pretrain(self, X, Z):
         # Construct an MLP of same dimensions.
         net = TwoLayerPerceptron(
@@ -140,7 +159,7 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
         # Disentangle sequence data.
         X = X.reshape((X.shape[0] * X.shape[1], X.shape[2]))
         Z = Z.reshape((Z.shape[0] * Z.shape[1], Z.shape[2]))
-        args = (([X, Z], {}) for _ in itertools.count())
+        args = self._make_args(X, Z)
         opt = climin.Lbfgs(net.parameters.data, f_loss, f_d_loss, args=args)
 
         # Train for some epochs with LBFGS.
@@ -195,6 +214,7 @@ class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
     """
 
     transform_expr_name = 'output'
+    sample_dim = 1,
 
     def _pretrain(self, X):
         loss = theano.clone(self.exprs['loss'], {self.parameters.hidden_to_hidden: 0})
@@ -233,7 +253,7 @@ class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
 
         f_loss, f_d_loss, f_Hp = self._make_loss_functions()
 
-        args = itertools.repeat(([X], {}))
+        args = self._make_args(X)
         opt = self._make_optimizer(f_loss, f_d_loss, args, f_Hp)
 
         for i, info in enumerate(opt):

@@ -40,6 +40,7 @@ class BrezeWrapperBase(object):
 class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
     data_arguments = 'inpt', 'target'
+    sample_dim = 0, 0
 
     def _make_loss_functions(self, mode=None):
         """Return pair (f_loss, f_d_loss) of functions.
@@ -62,7 +63,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         elif batch_size < 1:
             raise ValueError('need strictly positive batch size')
         else:
-            data = iter_minibatches([X, Z], self.batch_size, (0, 0))
+            data = iter_minibatches([X, Z], self.batch_size, self.sample_dim)
         args = ((i, {}) for i in data)
         return args
 
@@ -111,7 +112,6 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         """Return a function to predict targets from input sequences."""
         return self.function(['inpt'], 'output')
 
-
     def predict(self, X):
         """Return the prediction of the network given input sequences.
 
@@ -130,6 +130,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
 
     data_arguments = 'inpt',
+    sample_dim = 0,
 
     def iter_fit(self, X):
         """Iteratively fit the parameters of the model to the given data with
@@ -169,6 +170,17 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
         for i, info in enumerate(itr):
             if i + 1 >= self.max_iter:
                 break
+
+    def _make_args(self, X):
+        batch_size = getattr(self, 'batch_size', None)
+        if batch_size is None:
+            data = itertools.repeat([X])
+        elif batch_size < 1:
+            raise ValueError('need strictly positive batch size')
+        else:
+            data = iter_minibatches([X], self.batch_size, self.sample_dim)
+        args = ((i, {}) for i in data)
+        return args
 
     def _make_loss_functions(self):
         """Return pair (f_loss, f_d_loss) of functions.
