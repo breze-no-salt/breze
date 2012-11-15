@@ -11,7 +11,7 @@ class Diverged(Exception):
     pass
 
 
-def sample(f_ll, position, window_inc=1.0):
+def sample(f_ll, position, window_inc=1.0, max_widenings=1000):
     """Perform multivariate slice sampling.
 
     The idea is to randomly chose a direction and then perform univariate slice
@@ -31,18 +31,16 @@ def sample(f_ll, position, window_inc=1.0):
     def ll_along_dir(step_size):
         return f_ll(direction * step_size + position)
 
-    MAX_WIDENINGS = 1000
-
     # Create initial bracket.
     upper = window_inc * uniform(0, 1)
     lower = upper - window_inc
     llh_0 = np.log(uniform(0, 1)) + ll_along_dir(0.0)
 
-    for i in range(MAX_WIDENINGS):
+    for i in range(max_widenings):
         if ll_along_dir(lower) < llh_0:
             break
         lower -= window_inc
-    for i in range(MAX_WIDENINGS):
+    for i in range(max_widenings):
         if ll_along_dir(upper) < llh_0:
             break
         upper += window_inc
