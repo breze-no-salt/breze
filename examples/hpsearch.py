@@ -3,6 +3,7 @@
 
 import math
 import json
+import pprint
 import random
 import sys
 
@@ -64,15 +65,15 @@ TX, TZ = X[test_idxs], Z[test_idxs]
 X, Z = X[train_idxs], Z[train_idxs]
 
 
-def f(step_rate, momentum=0, n_hidden=10, batch_size=10, par_std=0.1):
+def f(step_rate, momentum=0, n_hidden=20, batch_size=50, par_std=1.):
     opt = 'gd', {'steprate': step_rate, 'momentum': momentum}
-    net = Mlp(4, [n_hidden], 3, hidden_transfers=['tanh'],
+    net = Mlp(4, [n_hidden], 3, hidden_transfers=['sigmoid'],
               out_transfer='softmax', loss='neg_cross_entropy',
               optimizer=opt, batch_size=batch_size)
     net.parameters.data[:] = np.random.normal(
         0, par_std, net.parameters.data.shape)
 
-    max_iter = 10000
+    max_iter = 1000
 
     stop = climin.stops.any_([
         climin.stops.time_elapsed(10),
@@ -87,43 +88,59 @@ def f(step_rate, momentum=0, n_hidden=10, batch_size=10, par_std=0.1):
         if stop(i):
             break
 
-
     return min(i for i in losses if not np.isnan(i))
 
 
-def main():
+def evalu(searcher, s):
+    handle, candidate = searcher.pull_candidate()
+    kwargs = s.transform(candidate)
+    print '-' * 20
+    print 'Evaluating:'
+    pprint.pprint(kwargs)
+
+    loss = f(**kwargs)
+    searcher.push_result(handle, loss)
+
+    return loss
+
+def main(n_evals, strategy):
     s = hpsearch.SearchSpace()
     s.add('step_rate', hpsearch.Uniform(0.0001, .5))
-    s.add('par_std', hpsearch.Uniform(0, 1))
+    #s.add('par_std', hpsearch.Uniform(0, 2))
     s.add('momentum', hpsearch.Uniform(0, .99))
-    s.add('n_hidden', hpsearch.Uniform(10, 25, intify=True))
-    s.add('batch_size', hpsearch.Uniform(1, 150, intify=True))
-
-    strategy = 'bgp'
+    #s.add('n_hidden', hpsearch.Uniform(10, 25, intify=True))
+    #s.add('batch_size', hpsearch.Uniform(1, 150, intify=True))
 
     if strategy == 'random':
         searcher = hpsearch.RandomSearcher(s.seed_size)
     elif strategy == 'gp':
-        searcher = hpsearch.GaussianProcessSearcher(s.seed_size, 1000, 10)
+        searcher = hpsearch.GaussianProcessSearcher(s.seed_size, 5000, 2)
     elif strategy == 'bgp':
-        searcher = hpsearch.BayesianGaussianProcessSearcher(s.seed_size, 1000, 2)
+        searcher = hpsearch.BayesianGaussianProcessSearcher(s.seed_size, 10000, 5)
     elif strategy == 'rf':
         searcher = hpsearch.RandomForestSearcher(s.seed_size, 1000, 50)
     else:
         print 'unknown strategy'
         sys.exit(1)
     losses = []
-    for i in range(200):
-        handle, candidate = searcher.pull_candidate()
-        kwargs = s.transform(candidate)
-        print '-' * 20
-        print 'Iteration:', i
-        print 'Evaluating:', kwargs
+    #for i in range(n_evals):
+    #    handle, candidate = searcher.pull_candidate()
+    #    kwargs = s.transform(candidate)
+    #    print '-' * 20
+    #    print 'Iteration:', i
+    #    print 'Evaluating:'
+    #    pprint.pprint(kwargs)
 
-        loss = f(**kwargs)
-        searcher.push_result(handle, loss)
+    #    loss = f(**kwargs)
+    #    searcher.push_result(handle, loss)
+    #    losses.append(loss)
+
+    #    print 'Last: %.4f Best: %5.4f' % (loss, min(losses))
+
+    for i in range(n_evals):
+        print 'Evaluation:', i
+        loss = evalu(searcher, s)
         losses.append(loss)
-
         print 'Last: %.4f Best: %5.4f' % (loss, min(losses))
 
     for h, c, l in searcher.results:
@@ -134,10 +151,20 @@ def main():
         info = s.transform(pars)
         info['loss'] = float(loss)
         infos.append(info)
-    print infos
     with open('latest-%s.json' % strategy, 'w') as fp:
         json.dump(infos, fp)
 
+    print 'best loss', min(losses)
+
+    return losses
+
 
 if __name__ == '__main__':
-    main()
+    strategy = 'bgp'
+    n_evals = 30
+    n_runs = 20
+    l = np.empty((n_runs, n_evals))
+    for i in range(n_runs):
+        print 'Run:', i
+        l[i] = main(n_evals, strategy)
+    np.savetxt('%s.txt' % strategy, l)
