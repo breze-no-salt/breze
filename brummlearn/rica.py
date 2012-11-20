@@ -57,3 +57,8 @@ class Rica(_Rica, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin,
         self.max_iter = max_iter
         self.verbose = verbose
 
+    def iter_fit(self, X):
+        f_weights_normed = self.function([], 'in_to_hidden_normed')
+        for info in super(Rica, self).iter_fit(X):
+            self.parameters['in_to_hidden'][...] = f_weights_normed()
+            yield info
