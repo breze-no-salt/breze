@@ -36,20 +36,20 @@ class Rica(AutoEncoder):
                    hidden_transfer, feature_transfer, out_transfer,
                    loss, c_ica):
 
-        inpt_to_hidden_normed = T.sqrt(
+        in_to_hidden_normed = T.sqrt(
             norm.normalize(in_to_hidden, lambda x: x**2, axis=0) + 1e-4)
         hidden_to_output_normed = T.sqrt(
                 norm.normalize(hidden_to_output, lambda x: x**2, axis=1) + 1e-4)
 
         exprs = AutoEncoder.make_exprs(
-            inpt, inpt_to_hidden_normed, hidden_to_output_normed,
+            inpt, in_to_hidden_normed, hidden_to_output_normed,
             hidden_bias, out_bias,
             hidden_transfer, out_transfer, loss)
 
         f_feature = lookup(feature_transfer, transfer)
 
         exprs['reconstruct_loss'] = exprs['loss']
-        exprs['inpt_to_hidden_normed'] = inpt_to_hidden_normed
+        exprs['in_to_hidden_normed'] = in_to_hidden_normed
 
         exprs['feature'] = f_feature(exprs['hidden'])
         exprs['ica_loss'] = exprs['feature'].mean()
