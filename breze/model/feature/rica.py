@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 
 
-import numpy as np
 import theano.tensor as T
 
-from ...util import ParameterSet, Model, lookup
-from ...component import transfer, distance, norm
+from ...util import lookup
+from ...component import transfer, norm
 
 from autoencoder import AutoEncoder
 
@@ -13,7 +12,7 @@ from autoencoder import AutoEncoder
 class Rica(AutoEncoder):
 
     def __init__(self, n_inpt, n_hidden, feature_transfer, out_transfer,
-            loss, c_ica):
+                 loss, c_ica):
         self.feature_transfer = feature_transfer
         self.c_ica = c_ica
 
@@ -50,6 +49,7 @@ class Rica(AutoEncoder):
         f_feature = lookup(feature_transfer, transfer)
 
         exprs['reconstruct_loss'] = exprs['loss']
+        exprs['inpt_to_hidden_normed'] = inpt_to_hidden_normed
 
         exprs['feature'] = f_feature(exprs['hidden'])
         exprs['ica_loss'] = exprs['feature'].mean()
