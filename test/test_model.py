@@ -129,8 +129,8 @@ def test_dnae():
 
 def test_rim():
     l = Rim(2, 3, 1e-4)
-    f = l.function(['inpt'], 'loss_reg', mode='FAST_COMPILE')
-    d_loss_wrt_pars = T.grad(l.exprs['loss_reg'], l.parameters.flat)
+    f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
+    d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt'], d_loss_wrt_pars, mode='FAST_COMPILE')
 
     f(np.asarray(np.random.random((10, 2)), dtype=theano.config.floatX))
