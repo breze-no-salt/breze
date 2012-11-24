@@ -17,7 +17,7 @@ def l2(inpt, axis=None):
 
 
 def root_l2(inpt, axis=None):
-    return T.sqrt((inpt**2).sum(axis=axis))
+    return T.sqrt((inpt**2).sum(axis=axis) + 1e-8)
 
 
 def exp(inpt, axis=None):

@@ -42,7 +42,7 @@ def logcosh(inpt):
     return T.log(T.cosh(inpt))
 
 
-def softabs(inpt, eps=1E-8):
+def softabs(inpt, eps=1E-5):
     return T.sqrt(inpt**2 + eps)
 
 
