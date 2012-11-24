@@ -107,7 +107,7 @@ def test_sparsefiltering():
 
 
 def test_rica():
-    l = Rica(2, 10, 'tanh', 'identity', 'squared', 1.5)
+    l = Rica(2, 10, 'identity', 'softabs', 'identity', 'squared', 1.5)
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt'], grad, mode='FAST_COMPILE')

@@ -3,56 +3,70 @@
 
 import theano.tensor as T
 
-from ...util import lookup
-from ...component import transfer, norm
-
-from autoencoder import AutoEncoder
+from ...util import ParameterSet, Model, lookup
+from ...component import transfer, distance
 
 
-class Rica(AutoEncoder):
+class Rica(Model):
 
-    def __init__(self, n_inpt, n_hidden, feature_transfer, out_transfer,
+    def __init__(self, n_inpt, n_hidden, hidden_transfer, feature_transfer, out_transfer,
                  loss, c_ica):
+        self.n_inpt = n_inpt
+        self.n_hidden = n_hidden
+        self.hidden_transfer = hidden_transfer
         self.feature_transfer = feature_transfer
+        self.out_transfer = out_transfer
+        self.loss = loss
         self.c_ica = c_ica
 
-        super(Rica, self).__init__(
-            n_inpt, n_hidden, 'identity', out_transfer,
-            loss, True)
+        super(Rica, self).__init__()
 
     def init_exprs(self):
-        hidden_to_output = self.parameters.in_to_hidden.T
-
         self.exprs = self.make_exprs(
-            T.matrix('inpt'), self.parameters.in_to_hidden, hidden_to_output,
-            self.parameters.hidden_bias, self.parameters.out_bias,
+            T.matrix('inpt'), self.parameters.in_to_hidden,
             self.hidden_transfer, self.feature_transfer, self.out_transfer,
-            self.loss,
-            self.c_ica)
+            self.loss, self.c_ica)
+
+    def init_pars(self):
+        parspec = self.get_parameter_spec(self.n_inpt, self.n_hidden)
+        self.parameters = ParameterSet(**parspec)
 
     @staticmethod
-    def make_exprs(inpt, in_to_hidden, hidden_to_output,
-                   hidden_bias, out_bias,
-                   hidden_transfer, feature_transfer, out_transfer,
+    def get_parameter_spec(n_inpt, n_hidden):
+        return dict(in_to_hidden=(n_inpt, n_hidden))
+
+    @staticmethod
+    def make_exprs(inpt, in_to_hidden, hidden_transfer, feature_transfer, out_transfer,
                    loss, c_ica):
-
-        in_to_hidden_normed = T.sqrt(
-            norm.normalize(in_to_hidden, lambda x: x**2, axis=0) + 1e-4)
-        hidden_to_output_normed = T.sqrt(
-                norm.normalize(hidden_to_output, lambda x: x**2, axis=1) + 1e-4)
-
-        exprs = AutoEncoder.make_exprs(
-            inpt, in_to_hidden_normed, hidden_to_output_normed,
-            hidden_bias, out_bias,
-            hidden_transfer, out_transfer, loss)
-
+        f_hidden = lookup(hidden_transfer, transfer)
         f_feature = lookup(feature_transfer, transfer)
+        f_output = lookup(out_transfer, transfer)
+        f_loss = lookup(loss, distance)
 
-        exprs['reconstruct_loss'] = exprs['loss']
-        exprs['in_to_hidden_normed'] = in_to_hidden_normed
+        in_to_hidden_normed = in_to_hidden / T.sqrt((in_to_hidden**2).sum(axis=0)).dimshuffle('x', 0)
 
-        exprs['feature'] = f_feature(exprs['hidden'])
-        exprs['ica_loss'] = exprs['feature'].mean()
+        hidden_in = T.dot(inpt, in_to_hidden_normed)
+        hidden = f_hidden(hidden_in)
 
-        exprs['loss'] = exprs['reconstruct_loss'] + c_ica * exprs['ica_loss']
+        output_in = T.dot(hidden, in_to_hidden_normed.T)
+        output = f_output(output_in)
+
+        feature = f_feature(hidden)
+
+        recons_loss = f_loss(inpt, output, axis=1).sum()
+        ica_loss = feature.sum()
+
+        exprs = {
+            'inpt': inpt,
+            'in_to_hidden_normed': in_to_hidden_normed,
+            'feature': feature,
+            'hidden_in': hidden_in,
+            'hidden': hidden,
+            'reconstruct_loss': recons_loss,
+            'output_in': output_in,
+            'output': output,
+            'ica_loss': ica_loss,
+            'loss': recons_loss + c_ica * ica_loss,
+        }
+
         return exprs
