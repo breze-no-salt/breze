@@ -149,7 +149,7 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
         f_loss, f_d_loss = self._make_loss_functions()
 
         args = itertools.repeat(([X], {}))
-        opt = climin.Lbfgs(self.parameters.data, f_loss, f_d_loss, args=args)
+        opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):
             loss = info.get('loss', None)
