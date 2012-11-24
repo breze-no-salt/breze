@@ -148,14 +148,10 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
         """
         f_loss, f_d_loss = self._make_loss_functions()
 
-        args = itertools.repeat(([X], {}))
+        args = self._make_args(X)
         opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):
-            loss = info.get('loss', None)
-            if loss is None:
-                loss = f_loss(self.parameters.data, X)
-            info['loss'] = loss
             yield info
 
     def fit(self, X):
