@@ -5,7 +5,6 @@ import itertools
 import gzip
 import sys
 
-import Image as pil
 import numpy as np
 import theano
 import theano.tensor as T
@@ -15,7 +14,7 @@ from breze.util import WarnNaNMode
 from breze.component.distribution import BernoulliDistribution
 from breze.component.distribution import NormalDistribution
 
-def test_mvh():   
+def test_mvh():
     theano.config.compute_test_value = 'raise'
 
     # model parameters
