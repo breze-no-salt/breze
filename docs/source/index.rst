@@ -6,7 +6,17 @@
 Welcome to brummlearn's documentation!
 ======================================
 
+Basics
+------
+
+.. toctree::
+   specify
+
 Learning representations:
+
+
+Models and Algorithms
+---------------------
 
 .. toctree::
    pca
@@ -44,7 +54,8 @@ Sampling
    sampling/hmc
 
 
-Helpers, convenience functions, tools:
+Helpers, convenience functions and tools
+----------------------------------------
 
 .. toctree::
    feature
