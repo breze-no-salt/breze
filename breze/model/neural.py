@@ -56,8 +56,7 @@ class TwoLayerPerceptron(Model):
         output_in = T.dot(hidden, hidden_to_out) + out_bias
         output = f_output(output_in)
 
-        loss_rowwise = f_loss(target, output, axis=1)
-        loss = loss_rowwise.mean()
+        loss = f_loss(target, output, axis=1).sum()
 
         return {
             'inpt': inpt,
@@ -66,7 +65,6 @@ class TwoLayerPerceptron(Model):
             'hidden': hidden,
             'output_in': output_in,
             'output': output,
-            'loss_rowwise': loss_rowwise,
             'loss': loss
         }
 
@@ -150,15 +148,13 @@ class MultiLayerPerceptron(Model):
 
         f_loss = lookup(loss, distance)
 
-        loss_rowwise = f_loss(target, output, axis=1)
-        loss = loss_rowwise.mean()
+        loss = f_loss(target, output, axis=1).sum()
 
         exprs.update({
             'inpt': inpt,
             'target': target,
             'output_in': output_in,
             'output': output,
-            'loss_rowwise': loss_rowwise,
             'loss': loss
         })
 
