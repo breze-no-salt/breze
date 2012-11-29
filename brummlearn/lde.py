@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Code for the marginalizing auto encoder."""
+"""Module for the linear denoiser."""
 
 __authors__ = ('Christian Osendorfer, osendorf@gmail.com',
                'Justin Bayer, bayer.justin@gmail.com')
@@ -20,16 +20,18 @@ class LinearDenoiser(object):
         Zhixiang Eddie Xu, Kilian Q. Weinberger, Fei Sha (2011)
     """
 
-    def __init__(self, n_inpt, p_dropout):
+    def __init__(self, p_dropout):
         """Create a LinearDenoiser object.
 
-        :param n_inpt: Dimensinality of the data.
         :param p_dropout: Probability of an input being noisy.
         """
-        self.n_inpt = n_inpt
         self.p_dropout = p_dropout
 
     def fit(self, X):
+        """Fit the parameters of the model.
+
+        :param X: An array of shape `(n, d)` where `n` is the number of
+        data points and `d` the input dimensionality."""
         # Add another feature for the bias.
         X = np.hstack([np.ones((X.shape[0], 1)), X])
         n, d = X.shape
@@ -47,5 +49,8 @@ class LinearDenoiser(object):
         self.weights = wm[1:]
 
     def transform(self, X):
-        return np.dot(X, self.weights) + self.bias
+        """Transform data according to the model.
 
+        :param X: An array of shape `(n, d)` where `n` is the number of
+        data points and `d` the input dimensionality."""
+        return np.dot(X, self.weights) + self.bias

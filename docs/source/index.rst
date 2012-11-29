@@ -30,7 +30,7 @@ Models and Algorithms
 Denoising:
 
 .. toctree::
-   mda
+   lde 
    :maxdepth: 1
 
 Supervised Learning
