@@ -10,7 +10,7 @@ det = Det()
 cholesky = Cholesky()
 
 from ..util import ParameterSet, Model
-from ..component import distance
+from ..component import misc
 
 
 def linear_kernel(X, X_, length_scales, amplitude, diag=False):
@@ -26,7 +26,7 @@ def matern52_kernel(X, X_, length_scales, amplitude, diag=False):
     X = X * length_scales.dimshuffle('x', 0)
     X_ = X_ * length_scales.dimshuffle('x', 0)
     if not diag:
-        D2 = distance.distance_matrix(X, X_, 'l2')
+        D2 = misc.distance_matrix(X, X_, 'l2')
     else:
         D2 = ((X - X_)**2).sum(axis=1)
     D = T.sqrt(D2 + 1e-8)
@@ -37,7 +37,7 @@ def rbf_kernel(X, X_, length_scales, amplitude, diag=False):
     X = X * length_scales.dimshuffle('x', 0)
     X_ = X_ * length_scales.dimshuffle('x', 0)
     if not diag:
-        D2 = distance.distance_matrix(X, X_, 'l2')
+        D2 = misc.distance_matrix(X, X_, 'l2')
     else:
         D2 = ((X - X_)**2).sum(axis=1)
 

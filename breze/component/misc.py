@@ -4,6 +4,7 @@
 import theano.tensor as T
 
 import norm
+from ..util import lookup
 
 
 def distance_matrix(X, Y=None, norm_=norm.l2):
