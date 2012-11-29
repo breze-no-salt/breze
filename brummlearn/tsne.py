@@ -10,14 +10,12 @@ http://homepage.tudelft.nl/19j49/t-SNE.html.
 
 import itertools
 
-import climin
 import numpy as np
 import theano
 import theano.tensor as T
 
 from breze.component.misc import distance_matrix
 from climin.base import Minimizer
-from scipy.spatial.distance import pdist, squareform, cdist
 
 
 def zero_diagonal(X):
@@ -56,17 +54,10 @@ def neighbour_probabilities(X, target_pplx):
     # Calculate the distances.
     dists = euc_dist(X, X)
 
-    #print 'distances', (dists**2).sum(), dists.sum()
-    #1/0
-    #import pylab
-    #pylab.imshow(dists)
-    #pylab.show()
-
     # Parametrize in the log domain for positive standard deviations.
     precisions = np.ones(X.shape[0])
 
     # Do a binary search for good logstds leading to the desired perplexities.
-
     minimums = np.empty(X.shape[0])
     minimums[...] = -np.inf
     maximums = np.empty(X.shape[0])
@@ -84,11 +75,7 @@ def neighbour_probabilities(X, target_pplx):
         p_inpt_nb_cond = np.maximum(1E-12, p_inpt_nb_cond)
         entropy = -(p_inpt_nb_cond * np.log(p_inpt_nb_cond)).sum(axis=0)
 
-        pplxs = np.exp(entropy)
-        #print pplxs.mean(), pplxs.std(), [0], pplxs[0]
-
         diff = entropy - target_entropy
-        #print precisions[0], pplxs[0], entropy[0], target_entropy
         for j in range(N):
             if abs(diff[j]) < 1e-5:
                 continue
@@ -104,7 +91,6 @@ def neighbour_probabilities(X, target_pplx):
                 else:
                     precisions[j] = (precisions[j] + minimums[j]) / 2
                 maximums[j] = precisions[j]
-
 
     # Calculcate p matrix once more and return it.
     inpt_top = np.exp(-dists * precisions)
@@ -150,9 +136,8 @@ def build_loss(embeddings):
     return loss, p_ji_var
 
 
-
-# Custom Minimizer for TSNE using a learning rate schedule.
 class TsneMinimizer(Minimizer):
+    """Custom Minimizer for TSNE using a learning rate schedule."""
 
     def __init__(self, wrt, fprime, steprate, momentum, min_gain=1E-2,
                  args=None, logfunc=None):
@@ -169,8 +154,8 @@ class TsneMinimizer(Minimizer):
 
         for i, (args, kwargs) in enumerate(self.args):
             gradient = self.fprime(self.wrt, *args, **kwargs)
-            gain = (gain + 0.2) * ((gradient > 0) != (step_m1 > 0)) # different signs
-            gain += 0.8 * ((gradient > 0) == (step_m1 > 0))         # same signs
+            gain = (gain + 0.2) * ((gradient > 0) != (step_m1 > 0))
+            gain += 0.8 * ((gradient > 0) == (step_m1 > 0))
             gain[gain < self.min_gain] = self.min_gain
             step = self.momentum * step_m1
             step -= self.steprate * gradient * gain
@@ -185,18 +170,6 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000,
          verbose=False):
     """Return low dimensional representations for the given data set.
 
-    :param X: (N, d) shaped array where N is the number of samples and d is th
-        dimensionality.
-    :param low_dim: Desired dimensionality of the representations, typically 2
-        or 3.
-    :param perplexity: Parameter to indicate how many `neighbours` a point
-        approximately has.
-    :param early_exaggeration: Hyper parameter to tune optimization.
-    :param max_iter: Number of iterations to perform.
-    :param verbose: Flag that indicates whether to print out information during
-        the optimization.
-
-    :returns: (N, low_dim) shape array with low dimensional representations.
     """
     if early_exaggeration < 0:
         raise ValueError("early_exaggeration has to be non negative")
@@ -244,3 +217,40 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000,
             break
 
     return embeddings_data.reshape(X.shape[0], low_dim)
+
+
+class Tsne(object):
+
+    def __init__(self, n_inpt, n_lowdim, perplexity=40, early_exaggeration=50,
+                 max_iter=1000, verbose=False):
+        """"
+        Create a Tsne object.
+
+        :param n_inpt: Input dimensionality.
+        :param n_lowdim: Desired dimensionality of the representations,
+            typically 2 or 3.
+        :param perplexity: Parameter to indicate how many `neighbours` a point
+            approximately has.
+        :param early_exaggeration: Hyper parameter to tune optimization.
+        :param max_iter: Number of iterations to perform.
+        :param verbose: Flag that indicates whether to print out information during
+            the optimization.
+        """
+        self.n_inpt = n_inpt
+        self.n_lowdim = n_lowdim
+        self.perplexity = perplexity
+        self.early_exaggeration = early_exaggeration
+        self.max_iter = max_iter
+        self.verbose = verbose
+
+    def fit_transform(self, X):
+        """Fit embeddings for `X` and return them.
+
+        :param X: (N, d) shaped array where N is the number of samples and d is
+            the dimensionality.
+        :returns: (N, n_lowdim) shape array with low dimensional
+            representations, where `n_lowdim` has been specified during
+            construction.
+        """
+        return tsne(X, self.n_lowdim, self.perplexity, self.early_exaggeration,
+                    self.max_iter, self.verbose)
