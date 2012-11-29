@@ -12,11 +12,11 @@ Basics
 .. toctree::
    specify
 
-Learning representations:
-
 
 Models and Algorithms
 ---------------------
+
+Learning representations:
 
 .. toctree::
    pca
