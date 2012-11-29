@@ -224,8 +224,7 @@ class Tsne(object):
 
     def __init__(self, n_inpt, n_lowdim, perplexity=40, early_exaggeration=50,
                  max_iter=1000, verbose=False):
-        """"
-        Create a Tsne object.
+        """Create a Tsne object.
 
         :param n_inpt: Input dimensionality.
         :param n_lowdim: Desired dimensionality of the representations,
