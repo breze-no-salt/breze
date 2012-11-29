@@ -151,4 +151,4 @@ def ncac(target, embedding):
 
     # Create a matrix that matches same classes.
     sameclass = T.eq(distance_matrix(target), 0) - thisid
-    return -(p * sameclass).sum(axis=1) / embedding.shape[0]
+    return -(p * sameclass).mean(axis=1)

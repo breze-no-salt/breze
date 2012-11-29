@@ -5,7 +5,7 @@ import theano
 import theano.tensor as T
 
 from ...util import ParameterSet, Model, lookup
-from ...component import transfer, distance
+from ...component import transfer, loss as loss_
 
 
 class BaseRecurrentNetwork(Model):
@@ -61,7 +61,7 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork):
 
         f_hidden = lookup(hidden_transfer, transfer)
         f_output = lookup(out_transfer, transfer)
-        f_loss = lookup(loss, distance)
+        f_loss = lookup(loss, loss_)
 
         n_time_steps = inpt.shape[0]
         n_samples = inpt.shape[1]
@@ -110,7 +110,7 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork):
 
         output = f_output(output_in)
 
-        loss = f_loss(target, output)
+        loss = f_loss(target, output).mean(axis=0).sum()
 
         return {'inpt': inpt,
                 'target': target,
@@ -141,7 +141,7 @@ class UnsupervisedRecurrentNetwork(BaseRecurrentNetwork):
 
         f_hidden = lookup(hidden_transfer, transfer)
         f_output = lookup(out_transfer, transfer)
-        f_loss = lookup(loss, distance)
+        f_loss = lookup(loss, loss_)
 
         n_time_steps = inpt.shape[0]
         n_samples = inpt.shape[1]
@@ -192,7 +192,7 @@ class UnsupervisedRecurrentNetwork(BaseRecurrentNetwork):
 
         output = f_output(output_in)
 
-        loss = f_loss(output)
+        loss = f_loss(output).mean(axis=0).sum()
 
         return {'inpt': inpt,
                 'hidden-in': hidden,
@@ -249,7 +249,7 @@ class SupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
 
         f_hidden = lookup(hidden_transfer, transfer)
         f_output = lookup(out_transfer, transfer)
-        f_loss = lookup(loss, distance)
+        f_loss = lookup(loss, loss_)
 
         n_time_steps = inpt.shape[0]
         n_samples = inpt.shape[1]
@@ -316,7 +316,7 @@ class SupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
 
         output = f_output(output_in)
 
-        loss = f_loss(target, output)
+        loss = f_loss(target, output).mean(axis=0).sum()
 
         return {'inpt': inpt,
                 'target': target,
@@ -369,7 +369,7 @@ class UnsupervisedLstmRecurrentNetwork(UnsupervisedRecurrentNetwork):
 
         f_hidden = lookup(hidden_transfer, transfer)
         f_output = lookup(out_transfer, transfer)
-        f_loss = lookup(loss, distance)
+        f_loss = lookup(loss, loss_)
 
         n_time_steps = inpt.shape[0]
         n_samples = inpt.shape[1]
@@ -437,7 +437,7 @@ class UnsupervisedLstmRecurrentNetwork(UnsupervisedRecurrentNetwork):
 
         output = f_output(output_in)
 
-        loss = f_loss(output)
+        loss = f_loss(output).mean(axis=0).sum()
 
         return {'inpt': inpt,
                 'states': states,

@@ -62,7 +62,7 @@ def test_mlp2():
 
 
 def test_autoencoder():
-    l = AutoEncoder(2, 10, 'tanh', 'identity', 'bernoulli_neg_cross_entropy')
+    l = AutoEncoder(2, 10, 'tanh', 'identity', 'nces')
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt'], grad, mode='FAST_COMPILE')
@@ -73,8 +73,8 @@ def test_autoencoder():
 
 def test_sae():
     l = SparseAutoEncoder(
-        2, 10, 'sigmoid', 'sigmoid', 'bernoulli_neg_cross_entropy',
-        c_sparsity=5, sparsity_loss='bernoulli_neg_cross_entropy',
+        2, 10, 'sigmoid', 'sigmoid', 'nces',
+        c_sparsity=5, sparsity_loss='bern_bern_kl',
         sparsity_target=0.05)
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
@@ -86,7 +86,7 @@ def test_sae():
 
 def test_cae():
     l = ContractiveAutoEncoder(
-        2, 10, 'sigmoid', 'sigmoid', 'bernoulli_neg_cross_entropy',
+        2, 10, 'sigmoid', 'sigmoid', 'nces',
         c_jacobian=1.5)
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
@@ -117,7 +117,7 @@ def test_rica():
 
 
 def test_dnae():
-    l = DenoisingAutoEncoder(2, 10, 'tanh', 'identity', 'bernoulli_neg_cross_entropy')
+    l = DenoisingAutoEncoder(2, 10, 'tanh', 'identity', 'nces')
     f = l.function(['corrupted', 'inpt'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['corrupted', 'inpt'], grad, mode='FAST_COMPILE')
@@ -323,7 +323,7 @@ def test_srnn():
 
 def test_usrnn():
     l = UnsupervisedRecurrentNetwork(
-        2, 3, 1, 'sigmoid', 'identity', lambda x: x.sum())
+        2, 3, 1, 'sigmoid', 'identity', lambda x: abs(x))
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt'], d_loss_wrt_pars,
@@ -336,7 +336,7 @@ def test_usrnn():
 
 
 def test_pooling_rnn():
-    l = SupervisedRecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'nca', 'mean')
+    l = SupervisedRecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'ncac', 'mean')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt', 'target'], d_loss_wrt_pars,
@@ -367,7 +367,7 @@ def test_slstmrnn():
 
 def test_pooling_slstmrnn():
     l = SupervisedLstmRecurrentNetwork(
-        2, 3, 1, 'sigmoid', 'identity', 'nca', 'mean')
+        2, 3, 1, 'sigmoid', 'identity', 'ncac', 'mean')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt', 'target'], d_loss_wrt_pars,
@@ -382,7 +382,7 @@ def test_pooling_slstmrnn():
 
 def test_uslstmrnn():
     l = UnsupervisedLstmRecurrentNetwork(
-        2, 5, 1, 'sigmoid', 'identity', lambda X: X.sum())
+        2, 5, 1, 'sigmoid', 'identity', lambda X: abs(X))
 
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
@@ -397,7 +397,7 @@ def test_uslstmrnn():
 
 def test_pooling_uslstmrnn():
     l = UnsupervisedLstmRecurrentNetwork(
-        2, 3, 1, 'sigmoid', 'identity', lambda X: X.sum(), 'mean')
+        2, 3, 1, 'sigmoid', 'identity', lambda X: abs(X), 'mean')
 
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)

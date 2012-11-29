@@ -4,13 +4,13 @@
 import theano.tensor as T
 
 from ...util import ParameterSet, Model, lookup
-from ...component import transfer, distance
+from ...component import transfer, loss as loss_
 
 
 class Rica(Model):
 
-    def __init__(self, n_inpt, n_hidden, hidden_transfer, feature_transfer, out_transfer,
-                 loss, c_ica):
+    def __init__(self, n_inpt, n_hidden, hidden_transfer, feature_transfer,
+                 out_transfer, loss, c_ica):
         self.n_inpt = n_inpt
         self.n_hidden = n_hidden
         self.hidden_transfer = hidden_transfer
@@ -36,12 +36,12 @@ class Rica(Model):
         return dict(in_to_hidden=(n_inpt, n_hidden))
 
     @staticmethod
-    def make_exprs(inpt, in_to_hidden, hidden_transfer, feature_transfer, out_transfer,
-                   loss, c_ica):
+    def make_exprs(inpt, in_to_hidden, hidden_transfer, feature_transfer,
+                   out_transfer, loss, c_ica):
         f_hidden = lookup(hidden_transfer, transfer)
         f_feature = lookup(feature_transfer, transfer)
         f_output = lookup(out_transfer, transfer)
-        f_loss = lookup(loss, distance)
+        f_loss = lookup(loss, loss_)
 
         in_to_hidden_normed = in_to_hidden / T.sqrt((in_to_hidden**2).sum(axis=0)).dimshuffle('x', 0)
 
@@ -53,8 +53,13 @@ class Rica(Model):
 
         feature = f_feature(hidden)
 
-        recons_loss = f_loss(inpt, output, axis=1).sum()
-        ica_loss = feature.sum()
+        recons_loss_rowwise = f_loss(inpt, output).sum(axis=1)
+        ica_loss_rowwise = feature.sum(axis=1)
+
+        loss_rowwise = recons_loss_rowwise + c_ica * ica_loss_rowwise
+        loss = loss_rowwise.mean()
+        recons_loss = recons_loss_rowwise.mean()
+        ica_loss = ica_loss_rowwise.mean()
 
         exprs = {
             'inpt': inpt,
@@ -66,7 +71,12 @@ class Rica(Model):
             'output_in': output_in,
             'output': output,
             'ica_loss': ica_loss,
-            'loss': recons_loss + c_ica * ica_loss,
+            'loss': loss,
+            'loss_rowwise': loss_rowwise,
+            'ica_loss': ica_loss,
+            'ica_loss_rowwise': ica_loss_rowwise,
+            'recons_loss': recons_loss,
+            'recons_loss_rowwise': recons_loss_rowwise,
         }
 
         return exprs

@@ -4,7 +4,7 @@ import numpy as np
 import theano.tensor as T
 
 from ..util import ParameterSet, Model, lookup
-from ..component import transfer, distance
+from ..component import transfer, loss as loss_
 
 
 class Linear(Model):
@@ -34,14 +34,14 @@ class Linear(Model):
     @staticmethod
     def make_exprs(inpt, in_to_out, bias, out_transfer, loss):
         f_out = lookup(out_transfer, transfer)
-        f_loss = lookup(loss, distance)
+        f_loss = lookup(loss, loss_)
 
         target = T.matrix('target')
 
         output_in = T.dot(inpt, in_to_out) + bias
         output = f_out(output_in)
 
-        loss_rowwise = f_loss(target, output, axis=1)
+        loss_rowwise = f_loss(target, output).sum(axis=1)
         loss = loss_rowwise.mean()
 
         return {

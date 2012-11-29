@@ -4,7 +4,7 @@
 import theano.tensor as T
 
 from ...util import ParameterSet, lookup
-from ...component import distance
+from ...component import loss as loss_
 from ..neural import TwoLayerPerceptron
 
 
@@ -120,11 +120,13 @@ class SparseAutoEncoder(AutoEncoder):
             hidden_transfer, out_transfer, loss)
 
         hidden = exprs['hidden']
-        f_distance = lookup(sparsity_loss, distance)
+        f_sparsity_loss = lookup(sparsity_loss, loss_)
 
-        sparsity_loss = f_distance(sparsity_target, hidden.mean(axis=0))
+        sparsity_loss = f_sparsity_loss(sparsity_target, hidden.mean(axis=0)).sum()
 
         exprs['sparsity_loss'] = sparsity_loss
+        exprs['reconstruct_loss_rowwise'] = exprs['loss_rowwise']
+        del exprs['loss_rowwise']
         exprs['reconstruct_loss'] = exprs['loss']
         exprs['loss'] = exprs['reconstruct_loss'] + c_sparsity * sparsity_loss
 
@@ -171,7 +173,9 @@ class ContractiveAutoEncoder(AutoEncoder):
             T.mean(d_h_d_h_in**2, axis=0) * (in_to_hidden**2))
 
         exprs['jacobian_loss'] = jacobian_loss
+        exprs['reconstruct_loss_rowwise'] = exprs['loss_rowwise']
         exprs['reconstruct_loss'] = exprs['loss']
+        del exprs['loss_rowwise']
         exprs['loss'] = exprs['reconstruct_loss'] + c_jacobian * jacobian_loss
 
         return exprs

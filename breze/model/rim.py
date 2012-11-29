@@ -2,7 +2,7 @@
 
 import theano.tensor as T
 
-from ..component import distance
+from ..component import misc
 from linear import Linear
 
 
@@ -13,7 +13,7 @@ class Rim(Linear):
         super(Rim, self).__init__(
             n_inpt=n_inpt,
             n_output=n_output, out_transfer='softmax',
-            loss='neg_cross_entropy')
+            loss='nce')
 
     def init_exprs(self):
         self.exprs = self.make_exprs(
@@ -27,8 +27,8 @@ class Rim(Linear):
         output = exprs['output']
 
         marginal = output.mean(axis=0)
-        cond_entropy = distance.discrete_entropy(output, axis=1).mean()
-        entropy = distance.discrete_entropy(marginal)
+        cond_entropy = misc.discrete_entropy(output, axis=1).mean()
+        entropy = misc.discrete_entropy(marginal)
 
         # negative mutual information -> we are minimizing
         neg_mi = cond_entropy - entropy

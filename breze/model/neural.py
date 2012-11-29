@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 
 
-import numpy as np
 import theano.tensor as T
 
 from ..util import ParameterSet, Model, lookup
-from ..component import transfer, distance
+from ..component import transfer, loss as loss_
 
 
 class TwoLayerPerceptron(Model):
@@ -48,7 +47,7 @@ class TwoLayerPerceptron(Model):
 
         f_hidden = lookup(hidden_transfer, transfer)
         f_output = lookup(output_transfer, transfer)
-        f_loss = lookup(loss, distance)
+        f_loss = lookup(loss, loss_)
 
         hidden_in = T.dot(inpt, in_to_hidden) + hidden_bias
         hidden = f_hidden(hidden_in)
@@ -56,7 +55,8 @@ class TwoLayerPerceptron(Model):
         output_in = T.dot(hidden, hidden_to_out) + out_bias
         output = f_output(output_in)
 
-        loss = f_loss(target, output, axis=1).sum()
+        loss_rowwise = f_loss(target, output).sum(axis=1)
+        loss = loss_rowwise.mean()
 
         return {
             'inpt': inpt,
@@ -65,6 +65,7 @@ class TwoLayerPerceptron(Model):
             'hidden': hidden,
             'output_in': output_in,
             'output': output,
+            'loss_rowwise': loss_rowwise,
             'loss': loss
         }
 
@@ -146,15 +147,17 @@ class MultiLayerPerceptron(Model):
         output_in = T.dot(hidden, hidden_to_out) + out_bias
         output = f_output(output_in)
 
-        f_loss = lookup(loss, distance)
+        f_loss = lookup(loss, loss_)
 
-        loss = f_loss(target, output, axis=1).sum()
+        loss_rowwise = f_loss(target, output).sum(axis=1)
+        loss = loss_rowwise.mean()
 
         exprs.update({
             'inpt': inpt,
             'target': target,
             'output_in': output_in,
             'output': output,
+            'loss_rowwise': loss_rowwise,
             'loss': loss
         })
 
