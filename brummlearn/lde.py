@@ -31,7 +31,7 @@ class LinearDenoiser(object):
         """Fit the parameters of the model.
 
         :param X: An array of shape `(n, d)` where `n` is the number of
-        data points and `d` the input dimensionality."""
+            data points and `d` the input dimensionality."""
         # Add another feature for the bias.
         X = np.hstack([np.ones((X.shape[0], 1)), X])
         n, d = X.shape
@@ -52,5 +52,6 @@ class LinearDenoiser(object):
         """Transform data according to the model.
 
         :param X: An array of shape `(n, d)` where `n` is the number of
-        data points and `d` the input dimensionality."""
-        return np.dot(X, self.weights) + self.bias
+            data points and `d` the input dimensionality.
+        :returns: An array of the same shape as the input."""
+            return np.dot(X, self.weights) + self.bias

@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Principal Component Analysis.
-
-This module provides functionality for principal component analysis."""
+"""This module provides functionality for principal component analysis."""
 
 
 import numpy as np
@@ -22,6 +20,13 @@ class Pca(object):
         self.whiten = whiten
 
     def fit(self, X):
+        """Fit the parameters of the model.
+
+        The data should be centered (that is, its mean subtracted rowwise)
+        before using this method.
+
+        :param X: An array of shape `(n, d)` where `n` is the number of
+            data points and `d` the input dimensionality."""
         n_components = X.shape[1] if self.n_components is None else self.n_components
         cov = np.cov(X, rowvar=0)
         w, s, v = scipy.linalg.svd(cov, full_matrices=False)
@@ -34,4 +39,10 @@ class Pca(object):
         self.singular_values = s
 
     def transform(self, X):
+        """Transform data according to the model.
+
+        :param X: An array of shape `(n, d)` where `n` is the number of
+            data points and `d` the input dimensionality.
+        :returns: An array of shape `(n, c)` where `n` is the number of samples
+            and `c` is the number of components kept."""
         return np.dot(X, self.weights)

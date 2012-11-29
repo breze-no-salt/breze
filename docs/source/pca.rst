@@ -3,4 +3,5 @@ Principal Component Analysis
 
 .. automodule:: brummlearn.pca
 
-.. autofunction:: brummlearn.pca.pca
+.. autoclass:: brummlearn.pca.Pca
+   :members: __init__, fit, transform
