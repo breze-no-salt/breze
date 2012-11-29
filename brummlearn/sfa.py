@@ -3,7 +3,7 @@
 """Slow Feature Analysis.
 
 This module provides functionality for slow feature analysis. A helpful article
-is hosted at 
+is hosted at
 `scholarpedia <http://www.scholarpedia.org/article/Slow_feature_analysis>`_.
 """
 
@@ -12,23 +12,38 @@ import numpy as np
 import scipy.linalg
 
 
-def sfa(X, n_components):
-    """Apply slow feature analysis to a dataset and return the corresponding
-    weight matrix `w` to extract those components.
+class SlowFeatureAnalysis(object):
 
-    The data set has to be centered and whitened.
+    def __init__(self, n_components=None):
+        """Create a SlowFeatureAnalysis object.
 
-    Items can be projected into this space by ``np.dot(X, w)``, where w is the new
-    data.
+        :param n_components: Amount of components to keep.
+        """
+        self.n_components = n_components
 
-    :param X: List of 2d arrays, where the first dimension indices time and
-              the second holds the values of one timestep.
-    :param n_components: Amount of components to keep.
-    :returns: Frame of the slowest components.
-    """
-    diff = np.vstack([i[1:] - i[:-1] for i in X])
-    cov = scipy.cov(diff, rowvar=0)
-    u, s, v = scipy.linalg.svd(cov, full_matrices=False)
-    u = u[:, -n_components:][:, ::-1]
-    s = s[-n_components:][::-1]
-    return u
+    def fit(self, X):
+        """Fit the parameters of the model.
+
+        The data should be centered (that is, its mean subtracted rowwise)
+        and white (e.g. via `pca.Pca`) before using this method.
+
+        :param X: A list of sequences. Each entry is expected to be an
+            array of shape `(*, d)` where `*` is the number of
+            data points and may vary from item to item in the list.
+            `d` is the input dimensionality and has to be consistent."""
+        n_components = X.shape[1] if self.n_components is None else self.n_components
+        diff = np.vstack([i[1:] - i[:-1] for i in X])
+        cov = scipy.cov(diff, rowvar=0)
+        u, _, _ = scipy.linalg.svd(cov, full_matrices=False)
+        u = u[:, -n_components:][:, ::-1]
+
+        self.weights = u
+
+    def transform(self, X):
+        """Transform data according to the model.
+
+        :param X: An array of shape `(n, d)` where `n` is the number of
+            time steps and `d` the input dimensionality.
+        :returns: An array of shape `(n, c)` where `n` is the number of time
+            steps and `c` is the number of components kept."""
+        return np.dot(X, self.weights)
