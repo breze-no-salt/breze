@@ -96,7 +96,8 @@ def neighbour_probabilities(X, target_pplx):
     inpt_top = np.exp(-dists * precisions)
     inpt_top[range(N), range(N)] = 0
     inpt_bottom = inpt_top.sum(axis=0)
-    p_inpt_nb_cond = inpt_top / inpt_bottom
+    # Add a small constant to the denominator against numerical issues.
+    p_inpt_nb_cond = inpt_top / (inpt_bottom + 1e-4)
 
     # Symmetrize.
     p_ji = (p_inpt_nb_cond + p_inpt_nb_cond.T)
