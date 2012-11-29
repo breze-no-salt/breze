@@ -31,7 +31,7 @@ class LinearDenoiser(object):
 
     def fit(self, X):
         # Add another feature for the bias.
-        X = np.hstack([np.ones((self.n_inpt, 1)), X])
+        X = np.hstack([np.ones((X.shape[0], 1)), X])
         n, d = X.shape
 
         q = np.ones((1, d)) * (1 - self.p_dropout)
