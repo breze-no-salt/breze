@@ -15,7 +15,7 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.component.distance import distance_matrix
+from breze.component.misc import distance_matrix
 from climin.base import Minimizer
 from scipy.spatial.distance import pdist, squareform, cdist
 
@@ -52,7 +52,7 @@ def neighbour_probabilities(X, target_pplx):
     """Return a square matrix containing probabilities that points given by `X`
     in the data are neighbours."""
     N = X.shape[0]
-    
+
     # Calculate the distances.
     dists = euc_dist(X, X)
 
@@ -115,7 +115,7 @@ def neighbour_probabilities(X, target_pplx):
     # Symmetrize.
     p_ji = (p_inpt_nb_cond + p_inpt_nb_cond.T)
 
-    # We don't normalize correctly here. But that does not matter, since we 
+    # We don't normalize correctly here. But that does not matter, since we
     # normalize q wrongly in the same way.
     p_ji /= p_ji.sum()
     p_ji = np.maximum(1E-12, p_ji)
@@ -126,7 +126,7 @@ def neighbour_probabilities(X, target_pplx):
 def build_loss(embeddings):
     """Return a pair (loss, p) given a theano shared variable representing the
     `embeddings`.
-    
+
     `loss` is a theano variable for the loss. `p` is a symbolic variable
     representing the target neighbour probabilities on which the loss depends.
     """
@@ -136,7 +136,7 @@ def build_loss(embeddings):
     emb_bottom = emb_top.sum(axis=0)
     q = emb_top / emb_bottom
 
-    # Incorrect normalization which does not matter since we normalize p i 
+    # Incorrect normalization which does not matter since we normalize p i
     # the same way.
     q /= q.sum()
     q = T.maximum(q, 1E-12)
@@ -172,7 +172,7 @@ class TsneMinimizer(Minimizer):
             gain = (gain + 0.2) * ((gradient > 0) != (step_m1 > 0)) # different signs
             gain += 0.8 * ((gradient > 0) == (step_m1 > 0))         # same signs
             gain[gain < self.min_gain] = self.min_gain
-            step = self.momentum * step_m1 
+            step = self.momentum * step_m1
             step -= self.steprate * gradient * gain
             self.wrt += step
             step_m1 = step
@@ -189,13 +189,13 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000,
         dimensionality.
     :param low_dim: Desired dimensionality of the representations, typically 2
         or 3.
-    :param perplexity: Parameter to indicate how many `neighbours` a point 
+    :param perplexity: Parameter to indicate how many `neighbours` a point
         approximately has.
     :param early_exaggeration: Hyper parameter to tune optimization.
     :param max_iter: Number of iterations to perform.
     :param verbose: Flag that indicates whether to print out information during
         the optimization.
-    
+
     :returns: (N, low_dim) shape array with low dimensional representations.
     """
     if early_exaggeration < 0:
