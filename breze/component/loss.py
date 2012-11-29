@@ -152,3 +152,39 @@ def ncac(target, embedding):
     # Create a matrix that matches same classes.
     sameclass = T.eq(distance_matrix(target), 0) - thisid
     return -(p * sameclass).mean(axis=1)
+
+
+def ncar(target, embedding):
+    """Return the sample wise NCA for regression loss.
+
+    This is similar to NCA for classification, except that not soft KNN
+    classification but regression performance is maximized. (Actually, the
+    negative performance is minimized.)
+
+    For details, we refer you to
+
+    'Pose-sensitive embedding by nonlinear nca regression' by
+    Taylor, G. and Fergus, R. and Williams, G. and Spiro, I. and Bregler, C.
+    (2010)
+
+    :param target: An array of shape `(n, d)` where `n` is the number of
+    samples and `d` the dimensionalty of the target space.
+    :param embedding: An array of shape `(n, d)` where each row represents
+    a point in d dimensional space.
+    return: Array of shape `(n,)`.
+    """
+    # Matrix of the distances of points.
+    dist = distance_matrix(embedding)
+    thisid = T.identity_like(dist)
+
+    # Probability that a point is neighbour of another point based on
+    # the distances.
+    top = T.exp(-dist) + 1E-8  # Add a small constant for stability.
+    bottom = (top - thisid * top).sum(axis=0)
+    p = top / bottom
+
+    # Create matrix of distances.
+    target_distance = distance_matrix(target, target, 'soft_l1')
+    # Set diagonal to 0.
+    target_distance -= target_distance * T.identity_like(target_distance)
+    return (p * target_distance**2).mean(axis=1)
