@@ -54,4 +54,4 @@ class LinearDenoiser(object):
         :param X: An array of shape `(n, d)` where `n` is the number of
             data points and `d` the input dimensionality.
         :returns: An array of the same shape as the input."""
-            return np.dot(X, self.weights) + self.bias
+        return np.dot(X, self.weights) + self.bias
