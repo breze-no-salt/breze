@@ -6,6 +6,16 @@
 Welcome to brummlearn's documentation!
 ======================================
 
+Basics
+------
+
+.. toctree::
+   specify
+
+
+Models and Algorithms
+---------------------
+
 Learning representations:
 
 .. toctree::
@@ -20,7 +30,7 @@ Learning representations:
 Denoising:
 
 .. toctree::
-   mda
+   lde 
    :maxdepth: 1
 
 Supervised Learning
@@ -44,7 +54,8 @@ Sampling
    sampling/hmc
 
 
-Helpers, convenience functions, tools:
+Helpers, convenience functions and tools
+----------------------------------------
 
 .. toctree::
    feature
