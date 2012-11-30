@@ -1,6 +1,86 @@
 # -*- coding: utf-8 -*-
 
-"""Autoencoder."""
+"""This module has implementations of various auto encoder variants.
+
+
+Introduction
+------------
+
+We will briefly review auto encoders (AE) in order to establish a common
+terminology. The following variants are implemented:
+
+  - Classic Auto Encoder (AE),
+  - Denoising Auto Encoder (DAE),
+  - Contractive Auto Encoder (CAE),
+  - Sparse Auto Encoder (SAE).
+
+The first three are shortly described in Bengio's survey paper [RL]_ while
+the latter is covered in Andrew Ng's Unsupervised Feature Learning and Deep
+Learning tutorial [UFDLT].
+
+The Higher Order Contractive Auto Encoder and Ranzatos Auto Encoder with
+the sparsifying logistic are not implemented.
+
+The auto encoders all follow basic model:
+
+.. math::
+   x' = s'(s(xW + b)W' + b')
+
+where a loss :math:`L(x, x')` is minimized which encourages the auto encoder
+to reconstruct the input. Examples of a loss are the _mean of squares_ loss or
+the _cross entropy_ loss.
+
+where :math:`x` is the input to the model, :math:`W` and :math:`W'` are
+weight matrices, :math:`b` and :math:`b'` biases, :math:`s` and :math:`s'`
+element wise non-linearities. :math:`x'` is what we call the reconstruction or
+reconstructed input.
+
+The idea, as can be read in the references, is that the feature/hidden/latent
+representation
+
+.. math::
+   h = s(xW + b)
+
+is somewhat meaningful.
+
+Often, :math:`W' = W^T` is explicitly enforced to reduce the number of
+parameters. This can be specified by setting `tied_weights` to True during
+creation of the respective objective and also is the default.
+
+Furthermore, the parameters of the model in the parameter set are given as
+:math:`\lbrace W, W', b, b' \\rbrace`. The respective fields point (accessed
+via `.`) as attributes in the `parameter` field of the auto encoder object to
+the respective Theano variables. As keys (accessed via `[]`) they point to the
+respective numpy arrays.
+
+========== =============== =====================================================
+Notation    Field           Note
+========== =============== =====================================================
+:math:`W`  `in_to_hidden`
+:math:`W'` `hidden_to_out` points to `in_to_hidden.T` if `tied_weights` is set.
+:math:`b`  `hidden_bias`
+:math:`b'` `out_bias`
+========== =============== =====================================================
+
+The other parts of the formula, :math:`s`, :math:`s'`, :math:`L` are set as
+arguments to the constructor. For an exact way of doing so see
+:ref:`specifying-functions`. The following table gives which argument to the
+constructor belongs to which symbol in the above formulas.
+
+========== ====================
+Notation    Argument
+========== ====================
+:math:`s`  ``hidden_transfer``
+:math:`s'` ``out_transfer``
+:math:`L`  ``loss``
+========== ====================
+
+The special models all have a additional losses and parameters, which will are
+described in the corresponding paragraphs.
+
+.. [RL] http://arxiv.org/abs/1206.5538
+.. [UFDLT] http://ufldl.stanford.edu/
+"""
 
 import numpy as np
 
@@ -39,6 +119,8 @@ class AutoEncoder(_AutoEncoder, UnsupervisedBrezeWrapperBase,
             tensors (one being the output of the network, the other some target)
             and returns a theano scalar.
         :param tied_weights: Flag indicating whether to use tied weights.
+        :param batch_size: Number of examples per batch when calculing the loss
+            and its derivatives. None means to use all samples every time.
         :param optimizer: Can be either a string or a pair. In any case,
             climin.util.optimizer is used to construct an optimizer. In the case
             of a string, the string is used as an identifier for the optimizer
@@ -98,6 +180,8 @@ class SparseAutoEncoder(_SparseAutoEncoder, UnsupervisedBrezeWrapperBase,
         :param sparsity_target: Subtract this value from each hidden unit before
             applying the sparsity loss.
         :param tied_weights: Flag indicating whether to use tied weights.
+        :param batch_size: Number of examples per batch when calculing the loss
+            and its derivatives. None means to use all samples every time.
         :param optimizer: Can be either a string or a pair. In any case,
             climin.util.optimizer is used to construct an optimizer. In the case
             of a string, the string is used as an identifier for the optimizer
@@ -151,6 +235,8 @@ class ContractiveAutoEncoder(_ContractiveAutoEncoder,
         :param c_jacobian: Coefficient weighing the Jacobian cost in comparison
             to the reconstruction cost.
         :param tied_weights: Flag indicating whether to use tied weights.
+        :param batch_size: Number of examples per batch when calculing the loss
+            and its derivatives. None means to use all samples every time.
         :param optimizer: Can be either a string or a pair. In any case,
             climin.util.optimizer is used to construct an optimizer. In the case
             of a string, the string is used as an identifier for the optimizer

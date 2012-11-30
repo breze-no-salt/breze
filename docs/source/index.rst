@@ -20,11 +20,12 @@ Learning representations:
 
 .. toctree::
    pca
+   autoencoder
+   sparsefiltering
+   rica
    cca
    sfa
    tsne
-   sparsefiltering
-   rica
    :maxdepth: 1
 
 Denoising:
