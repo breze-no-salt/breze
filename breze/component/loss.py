@@ -84,9 +84,11 @@ def nnce(target, prediction):
     :param prediction: An array of shape `(n, k)`. Each row is
         interpreted as a categorical probability. Thus, each row has to sum
         up to one and be strictly positive for this measure to make sense.
-    :returns: An array of the same size as `target` containing the log
+    :returns: An array of shape `(n, 1)` as `target` containing the log
         probability that that example is classified correctly."""
-    return -(T.log(prediction)[T.arange(target.shape[0]), target])
+    loss_vector = -(T.log(prediction)[T.arange(target.shape[0]), target])
+    # To be compatible with the API, we make this a (n, 1) matrix.
+    return T.shape_padright(loss_vector)
 
 
 def nces(target, prediction):
@@ -132,12 +134,12 @@ def ncac(target, embedding):
     'Neighbourhood Component Analysis' by
     J Goldberger, S Roweis, G Hinton, R Salakhutdinov (2004).
 
-    param target: An array of shape `(n,)` where `n` is the number of
-    samples. Each entry of the array should be an integer between `0` and
-    `k-1`, where `k` is the number of classes.
-    param embedding: An array of shape `(n, d)` where each row represents
-    a point in d dimensional space.
-    return: Array of shape `(n,)`.
+    :param target: An array of shape `(n,)` where `n` is the number of
+        samples. Each entry of the array should be an integer between `0` and
+        `k-1`, where `k` is the number of classes.
+    :param embedding: An array of shape `(n, d)` where each row represents
+        a point in d dimensional space.
+    :returns: Array of shape `(n, 1)`.
     """
     # Matrix of the distances of points.
     dist = distance_matrix(embedding)
@@ -151,7 +153,9 @@ def ncac(target, embedding):
 
     # Create a matrix that matches same classes.
     sameclass = T.eq(distance_matrix(target), 0) - thisid
-    return -(p * sameclass).mean(axis=1)
+    loss_vector = -(p * sameclass).sum(axis=1)
+    # To be compatible with the API, we make this a (n, 1) matrix.
+    return T.shape_padright(loss_vector)
 
 
 def ncar(target, embedding):
@@ -168,10 +172,10 @@ def ncar(target, embedding):
     (2010)
 
     :param target: An array of shape `(n, d)` where `n` is the number of
-    samples and `d` the dimensionalty of the target space.
+        samples and `d` the dimensionalty of the target space.
     :param embedding: An array of shape `(n, d)` where each row represents
-    a point in d dimensional space.
-    return: Array of shape `(n,)`.
+        a point in d dimensional space.
+    :returns: Array of shape `(n, 1)`.
     """
     # Matrix of the distances of points.
     dist = distance_matrix(embedding)
@@ -187,4 +191,8 @@ def ncar(target, embedding):
     target_distance = distance_matrix(target, target, 'soft_l1')
     # Set diagonal to 0.
     target_distance -= target_distance * T.identity_like(target_distance)
-    return (p * target_distance**2).mean(axis=1)
+
+    loss_vector = (p * target_distance**2).sum(axis=1)
+    # To be compatible with the API, we make this a (n, 1) matrix.
+    return T.shape_padright(loss_vector)
+
