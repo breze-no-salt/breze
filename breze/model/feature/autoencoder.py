@@ -2,6 +2,7 @@
 
 
 import theano.tensor as T
+from theano.tensor.shared_randomstreams import RandomStreams
 
 from ...util import ParameterSet, lookup
 from ...component import loss as loss_
@@ -64,22 +65,46 @@ class AutoEncoder(TwoLayerPerceptron):
 class DenoisingAutoEncoder(AutoEncoder):
 
     def __init__(self, n_inpt, n_hidden, hidden_transfer, out_transfer,
-                 loss, tied_weights=True):
+                 loss, noise_type, c_noise, tied_weights=True):
+        self.noise_type = noise_type
+        self.c_noise = c_noise
         super(DenoisingAutoEncoder, self).__init__(
             n_inpt, n_hidden,
             hidden_transfer, out_transfer, loss, tied_weights)
 
+    def init_exprs(self):
+        if self.tied_weights:
+            hidden_to_out = self.parameters.in_to_hidden.T
+        else:
+            hidden_to_out = self.parameters.hidden_to_out
+
+        self.exprs = self.make_exprs(
+            T.matrix('inpt'), self.parameters.in_to_hidden, hidden_to_out,
+            self.parameters.hidden_bias, self.parameters.out_bias,
+            self.hidden_transfer, self.out_transfer, self.loss,
+            self.noise_type, self.c_noise)
+
     @staticmethod
     def make_exprs(inpt, in_to_hidden, hidden_to_out,
                    hidden_bias, out_bias,
-                   hidden_transfer, out_transfer, loss):
-        corrupted = T.matrix('corrupted')
+                   hidden_transfer, out_transfer, loss, noise_type, c_noise):
+        srng = RandomStreams()
+        if noise_type == 'gauss':
+            rv = srng.normal(size=inpt.shape)
+            corrupted = inpt + c_noise * rv
+        elif noise_type == 'blink':
+            rv = srng.binomial(size=inpt.shape, n=1, p=1 - c_noise)
+            corrupted = inpt * rv
+        else:
+            raise ValueError('unknown noise type %s' % noise_type)
+
         exprs = TwoLayerPerceptron.make_exprs(
             corrupted, inpt, in_to_hidden, hidden_to_out,
             hidden_bias, out_bias, hidden_transfer, out_transfer,
             loss)
-        exprs["corrupted"] = exprs["inpt"]
-        exprs["inpt"] = exprs["target"]
+        # Otherwise, corrupted will be treated as the input argument by
+        # the function generating facilities of Breze on top.
+        exprs['inpt'] = inpt
         return exprs
 
 
