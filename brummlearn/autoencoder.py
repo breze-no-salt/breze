@@ -2,14 +2,10 @@
 
 """This module has implementations of various auto encoder variants.
 
-
-Introduction
-------------
-
 We will briefly review auto encoders (AE) in order to establish a common
 terminology. The following variants are implemented:
 
-  - Classic Auto Encoder (AE),
+  - Basic Auto Encoder (AE),
   - Denoising Auto Encoder (DAE),
   - Contractive Auto Encoder (CAE),
   - Sparse Auto Encoder (SAE).
@@ -18,7 +14,7 @@ The first three are shortly described in Bengio's survey paper [RL]_ while
 the latter is covered in Andrew Ng's Unsupervised Feature Learning and Deep
 Learning tutorial [UFDLT].
 
-The Higher Order Contractive Auto Encoder and Ranzatos Auto Encoder with
+The Higher Order Contractive Auto Encoder and Ranzato's Auto Encoder with
 the sparsifying logistic are not implemented.
 
 The auto encoders all follow basic model:
@@ -30,7 +26,7 @@ where a loss :math:`L(x, x')` is minimized which encourages the auto encoder
 to reconstruct the input. Examples of a loss are the _mean of squares_ loss or
 the _cross entropy_ loss.
 
-where :math:`x` is the input to the model, :math:`W` and :math:`W'` are
+Here, :math:`x` is the input to the model, :math:`W` and :math:`W'` are
 weight matrices, :math:`b` and :math:`b'` biases, :math:`s` and :math:`s'`
 element wise non-linearities. :math:`x'` is what we call the reconstruction or
 reconstructed input.
@@ -96,6 +92,8 @@ from brummlearn.base import (
 
 class AutoEncoder(_AutoEncoder, UnsupervisedBrezeWrapperBase,
                   TransformBrezeWrapperMixin, ReconstructBrezeWrapperMixin):
+    """The basic Auto Encoder. What is written in the module
+    documentation applies to this class."""
 
     transform_expr_name = 'hidden'
 
@@ -146,12 +144,51 @@ class AutoEncoder(_AutoEncoder, UnsupervisedBrezeWrapperBase,
 class SparseAutoEncoder(_SparseAutoEncoder, UnsupervisedBrezeWrapperBase,
                         TransformBrezeWrapperMixin,
                         ReconstructBrezeWrapperMixin):
+    """Implementation of the Sparse Auto Encoder (SAE) as described in [UFDLT]_.
+
+    The SAE discourages trivial solutions to the reconstruction loss by
+    adding a penalty term to the loss which encourages sparse activations of the
+    hidden units. This is employed by specifying a `sparsity target`, which is
+    the desired average activation of the hidden units. Additionally, a specific
+    distance measure is defined, the `sparsity loss`, to quantify the divergence
+    from this desired activity. That is then added to the reconstruction loss:
+
+    .. math::
+       L_{sae} = L(x, x') + \lambda d(\hat{h}, t).
+
+    Here, :math:`\hat{h} = \\frac{1}{NH}\sum_{i, j} h_{ij}` where :math:`h_{ij}`
+    is given as the `j`'th hidden unit in the `i`'th training sample
+    with `N` training samples and `H` hidden units in total. The desired
+    activation is given by `t`.
+
+    We now give a table of the corresponding argument names in the
+    SparseAutoEncoder initializer. The fields of the resulting objects are
+    named the same.
+
+    =============== ===================
+    Notation        Argument/Field name
+    =============== ===================
+    :math:`\lambda` ``c_sparsity``
+    :math:`d`       ``sparsity_loss``
+    :math:`t`       ``sparsity_target``
+    =============== ===================
+
+    A typical choice for the sparsity loss is the KL divergence between two
+    Bernoulli variables, which can be specified by ``bern_bern_kl``. Typical
+    values for the sparsity target are between 0.01 and 0.05.
+
+    The part of the loss which corresponds to the regularization term is
+    identified by ``sparsity_loss``. The reconstruction part is identified
+    by ``reconstruct_loss``.
+
+    .. [UFDLT] http://ufldl.stanford.edu/
+    """
 
     transform_expr_name = 'hidden'
 
     def __init__(self, n_inpt, n_hidden, hidden_transfer='sigmoid',
                  out_transfer='identity', reconstruct_loss='squared',
-                 c_sparsity=1, sparsity_loss='neg_cross_entropy',
+                 c_sparsity=1, sparsity_loss='bern_bern_kl',
                  sparsity_target=0.01,
                  tied_weights=True, batch_size=None,
                  optimizer='lbfgs', max_iter=1000, verbose=False):
@@ -210,6 +247,28 @@ class ContractiveAutoEncoder(_ContractiveAutoEncoder,
                              UnsupervisedBrezeWrapperBase,
                              TransformBrezeWrapperMixin,
                              ReconstructBrezeWrapperMixin):
+    """Implementation of the Contractive Auto Encoder (CAE) as described in
+    [CAE]_.
+
+    The CAE discourages trivial solutions to the reconstruction loss by
+    adding a penalty term to the loss which encourages the Jacobian of the
+    activations of the hidden units to be flat. This is employed by adding the
+    Frobenious norm of the Jacobians around the training point as a regularizer.
+
+    .. math::
+       L_{cae} = L(x, x') +
+       \lambda \sum_{ij}(\\frac{\partial{h_i}}{\partial{x_j}})^2
+
+    :math:`\lambda` can be specified via the ``c_jacobian`` argument and is
+    availabe as a field of the object.
+
+    The part of the loss which corresponds to the regularization term is
+    identified by ``jacobian_loss``. The reconstruction part is identified
+    by ``reconstruct_loss``.
+
+    .. [CAE] Contractive auto-encoders: Explicit invariance during
+       feature extraction, Rifai et al (2011)
+    """
 
     transform_expr_name = 'hidden'
 
@@ -264,7 +323,29 @@ class ContractiveAutoEncoder(_ContractiveAutoEncoder,
 class DenoisingAutoEncoder(_DenoisingAutoEncoder, UnsupervisedBrezeWrapperBase,
                            TransformBrezeWrapperMixin,
                            ReconstructBrezeWrapperMixin):
+    """Implementation of the Denoising Auto Encoder (DAE) as described in
+    [DAE]_.
 
+    The SAE discourages trivial solutions to the reconstruction loss by
+    corrupting the input data with noise, while still trying to recover the
+    uncorrupted data from that. Formally, this can be written as
+
+    .. math::
+       L_{dae} = \mathbb{E}_{\hat{x} \sim q(\hat{x}|x)} L(\hat{x}, x')
+
+    where :math:`q` is a corruption distribution. In this implementation,
+    the corruption distribution can be either additive Gaussian noise or
+    blink noise, which sets an input component with a certain probability
+    to zero. In the former case, the distribution can be specified by
+    setting the construction argument ``noise_type`` to ``gauss``; in the latter
+    case, it is to be set to ``blink``. In both cases, the noise parameter
+    is specified via ``c_noise``. In the Gaussian case, this refers to the
+    standard deviation of the distribution. In the blink case, it is the
+    probability of setting an input component to 0.
+
+    .. [DAE] Extracting and Composing Robust Features with Denoising
+       Autoencoders, Vincent et al (2008).
+    """
     transform_expr_name = 'hidden'
 
     def __init__(self, n_inpt, n_hidden, hidden_transfer='sigmoid',
