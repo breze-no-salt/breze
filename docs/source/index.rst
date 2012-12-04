@@ -6,21 +6,32 @@
 Welcome to brummlearn's documentation!
 ======================================
 
+Basics
+------
+
+.. toctree::
+   specify
+
+
+Models and Algorithms
+---------------------
+
 Learning representations:
 
 .. toctree::
    pca
+   autoencoder
+   sparsefiltering
+   rica
    cca
    sfa
    tsne
-   sparsefiltering
-   rica
    :maxdepth: 1
 
 Denoising:
 
 .. toctree::
-   mda
+   lde 
    :maxdepth: 1
 
 Supervised Learning
@@ -44,7 +55,8 @@ Sampling
    sampling/hmc
 
 
-Helpers, convenience functions, tools:
+Helpers, convenience functions and tools
+----------------------------------------
 
 .. toctree::
    hpsearch

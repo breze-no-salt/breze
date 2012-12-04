@@ -2,10 +2,10 @@
 
 import numpy as np
 import scipy.linalg
-    
+
 from base import roughly
 
-from brummlearn.pca import pca
+from brummlearn.pca import Pca
 
 
 def test_pca():
@@ -13,14 +13,14 @@ def test_pca():
     expand = np.array([2.5, 1.2]).reshape((1, 2))
 
     X = np.dot(l, expand)
-    X += np.random.normal(0, 1E-6, X.shape) 
+    X += np.random.normal(0, 1E-6, X.shape)
 
-    w, s  = pca(X, 1)
+    pca  = Pca(1)
+    pca.fit(X)
 
     desired = np.array([[-0.9015], [-0.4327]])
-    print s
 
-    assert roughly(w, desired, 1E-3)
+    assert roughly(pca.weights, desired, 1E-3)
 
 
 def test_pca():
@@ -28,9 +28,11 @@ def test_pca():
     expand = np.array([2.5, 1.2]).reshape((1, 2))
 
     X = np.dot(l, expand)
-    X += np.random.normal(0, 1E-6, X.shape) 
+    X += np.random.normal(0, 1E-6, X.shape)
 
-    w, s  = pca(X, 2, whiten=True)
+    pca  = Pca(2, whiten=True)
+    pca.fit(X)
+    w, s  = pca.weights, pca.singular_values
 
-    X = np.dot(X, w)
+    X = pca.transform(X)
     assert roughly(np.cov(X, rowvar=0), np.eye(2), 1E-2), 'covariance not white'

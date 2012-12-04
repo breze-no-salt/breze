@@ -3,4 +3,5 @@ Slow Feature Analysis
 
 .. automodule:: brummlearn.sfa
 
-.. autofunction:: brummlearn.sfa.sfa
+.. autoclass:: brummlearn.sfa.SlowFeatureAnalysis
+   :members: __init__,fit,transform

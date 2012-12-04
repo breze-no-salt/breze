@@ -2,10 +2,10 @@
 
 import numpy as np
 import scipy.linalg
-    
+
 from base import roughly
 
-from brummlearn.sfa import sfa
+from brummlearn.sfa import SlowFeatureAnalysis
 
 
 def test_sfa():
@@ -26,16 +26,17 @@ def test_sfa():
 
     w, s, v = scipy.linalg.svd(cov, full_matrices=False)
     w = w[:, :n_comp]
-    
+
     w = np.dot(w, scipy.diag(1. / scipy.sqrt(s[:n_comp])))
     X = np.dot(X, w)
 
-    w = sfa([X], 1)
+    sfa = SlowFeatureAnalysis(1)
+    sfa.fit([X])
     desired = np.array(
         [[ 8.03244781e-01],
          [ -1.23768922e-03],
          [ 2.21901512e-01],
          [ -5.92845153e-04],
          [ 5.52770891e-01]])
-    assert roughly(w, desired), 'base not recovered'
+    assert roughly(sfa.weights, desired), 'base not recovered'
 

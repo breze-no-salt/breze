@@ -5,12 +5,12 @@
 As introduced in
 
     Sparse Filtering
-    Jiquan Ngiam, Pangwei Koh, Zhenghao Chen, Sonia Bhaskar and Andrew Y. Ng. 
+    Jiquan Ngiam, Pangwei Koh, Zhenghao Chen, Sonia Bhaskar and Andrew Y. Ng.
     In NIPS*2011.
 
 """
 
-import itertools 
+import itertools
 
 import climin
 import numpy as np
@@ -25,7 +25,7 @@ class SparseFiltering(_SparseFiltering, UnsupervisedBrezeWrapperBase,
     TransformBrezeWrapperMixin):
 
     def __init__(self, n_inpt, n_feature, feature_transfer='softabs',
-        max_iter=1000, verbose=False):
+        optimizer='lbfgs', max_iter=1000, verbose=False):
         """Create a SparseFiltering object.
 
         :param n_inpt: Input dimensionality of the data.
@@ -34,7 +34,7 @@ class SparseFiltering(_SparseFiltering, UnsupervisedBrezeWrapperBase,
             referring any function found in ``breze.component.transfer`` or
             a function that given an (n, d) array returns an (n, d) array as
             theano expressions.
-            
+
             Should be symmetric.
         :param max_iter: Maximum number of optimization iterations to perform.
         :param verbose: Flag indicating whether to print out information during
@@ -45,5 +45,6 @@ class SparseFiltering(_SparseFiltering, UnsupervisedBrezeWrapperBase,
         self.f_transform = None
         self.parameters.data[:] = np.random.standard_normal(
             self.parameters.data.shape)
+        self.optimizer = optimizer
         self.max_iter = max_iter
         self.verbose = verbose

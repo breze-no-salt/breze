@@ -40,6 +40,7 @@ class BrezeWrapperBase(object):
 class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
     data_arguments = 'inpt', 'target'
+    sample_dim = 0, 0
 
     def _make_loss_functions(self, mode=None):
         """Return pair (f_loss, f_d_loss) of functions.
@@ -62,7 +63,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         elif batch_size < 1:
             raise ValueError('need strictly positive batch size')
         else:
-            data = iter_minibatches([X, Z], self.batch_size, (0, 0))
+            data = iter_minibatches([X, Z], self.batch_size, self.sample_dim)
         args = ((i, {}) for i in data)
         return args
 
@@ -76,12 +77,8 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
         This method does `not` respect the max_iter attribute.
 
-        :param X: A (t, n ,d) array where _t_ is the number of time steps,
-            _n_ is the number of data samples and _d_ is the dimensionality of
-            a data sample at a single time step.
-        :param Z: A (t, n, l) array where _t_ and _n_ are defined as in _X_,
-            but _l_ is the dimensionality of the output sequences at a single
-            time step.
+        :param X: Array representing the inputs.
+        :param Z: Array representing the outputs.
         """
         f_loss, f_d_loss = self._make_loss_functions()
 
@@ -95,12 +92,8 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         """Fit the parameters of the model to the given data with the
         given error function.
 
-        :param X: A (t, n ,d) array where _t_ is the number of time steps,
-            _n_ is the number of data samples and _d_ is the dimensionality of
-            a data sample at a single time step.
-        :param Z: A (t, n, l) array where _t_ and _n_ are defined as in _X_,
-            but _l_ is the dimensionality of the output sequences at a single
-            time step.
+        :param X: Array representing the inputs.
+        :param Z: Array representing the outputs.
         """
         itr = self.iter_fit(X, Z)
         for i, info in enumerate(itr):
@@ -111,16 +104,11 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         """Return a function to predict targets from input sequences."""
         return self.function(['inpt'], 'output')
 
-
     def predict(self, X):
-        """Return the prediction of the network given input sequences.
+        """Return the prediction of the model given the input.
 
-        :param X: A (t, n ,d) array where _t_ is the number of time steps,
-            _n_ is the number of data samples and _d_ is the dimensionality of
-            a data sample at a single time step.
-        :returns: A (t, n, l) array where _t_ and _n_ are defined as in _X_,
-            but _l_ is the dimensionality of the output sequences at a single
-            time step.
+        :param X: Array representing the inputs.
+        :returns: Output array.
         """
         if self.f_predict is None:
             self.f_predict = self._make_predict_functions()
@@ -130,10 +118,10 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
 
     data_arguments = 'inpt',
+    sample_dim = 0,
 
     def iter_fit(self, X):
-        """Iteratively fit the parameters of the model to the given data with
-        the given error function.
+        """Iteratively fit the parameters of the model to the given data.
 
         Each iteration of the learning algorithm is an iteration of the returned
         iterator. The model is in a valid state after each iteration, so that
@@ -141,34 +129,36 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
 
         This method does `not` respect the max_iter attribute.
 
-        :param X: A (t, n ,d) array where _t_ is the number of time steps,
-            _n_ is the number of data samples and _d_ is the dimensionality of
-            a data sample at a single time step.
+        :param X: Array representing the samples.
         """
         f_loss, f_d_loss = self._make_loss_functions()
 
-        args = itertools.repeat(([X], {}))
-        opt = climin.Lbfgs(self.parameters.data, f_loss, f_d_loss, args=args)
+        args = self._make_args(X)
+        opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):
-            loss = info.get('loss', None)
-            if loss is None:
-                loss = f_loss(self.parameters.data, X)
-            info['loss'] = loss
             yield info
 
     def fit(self, X):
-        """Fit the parameters of the model to the given data with the
-        given error function.
+        """Fit the parameters of the model.
 
-        :param X: A (t, n ,d) array where _t_ is the number of time steps,
-            _n_ is the number of data samples and _d_ is the dimensionality of
-            a data sample at a single time step.
+        :param X: Array representing the samples.
         """
         itr = self.iter_fit(X)
         for i, info in enumerate(itr):
             if i + 1 >= self.max_iter:
                 break
+
+    def _make_args(self, X):
+        batch_size = getattr(self, 'batch_size', None)
+        if batch_size is None:
+            data = itertools.repeat([X])
+        elif batch_size < 1:
+            raise ValueError('need strictly positive batch size')
+        else:
+            data = iter_minibatches([X], self.batch_size, self.sample_dim)
+        args = ((i, {}) for i in data)
+        return args
 
     def _make_loss_functions(self):
         """Return pair (f_loss, f_d_loss) of functions.
@@ -197,10 +187,8 @@ class TransformBrezeWrapperMixin(object):
     def transform(self, X):
         """Return the feature representation of the model given X.
 
-        :param X: (n, d) array where n is the number of samples and d the input
-            dimensionality.
-        :returns:  (n, h) array where n is the number of samples and h the
-            dimensionality of the feature space.
+        :param X: An array representing the inputs.
+        :returns: An array representing the transformed inputs.
         """
         if self.f_transform is None:
             self.f_transform = self._make_transform_function()
@@ -218,10 +206,8 @@ class ReconstructBrezeWrapperMixin(object):
     def reconstruct(self, X):
         """Return the input reconstruction of the model given X.
 
-        :param X: (n, d) array where n is the number of samples and d the input
-            dimensionality.
-        :returns:  (n, d) array where n is the number of samples and d the
-            dimensionality of the input space.
+        :param X: An array representing the inputs.
+        :returns: An array representing the reconstructions of the input.
         """
         if self.f_reconstruct is None:
             self.f_reconstruct = self._make_reconstruct_function()
