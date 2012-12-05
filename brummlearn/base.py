@@ -36,6 +36,57 @@ class BrezeWrapperBase(object):
         kwargs['args'] = args
         return climin.util.optimizer(ident, self.parameters.data, **kwargs)
 
+    def powerfit(self, fit_data, eval_data, stop, report):
+        """Iteratively fit the model.
+
+        This is a convenience function which combines iteratively fitting a
+        model with stopping criterions and keeping track of the best parameters
+        found so far.
+
+        An iterator of dictionaries is returned; values are only yielded in the
+        case that the call `report(info)` returns True. The iterator
+        stops as soon as the call `stop(info)` returns True.
+
+        Each dictionary yielded is directly obtained from the optimizer used to
+        optimize the loss. It is augmented with the keys `loss`, `best_pars`
+        and `best_loss`. The best loss is obtained by evaluating the loss of the
+        model (given by model.exprs['loss']) on `eval_data`, while training
+        is done on `fit_data`.
+
+        :param fit_data: A tuple containing arrays representing the data the
+            model should be fitted on.
+        :param eval_data: A tuple containing arrays representing the data the
+            model should be evaluated on, and which gives which model is "best".
+        :param stop: A function receiving an info dictionary which returns True
+            if the iterator should stop.
+        :param report: A function receiving an info dictionary which should
+            return True if the iterator should yield a value.
+        :returns: An iterator over info dictionaries.
+        """
+        f_loss = self.function(['inpt'], 'loss')
+
+        best_pars = None
+        best_loss = float('inf')
+
+        for info in self.iter_fit(*fit_data):
+            if report(info):
+                if 'loss' not in info:
+                    # Not all optimizers, e.g. ilne and gd, do actually
+                    # calculate the loss.
+                    info['loss'] = f_loss(*fit_data)
+                info['val_loss'] = f_loss(*eval_data)
+
+                if info['val_loss'] < best_loss:
+                    best_loss = info['val_loss']
+                    best_pars = self.parameters.data.copy()
+
+                info['best_loss'] = best_loss
+                info['best_pars'] = best_pars
+
+                yield info
+            if stop(info):
+                break
+
 
 class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
