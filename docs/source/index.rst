@@ -20,6 +20,7 @@ Learning representations:
 
 .. toctree::
    pca
+   xca
    autoencoder
    sparsefiltering
    rica
