@@ -46,3 +46,23 @@ class Pca(object):
         :returns: An array of shape `(n, c)` where `n` is the number of samples
             and `c` is the number of components kept."""
         return np.dot(X, self.weights)
+
+    def inverse_transform(self, F):
+        """Perform an inverse transformation of transformed data according to
+        the model.
+
+        :param F: An array of shape `(n, d)` where `n` is the number
+            of data points and `d` the dimensionality if the feature space.
+        :returns: An array of shape `(n, c)` where `n` is the number of samples
+            and `c` is the dimensionality of the input space."""
+        return np.dot(F, self.weights.T)
+
+    def reconstruct(self, X):
+        """Reconstruct the data according to the model.
+
+        :param X: An array of shape `(n, d)` where `n` is the number of
+            data points and `d` the input dimensionality.
+        :returns: An array of shape `(n, d)` where `n` is the number of samples
+            and `d` is the dimensionality of the input space."""
+        F = self.transform(X)
+        return self.inverse_transform(F)
