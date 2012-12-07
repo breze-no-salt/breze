@@ -63,7 +63,7 @@ class BrezeWrapperBase(object):
             return True if the iterator should yield a value.
         :returns: An iterator over info dictionaries.
         """
-        f_loss = self.function(['inpt'], 'loss')
+        f_loss = self.function(self.data_arguments, 'loss')
 
         best_pars = None
         best_loss = float('inf')
