@@ -193,7 +193,7 @@ class ContractiveAutoEncoder(AutoEncoder):
         hidden = exprs['hidden']
         hidden_in = exprs['hidden_in']
 
-        d_h_d_h_in = T.grad(hidden.sum(), hidden_in)
+        d_h_d_h_in = T.grad(hidden.mean(axis=0).sum(), hidden_in)
         jacobian_loss = T.sum(
             T.mean(d_h_d_h_in**2, axis=0) * (in_to_hidden**2))
 
