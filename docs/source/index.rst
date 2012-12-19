@@ -23,6 +23,7 @@ Learning representations:
    xca
    autoencoder
    sparsefiltering
+   sparsecoding
    rica
    cca
    sfa
