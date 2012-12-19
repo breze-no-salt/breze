@@ -20,7 +20,6 @@ def test_sparse_coding_iter_fit():
 
 
 def test_sparse_coding_transform():
-    return
     X = np.random.standard_normal((10, 2))
     sf = SparseCoding(2, 7, max_iter=10)
     sf.transform(X)
