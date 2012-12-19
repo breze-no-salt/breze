@@ -353,7 +353,7 @@ class DenoisingAutoEncoder(_DenoisingAutoEncoder, UnsupervisedBrezeWrapperBase,
                  noise_type='gauss', c_noise=.2,
                  tied_weights=True, batch_size=None,
                  optimizer='lbfgs', max_iter=1000, verbose=False):
-        """Create a SparseAutoEncoder object.
+        """Create a DenoisingAutoEncoder object.
 
         :param n_inpt: Input dimensionality of the data.
         :param n_hidden: Dimensionality of the hidden feature dimension.
