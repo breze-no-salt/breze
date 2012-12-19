@@ -21,7 +21,7 @@ class BrezeWrapperBase(object):
         flat parameters of the model."""
         return T.grad(self.exprs['loss'], self.parameters.flat)
 
-    def _make_optimizer(self, f, fprime, args, f_Hp=None):
+    def _make_optimizer(self, f, fprime, args, wrt=None, f_Hp=None):
         if isinstance(self.optimizer, (str, unicode)):
             ident = self.optimizer
             kwargs = {}
@@ -30,11 +30,14 @@ class BrezeWrapperBase(object):
         kwargs['f'] = f
         kwargs['fprime'] = fprime
 
+        if wrt is None:
+            wrt = self.parameters.data
+
         if f_Hp is not None:
             kwargs['f_Hp'] = f_Hp
 
         kwargs['args'] = args
-        return climin.util.optimizer(ident, self.parameters.data, **kwargs)
+        return climin.util.optimizer(ident, wrt, **kwargs)
 
     def powerfit(self, fit_data, eval_data, stop, report):
         """Iteratively fit the model.
