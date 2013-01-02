@@ -19,11 +19,11 @@ def sigmoid(inpt):
     return T.nnet.sigmoid(inpt)
 
 
-def rectified_linear(inpt):
-    return T.clip(inpt, 0, 1E20)
+def rectifier(inpt):
+    return T.maximum(inpt, 0)
 
 
-def soft_rectified_linear(inpt):
+def softplus(inpt):
     return T.log(1 + T.exp(inpt))
 
 
