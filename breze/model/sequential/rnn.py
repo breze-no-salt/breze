@@ -110,7 +110,7 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork):
 
         output = f_output(output_in)
 
-        loss = f_loss(target, output).mean(axis=0).sum()
+        loss = f_loss(target, output).sum(axis=2).mean()
 
         return {'inpt': inpt,
                 'target': target,
@@ -192,7 +192,7 @@ class UnsupervisedRecurrentNetwork(BaseRecurrentNetwork):
 
         output = f_output(output_in)
 
-        loss = f_loss(output).mean(axis=0).sum()
+        loss = f_loss(output).sum(axis=2).mean()
 
         return {'inpt': inpt,
                 'hidden-in': hidden,
@@ -316,7 +316,7 @@ class SupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
 
         output = f_output(output_in)
 
-        loss = f_loss(target, output).mean(axis=0).sum()
+        loss = f_loss(target, output).sum(axis=2).mean()
 
         return {'inpt': inpt,
                 'target': target,
@@ -437,7 +437,7 @@ class UnsupervisedLstmRecurrentNetwork(UnsupervisedRecurrentNetwork):
 
         output = f_output(output_in)
 
-        loss = f_loss(output).mean(axis=0).sum()
+        loss = f_loss(output).sum(axis=2).mean()
 
         return {'inpt': inpt,
                 'states': states,
