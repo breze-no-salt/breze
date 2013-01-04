@@ -196,3 +196,60 @@ def ncar(target, embedding):
     # To be compatible with the API, we make this a (n, 1) matrix.
     return T.shape_padright(loss_vector)
 
+
+def drlim(margin, c_contrastive):
+    """Return a function that implements the
+
+    'Dimensionality reduction by learning an invariant mapping' by
+    Hadsell, R. and Chopra, S. and LeCun, Y. (2006).
+
+    For an example of such a function, see `drlim1` with a margin of 1.
+
+    :parameter margin: Float, the margin used.
+    :parameter c_contrastive: Coefficient to weigh the contrastive term relative
+        to the positive term.
+    :returns: function that takes two arguments, a target and an embedding."""
+
+    def inner(target, embedding):
+        """Return a theano expression of a vector containing the sample wise
+        loss of drlim.
+
+        The margin and coefficient for the contrastives used are %.f and %.f
+        respectively.
+
+        :parameter target: A vector of length `n`. If 1, sample `2 * n` and
+            sample `2 * n + 1` are deemed similar.
+        :parameter embedding: Array containing the embeddings of samples row
+            wise.
+        """ % (margin, c_contrastive)
+        target = target[:, 0]
+        n_pair = embedding.shape[0] / 2
+        n_feature = embedding.shape[1]
+
+        # Reshape array to get pairs.
+        embedding = embedding.reshape((n_pair, n_feature * 2))
+
+        # Calculate distances of pairs.
+        diff = (embedding[:, :n_feature] - embedding[:, n_feature:])
+        dist = (diff**2).sum(axis=1)
+
+        pull = target * dist
+        push = T.maximum(0, margin - dist)
+
+        loss = pull + c_contrastive * push
+        return loss.dimshuffle(0, 'x')
+
+    return inner
+
+
+drlim1 = drlim(1, 0.5)
+
+
+
+
+
+
+
+
+
+

@@ -5,7 +5,7 @@ import theano
 import theano.tensor as T
 import numpy as np
 
-from breze.component.loss import absolute, squared, nce, nnce, ncac
+from breze.component.loss import absolute, squared, nce, nnce, ncac, drlim1
 from tools import roughly
 
 
@@ -120,4 +120,14 @@ def test_nca():
     Y = T.matrix()
     Y.tag.test_value = np.random.random((20, 1)) > 0.5
     expr = ncac(X, Y)
+    theano.config.compute_test_value = 'off'
+
+
+def test_drlim():
+    theano.config.compute_test_value = 'off'
+    X = T.matrix()
+    X.tag.test_value = np.random.random((20, 10))
+    Y = T.vector()
+    Y.tag.test_value = np.random.random((10, 1)) > 0.5
+    expr = drlim1(X, Y)
     theano.config.compute_test_value = 'off'
