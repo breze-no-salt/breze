@@ -321,6 +321,20 @@ def test_srnn():
     fprime(X, Z)
 
 
+def test_dsrnn():
+    l = SupervisedRecurrentNetwork(2, [3] * 2, 1, ['sigmoid'] * 2, 'identity', 'squared')
+    f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
+    d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
+    fprime = l.function(['inpt', 'target'], d_loss_wrt_pars,
+                        mode='FAST_COMPILE')
+
+    X = np.random.random((10, 3, 2)).astype(theano.config.floatX)
+    Z = np.random.random((10, 3, 1)).astype(theano.config.floatX)
+
+    f(X, Z)
+    fprime(X, Z)
+
+
 def test_usrnn():
     l = UnsupervisedRecurrentNetwork(
         2, 3, 1, 'sigmoid', 'identity', lambda x: abs(x))
