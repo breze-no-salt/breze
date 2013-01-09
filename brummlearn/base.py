@@ -56,6 +56,13 @@ class BrezeWrapperBase(object):
         model (given by model.exprs['loss']) on `eval_data`, while training
         is done on `fit_data`.
 
+        This method respects a ``true_loss`` entry in the ``exprs``
+        dictionary: if it is present, it will be used for reporting the loss and
+        for comparing models throughout optimization instead of ``loss``, which
+        will be used for the optimization itself. This makes it possible to add
+        regularization terms to the loss and use other losses (such as the
+        zero-one loss) for comparison of parameters.
+
         :param fit_data: A tuple containing arrays representing the data the
             model should be fitted on.
         :param eval_data: A tuple containing arrays representing the data the
@@ -66,7 +73,8 @@ class BrezeWrapperBase(object):
             return True if the iterator should yield a value.
         :returns: An iterator over info dictionaries.
         """
-        f_loss = self.function(self.data_arguments, 'loss')
+        loss_key = 'true_loss' if 'true_loss' in self.exprs else 'loss'
+        f_loss = self.function(self.data_arguments, loss_key)
 
         best_pars = None
         best_loss = float('inf')
