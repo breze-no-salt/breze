@@ -234,7 +234,7 @@ def drlim(margin, c_contrastive):
         dist = (diff**2).sum(axis=1)
 
         pull = target * dist
-        push = T.maximum(0, margin - dist)
+        push = T.maximum(0, margin - (1 - target) * dist)
 
         loss = pull + c_contrastive * push
         return loss.dimshuffle(0, 'x')
