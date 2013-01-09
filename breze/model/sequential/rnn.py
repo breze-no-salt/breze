@@ -38,6 +38,57 @@ def feedforward_layer(inpt, weights, bias):
     return output
 
 
+def rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
+        hidden_biases, recurrents, out_bias, hidden_transfers,
+        out_transfer, pooling):
+        exprs = {}
+
+        f_hiddens = [lookup(i, transfer) for i in hidden_transfers]
+        f_output = lookup(out_transfer, transfer)
+
+        hidden_in = feedforward_layer(inpt, in_to_hidden, hidden_biases[0])
+        hidden_in_rec, hidden_rec = recurrent_layer(
+            hidden_in, recurrents[0], f_hiddens[0])
+        exprs['hidden_in_0'] = hidden_in_rec
+        exprs['hidden_0'] = hidden_rec
+
+        zipped = zip(hidden_to_hiddens, hidden_biases[1:], recurrents[1:],
+                     f_hiddens[1:])
+        for i, (w, b, r, t) in enumerate(zipped):
+            hidden_m1 = hidden_rec
+            hidden_in = feedforward_layer(hidden_m1, w, b)
+            hidden_in_rec, hidden_rec = recurrent_layer(hidden_in, r, t)
+            exprs['hidden_in_%i' % (i + 1)] = hidden_in_rec
+            exprs['hidden_%i' % (i + 1)] = hidden_rec
+
+        output_in = feedforward_layer(hidden_rec, hidden_to_out, out_bias)
+
+        if pooling is None:
+            pass
+        elif pooling == 'mean':
+            output_in = T.mean(output_in, axis=0)
+        elif pooling == 'sum':
+            output_in = T.sum(output_in, axis=0)
+        elif pooling == 'prod':
+            output_in = T.prod(output_in, axis=0)
+        elif pooling == 'min':
+            output_in = T.min(output_in, axis=0)
+        elif pooling == 'max':
+            output_in = T.max(output_in, axis=0)
+        else:
+            raise ValueError('unknown pooling operator %s' % pooling)
+
+        output = f_output(output_in)
+
+        exprs.update(
+            {'inpt': inpt,
+             'output_in': output_in,
+             'output': output,
+             })
+
+        return exprs
+
+
 class BaseRecurrentNetwork(Model):
 
     def __init__(self, n_inpt, n_hiddens, n_output,
@@ -88,10 +139,6 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork):
 
     def init_exprs(self):
         inpt = T.tensor3('inpt')
-        if self.pooling is None:
-            target = T.tensor3('target')
-        else:
-            target = T.matrix('target')
         pars = self.parameters
 
         hidden_to_hiddens = [getattr(pars, 'hidden_to_hidden_%i' % i)
@@ -101,6 +148,11 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork):
         recurrents = [getattr(pars, 'recurrent_%i' % i)
                       for i in range(len(self.n_hiddens))]
 
+        if self.pooling is None:
+            target = T.tensor3('target')
+        else:
+            target = T.matrix('target')
+
         self.exprs = self.make_exprs(
             inpt, target,
             pars.in_to_hidden, hidden_to_hiddens, pars.hidden_to_out,
@@ -108,56 +160,18 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork):
             self.hidden_transfers, self.out_transfer, self.loss,
             self.pooling)
 
+
     @staticmethod
     def make_exprs(inpt, target, in_to_hidden, hidden_to_hiddens, hidden_to_out,
                    hidden_biases, recurrents, out_bias, hidden_transfers,
                    out_transfer, loss, pooling):
-        exprs = {}
-
-        f_hiddens = [lookup(i, transfer) for i in hidden_transfers]
-        f_output = lookup(out_transfer, transfer)
+        exprs = rnn(inpt, in_to_hidden, hidden_to_hiddens,
+                    hidden_to_out, hidden_biases, recurrents, out_bias,
+                    hidden_transfers, out_transfer, pooling)
         f_loss = lookup(loss, loss_)
-
-        hidden_in = feedforward_layer(inpt, in_to_hidden, hidden_biases[0])
-        hidden_in_rec, hidden_rec = recurrent_layer(
-            hidden_in, recurrents[0], f_hiddens[0])
-
-        zipped = zip(hidden_to_hiddens, hidden_biases[1:], recurrents[1:],
-                     f_hiddens[1:])
-        for i, (w, b, r, t) in enumerate(zipped):
-            hidden_m1 = hidden_rec
-            hidden_in = feedforward_layer(hidden_m1, w, b)
-            hidden_in_rec, hidden_rec = recurrent_layer(hidden_in, r, t)
-            exprs['hidden_in_%i' % (i + 1)] = hidden_in_rec
-            exprs['hidden_%i' % (i + 1)] = hidden_rec
-
-        output_in = feedforward_layer(hidden_rec, hidden_to_out, out_bias)
-
-        if pooling is None:
-            pass
-        elif pooling == 'mean':
-            output_in = T.mean(output_in, axis=0)
-        elif pooling == 'sum':
-            output_in = T.sum(output_in, axis=0)
-        elif pooling == 'prod':
-            output_in = T.prod(output_in, axis=0)
-        elif pooling == 'min':
-            output_in = T.min(output_in, axis=0)
-        elif pooling == 'max':
-            output_in = T.max(output_in, axis=0)
-        else:
-            raise ValueError('unknown pooling operator %s' % pooling)
-
-        output = f_output(output_in)
-
-        loss = f_loss(target, output).sum(axis=2).mean()
-        exprs.update(
-            {'inpt': inpt,
-             'target': target,
-             'hidden': hidden_rec,
-             'output_in': output_in,
-             'output': output,
-             'loss': loss})
+        loss = f_loss(target, exprs['output']).sum(axis=2).mean()
+        exprs['target'] = target
+        exprs['loss'] = loss
         return exprs
 
 
@@ -166,71 +180,30 @@ class UnsupervisedRecurrentNetwork(BaseRecurrentNetwork):
     def init_exprs(self):
         inpt = T.tensor3('inpt')
         pars = self.parameters
+        hidden_to_hiddens = [getattr(pars, 'hidden_to_hidden_%i' % i)
+                             for i in range(len(self.n_hiddens) - 1)]
+        hidden_biases = [getattr(pars, 'hidden_bias_%i' % i)
+                         for i in range(len(self.n_hiddens))]
+        recurrents = [getattr(pars, 'recurrent_%i' % i)
+                      for i in range(len(self.n_hiddens))]
         self.exprs = self.make_exprs(
             inpt,
-            pars.in_to_hidden, pars.hidden_to_hidden, pars.hidden_to_out,
-            pars.hidden_bias, pars.out_bias,
-            self.hidden_transfer, self.out_transfer, self.loss,
+            pars.in_to_hidden, hidden_to_hiddens, pars.hidden_to_out,
+            hidden_biases, recurrents, pars.out_bias,
+            self.hidden_transfers, self.out_transfer, self.loss,
             self.pooling)
 
     @staticmethod
-    def make_exprs(inpt, in_to_hidden, hidden_to_hidden, hidden_to_out,
-                   hidden_bias, out_bias, hidden_transfer, out_transfer,
-                   loss, pooling):
-
-        f_hidden = lookup(hidden_transfer, transfer)
-        f_output = lookup(out_transfer, transfer)
+    def make_exprs(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
+                   hidden_biases, recurrents, out_bias, hidden_transfers,
+                   out_transfer, loss, pooling):
+        exprs = rnn(inpt, in_to_hidden, hidden_to_hiddens,
+                    hidden_to_out, hidden_biases, recurrents, out_bias,
+                    hidden_transfers, out_transfer, pooling)
         f_loss = lookup(loss, loss_)
-
-        n_time_steps = inpt.shape[0]
-        n_samples = inpt.shape[1]
-        n_inpt = in_to_hidden.shape[0]
-        n_hidden = in_to_hidden.shape[1]
-        n_output = hidden_to_out.shape[1]
-
-        inpt_flat = inpt.reshape((n_time_steps * n_samples, n_inpt))
-        hidden_flat = T.dot(inpt_flat, in_to_hidden)
-        hidden = hidden_flat.reshape((n_time_steps, n_samples, n_hidden))
-        hidden += hidden_bias.dimshuffle('x', 'x', 0)
-
-        hidden_in_rec, hidden_rec = recurrent_layer(
-            hidden, hidden_to_hidden, f_hidden)
-
-        hidden_rec_flat = hidden_rec.reshape(
-            (n_time_steps * n_samples, n_hidden))
-
-        output_flat = T.dot(hidden_rec_flat, hidden_to_out)
-        output_in = output_flat.reshape((n_time_steps, n_samples, n_output))
-        output_in += out_bias.dimshuffle('x', 'x', 0)
-
-        if pooling is None:
-            pass
-        elif pooling == 'mean':
-            output_in = T.mean(output_in, axis=0)
-        elif pooling == 'sum':
-            output_in = T.sum(output_in, axis=0)
-        elif pooling == 'prod':
-            output_in = T.prod(output_in, axis=0)
-        elif pooling == 'min':
-            output_in = T.min(output_in, axis=0)
-        elif pooling == 'max':
-            output_in = T.max(output_in, axis=0)
-        elif pooling == 'last':
-            output_in = output_in[-1]
-        else:
-            raise ValueError('unknown pooling operator %s' % pooling)
-
-        output = f_output(output_in)
-
-        loss = f_loss(output).sum(axis=2).mean()
-
-        return {'inpt': inpt,
-                'hidden-in': hidden,
-                'hidden-in-rec': hidden_in_rec,
-                'hidden': hidden_rec,
-                'output-in': output_in,
-                'output': output,
-                'loss': loss}
+        loss = f_loss(exprs['output']).sum(axis=2).mean()
+        exprs['loss'] = loss
+        return exprs
 
 
 class SupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
