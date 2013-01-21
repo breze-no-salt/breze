@@ -125,7 +125,7 @@ def test_gn_product_rnn():
 
     # Shortcuts.
     loss = rnn.exprs['loss']
-    output_in = rnn.exprs['output-in']
+    output_in = rnn.exprs['output_in']
     p = T.vector('some-vector')
 
     J = jacobian(output_in[:, 0, :].flatten(), rnn.parameters.flat)
@@ -147,8 +147,11 @@ def test_gn_product_rnn():
     p = np.random.random(rnn.parameters.data.shape)
     Gp_expl = np.dot(G_expl, p)
 
-    _, _, f_Hp = rnn._make_loss_functions()
 
+    Hp = rnn._gauss_newton_product()
+    args = list(rnn.data_arguments)
+    f_Hp = rnn.function(['some-vector'] + args, Hp,
+                         explicit_pars=True)
     Gp = f_Hp(rnn.parameters.data, p, X, Z)
 
     assert roughly(Gp, Gp_expl)
