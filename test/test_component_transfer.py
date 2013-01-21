@@ -6,10 +6,10 @@ import theano.tensor as T
 import numpy as np
 
 from breze.component.transfer import (
-    sigmoid, tanh, tanhplus, rectified_linear, soft_rectified_linear,
+    sigmoid, tanh, tanhplus, rectifier, softplus,
     logproduct_of_t)
 
-from tools import roughly 
+from tools import roughly
 
 
 test_matrix = np.array([
@@ -54,9 +54,9 @@ def test_sigmoid():
     assert correct, 'sigmoid not working'
 
 
-def test_rectified_linear():
+def test_rectifier():
     inpt = T.matrix()
-    expr = rectified_linear(inpt)
+    expr = rectifier(inpt)
     f = theano.function([inpt], expr)
     result = f(test_matrix)
     desired = np.array([
@@ -67,9 +67,9 @@ def test_rectified_linear():
     assert correct, 'relu not working'
 
 
-def test_soft_rectified_linear():
+def test_soft():
     inpt = T.matrix()
-    expr = soft_rectified_linear(inpt)
+    expr = softplus(inpt)
     f = theano.function([inpt], expr)
     result = f(test_matrix)
     desired = np.array([
