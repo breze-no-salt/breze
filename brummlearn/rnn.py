@@ -81,7 +81,7 @@ class BaseRnn(object):
         Gauss-Newton matrix with an arbitrary vector."""
 
         # Shortcuts.
-        output_in = self.exprs['output-in']
+        output_in = self.exprs['output_in']
         loss = self.exprs['loss']
         flat_pars = self.parameters.flat
         p = self.exprs['some-vector'] = T.vector('some-vector')
@@ -95,22 +95,18 @@ class BaseRnn(object):
         return Hp
 
     def _make_loss_functions(self):
-        """Return triple (f_loss, f_d_loss, f_Hp) of functions.
+        """Return pair `f_loss, f_d_loss` of functions.
 
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
-         - f_Hp returns the product of an arbitrary vector of the Gauss Newton
            matrix of the loss.
         """
         d_loss = self._d_loss()
-        Hp = self._gauss_newton_product()
 
         args = list(self.data_arguments)
         f_loss = self.function(args, 'loss', explicit_pars=True)
         f_d_loss = self.function(args, d_loss, explicit_pars=True)
-        f_Hp = self.function(['some-vector'] + args, Hp,
-                             explicit_pars=True)
-        return f_loss, f_d_loss, f_Hp
+        return f_loss, f_d_loss
 
 
 class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
@@ -196,7 +192,7 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
         if self.pretrain:
             self._pretrain(X, Z)
 
-        f_loss, f_d_loss, f_Hp = self._make_loss_functions()
+        f_loss, f_d_loss = self._make_loss_functions()
 
         args = itertools.repeat(([X, Z], {}))
         opt = self._make_optimizer(f_loss, f_d_loss, args)
@@ -251,10 +247,10 @@ class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
         if self.pretrain:
             self._pretrain(X)
 
-        f_loss, f_d_loss, f_Hp = self._make_loss_functions()
+        f_loss, f_d_loss = self._make_loss_functions()
 
         args = self._make_args(X)
-        opt = self._make_optimizer(f_loss, f_d_loss, args, f_Hp)
+        opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):
             yield info
@@ -329,7 +325,7 @@ class SupervisedLstm(BaseLstm, rnn.SupervisedLstmRecurrentNetwork,
             time step.
         """
 
-        f_loss, f_d_loss, f_Hp = self._make_loss_functions()
+        f_loss, f_d_loss = self._make_loss_functions()
 
         args = itertools.repeat(([X, Z], {}))
         opt = self._make_optimizer(f_loss, f_d_loss, args)
@@ -365,10 +361,11 @@ class UnsupervisedLstm(BaseLstm, rnn.UnsupervisedLstmRecurrentNetwork,
             a data sample at a single time step.
         """
 
-        f_loss, f_d_loss, f_Hp = self._make_loss_functions()
+        f_loss, f_d_loss = self._make_loss_functions()
+
 
         args = itertools.repeat(([X], {}))
-        opt = self._make_optimizer(f_loss, f_d_loss, args, f_Hp=f_Hp)
+        opt = self._make_optimizer(f_loss, f_d_loss, args)
 
         for i, info in enumerate(opt):
             yield info
