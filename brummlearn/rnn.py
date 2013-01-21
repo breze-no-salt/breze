@@ -29,7 +29,6 @@ class BaseRnn(object):
                  loss='squared', pooling=None,
                  optimizer='rprop',
                  batch_size=None,
-                 pretrain=False,
                  max_iter=1000,
                  verbose=False):
         """Create and return a ``Rnn`` object.
@@ -58,9 +57,6 @@ class BaseRnn(object):
             ``rprop``.
         :param batch_size: Number of examples per batch when calculing the loss
             and its derivatives. None means to use all samples every time.
-        :param pretrain: Number of pretrain iterations to do. This will perform
-            training locally, i.e. with all recurrent connections set to 0 and
-            not applying any updates to them.
         :param max_iter: Maximum number of optimization iterations to perform.
         :param verbose: Flag indicating whether to print out information during
             fitting.
@@ -69,7 +65,6 @@ class BaseRnn(object):
             n_inpt, n_hidden, n_output, hidden_transfer, out_transfer,
             loss, pooling)
         self.optimizer = optimizer
-        self.pretrain = pretrain
         self.max_iter = max_iter
         self.verbose = verbose
 
@@ -122,7 +117,6 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
                  loss='squared', pooling=None,
                  optimizer='rprop',
                  batch_size=None,
-                 pretrain=False,
                  max_iter=1000,
                  verbose=False):
         if pooling is None:
@@ -131,46 +125,7 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
             self.sample_dim = 1, 0
         super(SupervisedRnn, self).__init__(
             n_inpt, n_hidden, n_output, hidden_transfer, out_transfer, loss,
-            pooling, optimizer, batch_size, pretrain, max_iter, verbose)
-
-    def _pretrain(self, X, Z):
-        # Construct an MLP of same dimensions.
-        net = TwoLayerPerceptron(
-            self.n_inpt, self.n_hidden, self.n_output,
-            self.hidden_transfer, self.out_transfer, self.loss)
-        common_pars = ('in_to_hidden', 'hidden_bias',
-                       'hidden_to_out', 'out_bias')
-
-        # Copy parameters to mlp.
-        for p in common_pars:
-            net.parameters[p][:] = self.parameters[p]
-
-        # Create loss functions.
-        d_loss_wrt_pars = T.grad(net.exprs['loss'], net.parameters.flat)
-        f_loss = net.function(['inpt', 'target'], 'loss',
-                              explicit_pars=True)
-        f_d_loss = net.function(['inpt', 'target'], d_loss_wrt_pars,
-                                explicit_pars=True)
-
-        # Disentangle sequence data.
-        X = X.reshape((X.shape[0] * X.shape[1], X.shape[2]))
-        Z = Z.reshape((Z.shape[0] * Z.shape[1], Z.shape[2]))
-        args = self._make_args(X, Z)
-        opt = climin.Lbfgs(net.parameters.data, f_loss, f_d_loss, args=args)
-
-        # Train for some epochs with LBFGS.
-        for i, info in enumerate(opt):
-            loss = f_loss(net.parameters.data, X, Z)
-            print 'pretrain', i, loss / X.size
-            if i + 1 == self.pretrain:
-                break
-
-        # Copy parameters back.
-        for p in common_pars:
-            self.parameters[p][:] = net.parameters[p]
-
-        # Set recurrent weights to 0.
-        self.parameters['hidden_to_hidden'][:] = 0.
+            pooling, optimizer, batch_size, max_iter, verbose)
 
     def iter_fit(self, X, Z):
         """Iteratively fit the parameters of the model to the given data with
@@ -189,9 +144,6 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
             but _l_ is the dimensionality of the output sequences at a single
             time step.
         """
-        if self.pretrain:
-            self._pretrain(X, Z)
-
         f_loss, f_d_loss = self._make_loss_functions()
 
         args = itertools.repeat(([X, Z], {}))
@@ -212,24 +164,6 @@ class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
     transform_expr_name = 'output'
     sample_dim = 1,
 
-    def _pretrain(self, X):
-        loss = theano.clone(self.exprs['loss'], {self.parameters.hidden_to_hidden: 0})
-        d_loss = T.grad(loss, self.parameters.flat)
-
-        self.parameters['hidden_to_hidden'] *= 0
-
-        f_loss = self.function(['inpt'], loss, explicit_pars=True)
-        f_d_loss = self.function(['inpt'], d_loss,explicit_pars=True)
-
-        args = itertools.repeat(([X], {}))
-        opt = self._make_optimizer(f_loss, f_d_loss, args)
-
-        # TODO: include stopping criterion for pretraining
-        stop = climin.stops.after_n_iterations(50)
-        for i, info in enumerate(opt):
-            if stop(info):
-                break
-
     def iter_fit(self, X):
         """Iteratively fit the parameters of the model to the given data with
         the given error function.
@@ -244,9 +178,6 @@ class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
             _n_ is the number of data samples and _d_ is the dimensionality of
             a data sample at a single time step.
         """
-        if self.pretrain:
-            self._pretrain(X)
-
         f_loss, f_d_loss = self._make_loss_functions()
 
         args = self._make_args(X)
