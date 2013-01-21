@@ -117,7 +117,7 @@ def test_rica():
 
 
 def test_dnae():
-    l = DenoisingAutoEncoder(2, 10, 'tanh', 'identity', 'nces')
+    l = DenoisingAutoEncoder(2, 10, 'tanh', 'identity', 'nces', 'gauss', 0.1)
     f = l.function(['corrupted', 'inpt'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['corrupted', 'inpt'], grad, mode='FAST_COMPILE')
