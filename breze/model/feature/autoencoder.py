@@ -105,6 +105,7 @@ class DenoisingAutoEncoder(AutoEncoder):
         # Otherwise, corrupted will be treated as the input argument by
         # the function generating facilities of Breze on top.
         exprs['inpt'] = inpt
+        exprs['corrupted'] = corrupted
         return exprs
 
 
