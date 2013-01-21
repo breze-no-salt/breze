@@ -14,7 +14,7 @@ import theano.tensor as T
 import theano.tensor.shared_randomstreams
 
 from breze.model.neural import MultiLayerPerceptron
-
+from breze.component import corrupt
 from brummlearn.base import SupervisedBrezeWrapperBase
 
 
