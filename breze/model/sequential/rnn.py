@@ -169,7 +169,8 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork):
                     hidden_to_out, hidden_biases, recurrents, out_bias,
                     hidden_transfers, out_transfer, pooling)
         f_loss = lookup(loss, loss_)
-        loss = f_loss(target, exprs['output']).sum(axis=2).mean()
+        sum_axis = 2 if not pooling else 1
+        loss = f_loss(target, exprs['output']).sum(axis=sum_axis).mean()
         exprs['target'] = target
         exprs['loss'] = loss
         return exprs
@@ -201,7 +202,8 @@ class UnsupervisedRecurrentNetwork(BaseRecurrentNetwork):
                     hidden_to_out, hidden_biases, recurrents, out_bias,
                     hidden_transfers, out_transfer, pooling)
         f_loss = lookup(loss, loss_)
-        loss = f_loss(exprs['output']).sum(axis=2).mean()
+        sum_axis = 2 if not pooling else 1
+        loss = f_loss(exprs['output']).sum(axis=sum_axis).mean()
         exprs['loss'] = loss
         return exprs
 
