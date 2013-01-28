@@ -27,6 +27,7 @@ class BaseRnn(object):
     def __init__(self, n_inpt, n_hidden, n_output,
                  hidden_transfer='tanh', out_transfer='identity',
                  loss='squared', pooling=None,
+                 leaky_coeffs=None,
                  optimizer='rprop',
                  batch_size=None,
                  max_iter=1000,
@@ -63,7 +64,7 @@ class BaseRnn(object):
         """
         super(BaseRnn, self).__init__(
             n_inpt, n_hidden, n_output, hidden_transfer, out_transfer,
-            loss, pooling)
+            loss, pooling, leaky_coeffs)
         self.optimizer = optimizer
         self.max_iter = max_iter
         self.verbose = verbose
@@ -115,6 +116,7 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
     def __init__(self, n_inpt, n_hidden, n_output,
                  hidden_transfer='tanh', out_transfer='identity',
                  loss='squared', pooling=None,
+                 leaky_coeffs=None,
                  optimizer='rprop',
                  batch_size=None,
                  max_iter=1000,
@@ -125,7 +127,8 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
             self.sample_dim = 1, 0
         super(SupervisedRnn, self).__init__(
             n_inpt, n_hidden, n_output, hidden_transfer, out_transfer, loss,
-            pooling, optimizer, batch_size, max_iter, verbose)
+            pooling, leaky_coeffs,
+            optimizer, batch_size, max_iter, verbose)
 
     def iter_fit(self, X, Z):
         """Iteratively fit the parameters of the model to the given data with
