@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 
+import numpy as np
+
 import theano
 import theano.tensor as T
 
@@ -38,9 +40,21 @@ def feedforward_layer(inpt, weights, bias):
     return output
 
 
+def leaky_integration(inpt, coefficients):
+    def step(x, y_tm1):
+        c = coefficients[np.newaxis]
+        y = (1 - c) * y_tm1 + c * x
+        return y
+    output, _ = theano.scan(
+        step,
+        sequences=inpt,
+        outputs_info=[T.zeros_like(inpt[0])])
+    return output
+
+
 def rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         hidden_biases, recurrents, out_bias, hidden_transfers,
-        out_transfer, pooling):
+        out_transfer, pooling, leaky_coeffs=None):
         exprs = {}
 
         f_hiddens = [lookup(i, transfer) for i in hidden_transfers]
@@ -50,6 +64,8 @@ def rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         hidden_in_rec, hidden_rec = recurrent_layer(
             hidden_in, recurrents[0], f_hiddens[0])
         exprs['hidden_in_0'] = hidden_in_rec
+        if leaky_coeffs is not None:
+            hidden_rec = leaky_integration(hidden_rec, leaky_coeffs[0])
         exprs['hidden_0'] = hidden_rec
 
         zipped = zip(hidden_to_hiddens, hidden_biases[1:], recurrents[1:],
@@ -58,6 +74,8 @@ def rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
             hidden_m1 = hidden_rec
             hidden_in = feedforward_layer(hidden_m1, w, b)
             hidden_in_rec, hidden_rec = recurrent_layer(hidden_in, r, t)
+            if leaky_coeffs is not None:
+                hidden_rec = leaky_integration(hidden_rec, leaky_coeffs[i])
             exprs['hidden_in_%i' % (i + 1)] = hidden_in_rec
             exprs['hidden_%i' % (i + 1)] = hidden_rec
 
@@ -93,7 +111,7 @@ class BaseRecurrentNetwork(Model):
 
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer='identity', loss='squared',
-                 pooling=None):
+                 pooling=None, leaky_coeffs=None):
         self.n_inpt = n_inpt
         self.n_output = n_output
 
@@ -109,6 +127,7 @@ class BaseRecurrentNetwork(Model):
         self.out_transfer = out_transfer
         self.loss = loss
         self.pooling = pooling
+        self.leaky_coeffs = leaky_coeffs
         super(BaseRecurrentNetwork, self).__init__()
 
     def init_pars(self):
@@ -158,16 +177,17 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork):
             pars.in_to_hidden, hidden_to_hiddens, pars.hidden_to_out,
             hidden_biases, recurrents, pars.out_bias,
             self.hidden_transfers, self.out_transfer, self.loss,
-            self.pooling)
+            self.pooling, self.leaky_coeffs)
 
 
     @staticmethod
     def make_exprs(inpt, target, in_to_hidden, hidden_to_hiddens, hidden_to_out,
                    hidden_biases, recurrents, out_bias, hidden_transfers,
-                   out_transfer, loss, pooling):
+                   out_transfer, loss, pooling, leaky_coeffs):
         exprs = rnn(inpt, in_to_hidden, hidden_to_hiddens,
                     hidden_to_out, hidden_biases, recurrents, out_bias,
-                    hidden_transfers, out_transfer, pooling)
+                    hidden_transfers, out_transfer, pooling,
+                    leaky_coeffs)
         f_loss = lookup(loss, loss_)
         sum_axis = 2 if not pooling else 1
         loss = f_loss(target, exprs['output']).sum(axis=sum_axis).mean()
