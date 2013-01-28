@@ -196,3 +196,18 @@ def hinton(ax, W, max_weight=None):
                 _blob(ax, _x - 0.5, height - _y + 0.5, min(1,w/max_weight),'white')
             elif w < 0:
                 _blob(ax, _x - 0.5, height - _y + 0.5, min(1,-w/max_weight),'black')
+
+
+def dict_to_hdf5(dct, fn, mode='w'):
+    fp = h5py.File(fn, mode)
+    add_to_hdf5(dct, fp)
+    fp.close()
+
+
+def add_to_hdf5(dct, grp):
+    for k, v in dct.items():
+        if isinstance(v, dict):
+            g = grp.create_group(k)
+            add_to_hdf5(v, g)
+        else:
+            ds = grp.create_dataset(k, data=v)
