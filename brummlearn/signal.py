@@ -64,3 +64,63 @@ def _make_tv_filter():
 
 
 tv_filter = _make_tv_filter()
+
+
+def wavelet_packet_rec(X, wavelet, max_level=3):
+    """Return the node wise reconstructions of a full wavelet decompositions.
+
+    :param X: Array of size (n, d), where `d` is the number of different signals;
+        each will be decomposed separately.
+    :param wavelet: Wavelet to use; string will be passed on to PyWavelets.
+    :param max_level: Maximum depth of the resulting packet tree.
+    :returns: Array of size `(n, d * 2**3)`.
+    """
+    res = []
+    for i in range(X.shape[1]):
+        x = X[:, i]
+        wp = pywt.WaveletPacket(x, wavelet, maxlevel=max_level)
+        for node in wp.get_leaf_nodes(True):
+            res.append(pywt.upcoef(node.path[-1], node.data, wavelet, node.level))
+    return np.concatenate([i[:, np.newaxis] for i in res], axis=1)
+
+
+def wavelet_packet_coef(X, wavelet, max_level=3):
+    """Return the node wise coefficients of a full wavelet decompositions.
+
+    :param X: Array of size (n, d), where `d` is the number of different signals;
+        each will be decomposed separately.
+    :param wavelet: Wavelet to use; string will be passed on to PyWavelets.
+    :param max_level: Maximum depth of the resulting packet tree.
+    :returns: Array of size `(n / 2**max_level , d * 2**3)`.
+    """
+    res = []
+    for i in range(X.shape[1]):
+        x = X[:, i]
+        wp = pywt.WaveletPacket(x, wavelet, maxlevel=max_level)
+        for node in wp.get_leaf_nodes(True):
+            res.append(node.data)
+
+    return np.concatenate([i[:, np.newaxis] for i in res], axis=1)
+
+
+def savitzky_golay_filter(X, order, degree):
+    # Calculate vandermonde matrix.
+    rng = np.arange(-order, order + 1, dtype='float64')
+    s = np.vander(rng)[:, ::-1]
+    S = s[:, :degree + 1]
+    r, = scipy.linalg.qr(S, mode='r')[:degree + 1]
+    inv_r = scipy.linalg.pinv(r)
+    g = np.dot(S, np.dot(inv_r, inv_r.T)).astype('float64')
+
+    filtered = np.zeros_like(X)
+
+    for i in range(1, X.shape[0]):
+        if i < order:
+            window = np.zeros((order, X.shape[1]))
+            window[-i:] = X[:i]
+        else:
+            window = X[i - order:i]
+
+        filtered[i] = np.dot(g[:order, 0].T, window) * 2
+
+    return filtered
