@@ -5,6 +5,8 @@ import itertools
 
 import climin.util
 import numpy as np
+import pywt
+import scipy.linalg
 import theano
 import theano.tensor as T
 
@@ -61,6 +63,7 @@ def _make_tv_filter():
         return filtered
 
     return _tv_filter
+
 
 
 tv_filter = _make_tv_filter()
@@ -124,3 +127,7 @@ def savitzky_golay_filter(X, order, degree):
         filtered[i] = np.dot(g[:order, 0].T, window) * 2
 
     return filtered
+
+
+def sg_max_filter(X, window_size, order, degree):
+    return savitzky_golay_filter(max_filter(X, window_size), order, degree)
