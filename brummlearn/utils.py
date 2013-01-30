@@ -27,7 +27,8 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-import numpy
+import numpy as np
+import h5py
 
 
 def scale_to_unit_interval(ndar, eps=1e-8):
@@ -88,9 +89,9 @@ def tile_raster_images(X, img_shape, tile_shape, tile_spacing=(0, 0),
         assert len(X) == 4
         # Create an output numpy ndarray to store the image
         if output_pixel_vals:
-            out_array = numpy.zeros((out_shape[0], out_shape[1], 4), dtype='uint8')
+            out_array = np.zeros((out_shape[0], out_shape[1], 4), dtype='uint8')
         else:
-            out_array = numpy.zeros((out_shape[0], out_shape[1], 4), dtype=X.dtype)
+            out_array = np.zeros((out_shape[0], out_shape[1], 4), dtype=X.dtype)
 
         #colors default to 0, alpha defaults to 1 (opaque)
         if output_pixel_vals:
@@ -106,7 +107,7 @@ def tile_raster_images(X, img_shape, tile_shape, tile_spacing=(0, 0),
                 if output_pixel_vals:
                     dt = 'uint8'
                 out_array[:, :, i] = (
-                    numpy.zeros(out_shape, dtype=dt) + channel_defaults[i])
+                    np.zeros(out_shape, dtype=dt) + channel_defaults[i])
             else:
                 # use a recurrent call to compute the channel and store it
                 # in the output
@@ -124,7 +125,7 @@ def tile_raster_images(X, img_shape, tile_shape, tile_spacing=(0, 0),
         dt = X.dtype
         if output_pixel_vals:
             dt = 'uint8'
-        out_array = numpy.zeros(out_shape, dtype=dt)
+        out_array = np.zeros(out_shape, dtype=dt)
 
         for tile_row in xrange(tile_shape[0]):
             for tile_col in xrange(tile_shape[1]):
@@ -156,7 +157,7 @@ def one_hot(array, classes):
     class, starting at 0, return a matrix with one row per item in `array` where
     that element is set to 1, everything else 0."""
     n = array.shape[0]
-    arr = numpy.zeros((n, classes), dtype=numpy.float32)
+    arr = np.zeros((n, classes), dtype=np.float32)
     arr[xrange(n), array] = 1.
     return arr
 
