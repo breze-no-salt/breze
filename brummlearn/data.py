@@ -246,3 +246,12 @@ def consecutify(seqs):
         new_seqs.append(block[start:stop])
         start = stop
     return block, new_seqs
+
+
+def sample(arr, n, axis=0, with_replacement=False):
+    indices = range(arr.shape[axis])
+    all_slice = slice(0, arr.shape[axis])
+    sampled_indices = random.sample(indices, n)
+    slices = tuple(all_slice if i != axis else sampled_indices
+                   for i in range(arr.ndim))
+    return arr[slices]
