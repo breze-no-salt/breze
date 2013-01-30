@@ -14,7 +14,7 @@ import theano.tensor as T
 import theano.tensor.shared_randomstreams
 
 from breze.model.neural import MultiLayerPerceptron
-
+from breze.component import corrupt
 from brummlearn.base import SupervisedBrezeWrapperBase
 
 
@@ -146,8 +146,7 @@ class DropoutMlp(Mlp):
 
         # Drop out inpts.
         inpt = self.exprs['inpt']
-        inpt_dropout = rng.binomial(inpt.shape, p=1 - self.p_dropout_inpt)
-        inpt_dropped_out = inpt_dropout * inpt
+        inpt_dropped_out = corrupt.mask(inpt, self.p_dropout_inpt, rng)
         givens = {inpt: inpt_dropped_out}
         loss = theano.clone(self.exprs['loss'], givens)
 
@@ -155,8 +154,7 @@ class DropoutMlp(Mlp):
         for i in range(n_layers - 1):
             # Drop out hidden.
             hidden = self.exprs['hidden_%i' % i]
-            hidden_dropout = rng.binomial(hidden.shape, p=1 - self.p_dropout_hidden)
-            hidden_dropped_out = hidden_dropout * hidden
+            hidden_dropped_out = corrupt.mask(hidden, self.p_dropout_hidden, rng)
             givens = {hidden: hidden_dropped_out}
             loss = theano.clone(loss, givens)
 

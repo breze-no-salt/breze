@@ -1,7 +1,7 @@
-Principal Component Analysis
+Extreme Component Analysis
 ============================
 
-.. automodule:: brummlearn.pca
+.. automodule:: brummlearn.xca
 
-.. autoclass:: brummlearn.pca.Pca
+.. autoclass:: brummlearn.xca.Xca
    :members: __init__, fit, transform, inverse_transform, reconstruct

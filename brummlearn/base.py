@@ -21,7 +21,7 @@ class BrezeWrapperBase(object):
         flat parameters of the model."""
         return T.grad(self.exprs['loss'], self.parameters.flat)
 
-    def _make_optimizer(self, f, fprime, args, f_Hp=None):
+    def _make_optimizer(self, f, fprime, args, wrt=None, f_Hp=None):
         if isinstance(self.optimizer, (str, unicode)):
             ident = self.optimizer
             kwargs = {}
@@ -30,11 +30,73 @@ class BrezeWrapperBase(object):
         kwargs['f'] = f
         kwargs['fprime'] = fprime
 
+        if wrt is None:
+            wrt = self.parameters.data
+
         if f_Hp is not None:
             kwargs['f_Hp'] = f_Hp
 
         kwargs['args'] = args
-        return climin.util.optimizer(ident, self.parameters.data, **kwargs)
+        return climin.util.optimizer(ident, wrt, **kwargs)
+
+    def powerfit(self, fit_data, eval_data, stop, report):
+        """Iteratively fit the model.
+
+        This is a convenience function which combines iteratively fitting a
+        model with stopping criterions and keeping track of the best parameters
+        found so far.
+
+        An iterator of dictionaries is returned; values are only yielded in the
+        case that the call `report(info)` returns True. The iterator
+        stops as soon as the call `stop(info)` returns True.
+
+        Each dictionary yielded is directly obtained from the optimizer used to
+        optimize the loss. It is augmented with the keys `loss`, `best_pars`
+        and `best_loss`. The best loss is obtained by evaluating the loss of the
+        model (given by model.exprs['loss']) on `eval_data`, while training
+        is done on `fit_data`.
+
+        This method respects a ``true_loss`` entry in the ``exprs``
+        dictionary: if it is present, it will be used for reporting the loss and
+        for comparing models throughout optimization instead of ``loss``, which
+        will be used for the optimization itself. This makes it possible to add
+        regularization terms to the loss and use other losses (such as the
+        zero-one loss) for comparison of parameters.
+
+        :param fit_data: A tuple containing arrays representing the data the
+            model should be fitted on.
+        :param eval_data: A tuple containing arrays representing the data the
+            model should be evaluated on, and which gives which model is "best".
+        :param stop: A function receiving an info dictionary which returns True
+            if the iterator should stop.
+        :param report: A function receiving an info dictionary which should
+            return True if the iterator should yield a value.
+        :returns: An iterator over info dictionaries.
+        """
+        loss_key = 'true_loss' if 'true_loss' in self.exprs else 'loss'
+        f_loss = self.function(self.data_arguments, loss_key)
+
+        best_pars = None
+        best_loss = float('inf')
+
+        for info in self.iter_fit(*fit_data):
+            if report(info):
+                if 'loss' not in info:
+                    # Not all optimizers, e.g. ilne and gd, do actually
+                    # calculate the loss.
+                    info['loss'] = f_loss(*fit_data)
+                info['val_loss'] = f_loss(*eval_data)
+
+                if info['val_loss'] < best_loss:
+                    best_loss = info['val_loss']
+                    best_pars = self.parameters.data.copy()
+
+                info['best_loss'] = best_loss
+                info['best_pars'] = best_pars
+
+                yield info
+            if stop(info):
+                break
 
 
 class SupervisedBrezeWrapperBase(BrezeWrapperBase):
