@@ -3,6 +3,7 @@ import theano.tensor as T
 from .rnn import UnsupervisedRnn
 from breze.component.misc import discrete_entropy
 
+
 def dummy_loss(X):
     return X.sum()
 
@@ -31,8 +32,9 @@ class RimRnn(UnsupervisedRnn):
         weights = self.parameters.hidden_to_out
 
         marginal = output.mean(axis=0)
-        cond_entropy = discrete_entropy(output, axis=1).mean()
         entropy = discrete_entropy(marginal)
+
+        cond_entropy = discrete_entropy(output, axis=1).mean()
 
         # negative mutual information -> we are minimizing
         neg_mi = cond_entropy - entropy
