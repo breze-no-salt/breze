@@ -224,8 +224,15 @@ class UnsupervisedRecurrentNetwork(BaseRecurrentNetwork):
                     hidden_to_out, hidden_biases, recurrents, out_bias,
                     hidden_transfers, out_transfer, pooling)
         f_loss = lookup(loss, loss_)
-        sum_axis = 2 if not pooling else 1
-        loss = f_loss(exprs['output']).sum(axis=sum_axis).mean()
+        loss = f_loss(exprs['output'])
+
+        # We need to check whether the loss is a scalar. If it is not,
+        # we get a row wise and component wise loss, which we sum away
+        # component wise and mean away row wise.
+        if loss.ndim != 0:
+            sum_axis = 2 if not pooling else 1
+            loss = loss.sum(axis=sum_axis).mean()
+
         exprs['loss'] = loss
         return exprs
 
