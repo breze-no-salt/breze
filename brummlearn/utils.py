@@ -152,16 +152,6 @@ def tile_raster_images(X, img_shape, tile_shape, tile_spacing=(0, 0),
         return out_array
 
 
-def one_hot(array, classes):
-    """Given a flat array `array` containing positive integers indicating a
-    class, starting at 0, return a matrix with one row per item in `array` where
-    that element is set to 1, everything else 0."""
-    n = array.shape[0]
-    arr = np.zeros((n, classes), dtype=np.float32)
-    arr[xrange(n), array] = 1.
-    return arr
-
-
 # From the matpplotlib cookbook at
 # http://www.scipy.org/Cookbook/Matplotlib/HintonDiagrams.
 # Adapte to work on an axis which can be given as an argument.
