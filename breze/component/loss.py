@@ -243,13 +243,3 @@ def drlim(margin, c_contrastive):
 
 
 drlim1 = drlim(1, 0.5)
-
-
-
-
-
-
-
-
-
-

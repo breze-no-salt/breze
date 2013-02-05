@@ -22,7 +22,7 @@ class Rim(Linear):
             self.out_transfer, self.loss, self.c_rim)
 
     @staticmethod
-    def make_exprs(inpt, in_to_out, bias, out_transfer, loss, c_rmi):
+    def make_exprs(inpt, in_to_out, bias, out_transfer, loss, c_rim):
         exprs = Linear.make_exprs(inpt, in_to_out, bias, out_transfer, loss)
         output = exprs['output']
 
@@ -37,6 +37,6 @@ class Rim(Linear):
         exprs['neg_mi'] = neg_mi
         exprs['l2'] = l2
 
-        exprs['loss'] = neg_mi + c_rmi * l2
+        exprs['loss'] = neg_mi + c_rim * l2
 
         return exprs
