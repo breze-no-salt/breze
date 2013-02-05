@@ -15,12 +15,13 @@ class RimRnn(UnsupervisedRnn):
                  pooling='mean',
                  leaky_coeffs=None,
                  optimizer='rprop',
+                 batch_size=None,
                  max_iter=1000,
                  verbose=False):
         self.c_l2 = c_l2
         super(RimRnn, self).__init__(
             n_inpt, n_hidden, n_output, hidden_transfer, 'softmax',
-            dummy_loss, pooling, leaky_coeffs, optimizer, None,
+            dummy_loss, pooling, leaky_coeffs, optimizer, batch_size,
             max_iter, verbose)
 
     def init_exprs(self):
