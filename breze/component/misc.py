@@ -18,4 +18,5 @@ def distance_matrix(X, Y=None, norm_=norm.l2):
 
 
 def discrete_entropy(X, axis=None):
+    X = T.minimum(1, X + 1e-8)
     return -(X * T.log(X)).sum(axis=axis)
