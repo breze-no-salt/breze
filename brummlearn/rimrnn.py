@@ -38,7 +38,7 @@ class RimRnn(UnsupervisedRnn):
 
         # negative mutual information -> we are minimizing
         neg_mi = cond_entropy - entropy
-        l2 = (weights**2).sum() / output.shape[0]
+        l2 = (weights**2).sum()
 
         self.exprs.update({
             'neg_mi': neg_mi,
