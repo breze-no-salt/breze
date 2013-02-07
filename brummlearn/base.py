@@ -27,6 +27,12 @@ class BrezeWrapperBase(object):
             kwargs = {}
         else:
             ident, kwargs = self.optimizer
+
+        # If we do not make this copy, we will add functions and a generator
+        # (the args) to an instance variable. This will result in
+        # unpicklability of the object.
+        kwargs = kwargs.copy()
+
         kwargs['f'] = f
         kwargs['fprime'] = fprime
 
