@@ -52,6 +52,45 @@ def leaky_integration(inpt, coefficients):
     return output
 
 
+def multinomial_weights(inpt):
+    inpt_normed = inpt - inpt.min(axis=0).dimshuffle('x', 0)
+    return T.exp(inpt_normed) / T.exp(inpt_normed).sum(axis=0)
+
+
+def weighted_pooling(inpt):
+    # First do a stable softmax over time.
+    inpt_flat = inpt.reshape((inpt.shape[0], inpt.shape[1] * inpt.shape[2]))
+    p = multinomial_weights(inpt_flat)
+
+    inpt_flat *= p
+    res_flat = inpt_flat.sum(axis=0)
+    return res_flat.reshape((inpt.shape[1], inpt.shape[2]))
+
+
+def stochastic_pooling(inpt, rng=None):
+    if rng is None:
+        srng = RandomStreams()
+
+    # First do a stable softmax over time.
+    inpt_flat = inpt.reshape((inpt.shape[0], inpt.shape[1] * inpt.shape[2]))
+    p = multinomial_weights(inpt_flat)
+
+    # Sum up the probabilities giving the cdf.
+    cumulative, _ = theano.scan(
+        lambda prior_result, c: prior_result + c,
+        p,
+        outputs_info=T.zeros_like(p[0]))
+
+    # Draw Uniformly and check into which interval of the cdf the sample falls.
+    u = srng.uniform(size=inpt_flat.shape)[0, :]
+    picks = T.eq((u < cumulative), 1)
+    idxs = T.argmax(picks, axis=0)
+
+    # Return that sample.
+    res_flat = inpt_flat[idxs, T.arange(0, idxs.shape[0])]
+    return res_flat.reshape((inpt.shape[1], inpt.shape[2]))
+
+
 def rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         hidden_biases, recurrents, out_bias, hidden_transfers,
         out_transfer, pooling, leaky_coeffs=None):
@@ -79,22 +118,24 @@ def rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
             exprs['hidden_in_%i' % (i + 1)] = hidden_in_rec
             exprs['hidden_%i' % (i + 1)] = hidden_rec
 
-        output_in = feedforward_layer(hidden_rec, hidden_to_out, out_bias)
+        unpooled = feedforward_layer(hidden_rec, hidden_to_out, out_bias)
 
         if pooling is None:
-            pass
+            output_in = unpooled
         elif pooling == 'mean':
-            output_in = T.mean(output_in, axis=0)
+            output_in = T.mean(unpooled, axis=0)
         elif pooling == 'sum':
-            output_in = T.sum(output_in, axis=0)
+            output_in = T.sum(unpooled, axis=0)
         elif pooling == 'prod':
-            output_in = T.prod(output_in, axis=0)
+            output_in = T.prod(unpooled, axis=0)
         elif pooling == 'min':
-            output_in = T.min(output_in, axis=0)
+            output_in = T.min(unpooled, axis=0)
         elif pooling == 'max':
-            output_in = T.max(output_in, axis=0)
+            output_in = T.max(unpooled, axis=0)
         elif pooling == 'last':
             output_in = output_in[-1]
+        elif pooling == 'stochastic':
+            output_in = stochastic_pooling(unpooled)
         else:
             raise ValueError('unknown pooling operator %s' % pooling)
 
@@ -102,6 +143,7 @@ def rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
 
         exprs.update(
             {'inpt': inpt,
+             'unpooled': unpooled,
              'output_in': output_in,
              'output': output,
              })
