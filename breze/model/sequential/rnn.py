@@ -5,21 +5,29 @@ import numpy as np
 
 import theano
 import theano.tensor as T
+from theano.tensor.extra_ops import repeat
+from theano.tensor.shared_randomstreams import RandomStreams
 
 from ...util import ParameterSet, Model, lookup
 from ...component import transfer, loss as loss_
 
 
-def recurrent_layer(hidden_inpt, hidden_to_hidden, f):
+def recurrent_layer(hidden_inpt, hidden_to_hidden, f, initial_hidden):
     def step(x, hi_tm1):
         h_tm1 = f(hi_tm1)
         hi = T.dot(h_tm1, hidden_to_hidden) + x
         return hi
 
+    # Modify the initial hidden state to obtain several copies of
+    # it, one per sample.
+    initial_hidden_b = repeat(initial_hidden, hidden_inpt.shape[1], axis=0)
+    initial_hidden_b = initial_hidden_b.reshape(
+        (hidden_inpt.shape[1], hidden_inpt.shape[2]))
+
     hidden_in_rec, _ = theano.scan(
         step,
         sequences=hidden_inpt,
-        outputs_info=[T.zeros_like(hidden_inpt[0])])
+        outputs_info=[initial_hidden_b])
 
     hidden_rec = f(hidden_in_rec)
 
@@ -92,7 +100,7 @@ def stochastic_pooling(inpt, rng=None):
 
 
 def rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
-        hidden_biases, recurrents, out_bias, hidden_transfers,
+        hidden_biases, initial_hiddens, recurrents, out_bias, hidden_transfers,
         out_transfer, pooling, leaky_coeffs=None):
         exprs = {}
 
@@ -101,18 +109,18 @@ def rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
 
         hidden_in = feedforward_layer(inpt, in_to_hidden, hidden_biases[0])
         hidden_in_rec, hidden_rec = recurrent_layer(
-            hidden_in, recurrents[0], f_hiddens[0])
+            hidden_in, recurrents[0], f_hiddens[0], initial_hiddens[0])
         exprs['hidden_in_0'] = hidden_in_rec
         if leaky_coeffs is not None:
             hidden_rec = leaky_integration(hidden_rec, leaky_coeffs[0])
         exprs['hidden_0'] = hidden_rec
 
         zipped = zip(hidden_to_hiddens, hidden_biases[1:], recurrents[1:],
-                     f_hiddens[1:])
-        for i, (w, b, r, t) in enumerate(zipped):
+                     f_hiddens[1:], initial_hiddens[1:])
+        for i, (w, b, r, t, j) in enumerate(zipped):
             hidden_m1 = hidden_rec
             hidden_in = feedforward_layer(hidden_m1, w, b)
-            hidden_in_rec, hidden_rec = recurrent_layer(hidden_in, r, t)
+            hidden_in_rec, hidden_rec = recurrent_layer(hidden_in, r, t, j)
             if leaky_coeffs is not None:
                 hidden_rec = leaky_integration(hidden_rec, leaky_coeffs[i])
             exprs['hidden_in_%i' % (i + 1)] = hidden_in_rec
@@ -186,6 +194,7 @@ class BaseRecurrentNetwork(Model):
             'hidden_bias_0': n_hiddens[0],
             'recurrent_0': (n_hiddens[0], n_hiddens[0]),
             'hidden_to_out': (n_hiddens[-1], n_output),
+            'initial_hidden_0': n_hiddens[0],
             'out_bias': n_output
         }
 
@@ -194,6 +203,7 @@ class BaseRecurrentNetwork(Model):
             spec['hidden_to_hidden_%i' % i] = (inlayer, outlayer)
             spec['hidden_bias_%i' % (i + 1)] = outlayer
             spec['recurrent_%i' % (i + 1)] = (n_hiddens[i], n_hiddens[i])
+            spec['initial_hidden_%i' % (i + 1)] = outlayer
 
         return spec
 
@@ -210,6 +220,8 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork):
                          for i in range(len(self.n_hiddens))]
         recurrents = [getattr(pars, 'recurrent_%i' % i)
                       for i in range(len(self.n_hiddens))]
+        initial_hiddens = [getattr(pars, 'initial_hidden_%i' % i)
+                           for i in range(len(self.n_hiddens))]
 
         if self.pooling is None:
             target = T.tensor3('target')
@@ -219,18 +231,17 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork):
         self.exprs = self.make_exprs(
             inpt, target,
             pars.in_to_hidden, hidden_to_hiddens, pars.hidden_to_out,
-            hidden_biases, recurrents, pars.out_bias,
+            hidden_biases, initial_hiddens, recurrents, pars.out_bias,
             self.hidden_transfers, self.out_transfer, self.loss,
             self.pooling, self.leaky_coeffs)
 
-
     @staticmethod
     def make_exprs(inpt, target, in_to_hidden, hidden_to_hiddens, hidden_to_out,
-                   hidden_biases, recurrents, out_bias, hidden_transfers,
-                   out_transfer, loss, pooling, leaky_coeffs):
+                   hidden_biases, initial_hiddens, recurrents, out_bias,
+                   hidden_transfers, out_transfer, loss, pooling, leaky_coeffs):
         exprs = rnn(inpt, in_to_hidden, hidden_to_hiddens,
-                    hidden_to_out, hidden_biases, recurrents, out_bias,
-                    hidden_transfers, out_transfer, pooling,
+                    hidden_to_out, hidden_biases, initial_hiddens, recurrents,
+                    out_bias, hidden_transfers, out_transfer, pooling,
                     leaky_coeffs)
         f_loss = lookup(loss, loss_)
         sum_axis = 2 if not pooling else 1
@@ -251,20 +262,22 @@ class UnsupervisedRecurrentNetwork(BaseRecurrentNetwork):
                          for i in range(len(self.n_hiddens))]
         recurrents = [getattr(pars, 'recurrent_%i' % i)
                       for i in range(len(self.n_hiddens))]
+        initial_hiddens = [getattr(pars, 'initial_hidden_%i' % i)
+                           for i in range(len(self.n_hiddens))]
         self.exprs = self.make_exprs(
             inpt,
             pars.in_to_hidden, hidden_to_hiddens, pars.hidden_to_out,
-            hidden_biases, recurrents, pars.out_bias,
+            hidden_biases, initial_hiddens, recurrents, pars.out_bias,
             self.hidden_transfers, self.out_transfer, self.loss,
             self.pooling)
 
     @staticmethod
     def make_exprs(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
-                   hidden_biases, recurrents, out_bias, hidden_transfers,
-                   out_transfer, loss, pooling):
+                   hidden_biases, initial_hiddens, recurrents, out_bias,
+                   hidden_transfers, out_transfer, loss, pooling):
         exprs = rnn(inpt, in_to_hidden, hidden_to_hiddens,
-                    hidden_to_out, hidden_biases, recurrents, out_bias,
-                    hidden_transfers, out_transfer, pooling)
+                    hidden_to_out, hidden_biases, initial_hiddens, recurrents,
+                    out_bias, hidden_transfers, out_transfer, pooling)
         f_loss = lookup(loss, loss_)
         loss = f_loss(exprs['output'])
 
