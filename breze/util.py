@@ -134,7 +134,7 @@ class ParameterSet(object):
 class Model(object):
 
     def __init__(self):
-        self.updates = collections.defaultdict(lambda: {})
+        self.updates = collections.defaultdict(dict)
         self.init_pars()
         self.init_exprs()
 
@@ -143,17 +143,6 @@ class Model(object):
 
     def init_exprs(self):
         pass
-
-    def __getstate__(self):
-        dct = self.__dict__.copy()
-        dct['updates'] = dict(dct['updates'])
-        return dct
-
-    def __setstate__(self, state):
-        dct = state['updates']
-        state['updates'] = collections.defaultdict(lambda: {})
-        state['updates'].update(dct)
-        self.__dict__.update(state)
 
     def function(self, variables, exprs, mode=None, explicit_pars=False,
                  givens=None,
