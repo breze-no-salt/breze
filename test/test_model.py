@@ -367,9 +367,9 @@ def test_pooling_rnn():
 
 
 def test_slstmrnn():
-    raise SkipTest()
     l = SupervisedLstmRecurrentNetwork(
-        2, 5, 1, 'sigmoid', 'identity', 'squared')
+        2, [5], 1, hidden_transfers=['sigmoid'],
+        out_transfer='identity', loss='squared')
 
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
@@ -384,7 +384,6 @@ def test_slstmrnn():
 
 
 def test_pooling_slstmrnn():
-    raise SkipTest()
     l = SupervisedLstmRecurrentNetwork(
         2, 3, 1, 'sigmoid', 'identity', 'ncac', 'mean')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
@@ -400,7 +399,6 @@ def test_pooling_slstmrnn():
 
 
 def test_uslstmrnn():
-    raise SkipTest()
     l = UnsupervisedLstmRecurrentNetwork(
         2, 5, 1, 'sigmoid', 'identity', lambda X: abs(X))
 
@@ -416,7 +414,6 @@ def test_uslstmrnn():
 
 
 def test_pooling_uslstmrnn():
-    raise SkipTest()
     l = UnsupervisedLstmRecurrentNetwork(
         2, 3, 1, 'sigmoid', 'identity', lambda X: abs(X), 'mean')
 

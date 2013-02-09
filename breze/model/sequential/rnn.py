@@ -34,6 +34,39 @@ def recurrent_layer(hidden_inpt, hidden_to_hidden, f, initial_hidden):
     return hidden_in_rec, hidden_rec
 
 
+def lstm_layer(hidden_inpt, hidden_to_hidden,
+               ingate_peephole, outgate_peephole, forgetgate_peephole,
+               f):
+    n_hidden_out = hidden_to_hidden.shape[0]
+
+    def lstm_step(x_t, s_tm1, h_tm1):
+        x_t += T.dot(h_tm1, hidden_to_hidden)
+
+        inpt = T.tanh(x_t[:, :n_hidden_out])
+        gates = x_t[:, n_hidden_out:]
+        inpeep = s_tm1 * ingate_peephole
+        outpeep = s_tm1 * outgate_peephole
+        forgetpeep = s_tm1 * forgetgate_peephole
+
+        ingate = f(gates[:, :n_hidden_out] + inpeep)
+        forgetgate = f(
+            gates[:, n_hidden_out:2 * n_hidden_out] + forgetpeep)
+        outgate = f(gates[:, 2 * n_hidden_out:] + outpeep)
+
+        s_t = inpt * ingate + s_tm1 * forgetgate
+        h_t = f(s_t) * outgate
+        return [s_t, h_t]
+
+    (states, hidden_rec), _ = theano.scan(
+        lstm_step,
+        sequences=hidden_inpt,
+        outputs_info=[T.zeros_like(hidden_inpt[0, :, 0:n_hidden_out]),
+                      T.zeros_like(hidden_inpt[0, :, 0:n_hidden_out])
+                      ])
+
+    return states, hidden_rec
+
+
 def feedforward_layer(inpt, weights, bias):
     n_time_steps = inpt.shape[0]
     n_samples = inpt.shape[1]
@@ -73,6 +106,26 @@ def weighted_pooling(inpt):
     inpt_flat *= p
     res_flat = inpt_flat.sum(axis=0)
     return res_flat.reshape((inpt.shape[1], inpt.shape[2]))
+
+
+def pooling_layer(inpt, typ):
+    if typ == 'mean':
+        output = T.mean(inpt, axis=0)
+    elif typ == 'sum':
+        output = T.sum(inpt, axis=0)
+    elif typ == 'prod':
+        output = T.prod(inpt, axis=0)
+    elif typ == 'min':
+        output = T.min(inpt, axis=0)
+    elif typ == 'max':
+        output = T.max(inpt, axis=0)
+    elif typ == 'last':
+        output = inpt[-1]
+    elif typ == 'stochastic':
+        output = stochastic_pooling(inpt)
+    else:
+        raise ValueError('unknown pooling operator %s' % typ)
+    return output
 
 
 def stochastic_pooling(inpt, rng=None):
@@ -130,22 +183,70 @@ def rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
 
         if pooling is None:
             output_in = unpooled
-        elif pooling == 'mean':
-            output_in = T.mean(unpooled, axis=0)
-        elif pooling == 'sum':
-            output_in = T.sum(unpooled, axis=0)
-        elif pooling == 'prod':
-            output_in = T.prod(unpooled, axis=0)
-        elif pooling == 'min':
-            output_in = T.min(unpooled, axis=0)
-        elif pooling == 'max':
-            output_in = T.max(unpooled, axis=0)
-        elif pooling == 'last':
-            output_in = output_in[-1]
-        elif pooling == 'stochastic':
-            output_in = stochastic_pooling(unpooled)
         else:
-            raise ValueError('unknown pooling operator %s' % pooling)
+            output_in = pooling_layer(unpooled, pooling)
+
+        output = f_output(output_in)
+
+        exprs.update(
+            {'inpt': inpt,
+             'unpooled': unpooled,
+             'output_in': output_in,
+             'output': output,
+             })
+
+        return exprs
+
+
+def lstm_rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
+             hidden_biases, recurrents, out_bias,
+             ingate_peepholes, outgate_peepholes, forgetgate_peepholes,
+             hidden_transfers, out_transfer, pooling, leaky_coeffs=None):
+        exprs = {}
+
+        f_hiddens = [lookup(i, transfer) for i in hidden_transfers]
+        f_output = lookup(out_transfer, transfer)
+
+        # First ordinary feedforward layer.
+        hidden_in = feedforward_layer(inpt, in_to_hidden, hidden_biases[0])
+
+        # First recurrent layer.
+        state, hidden_rec = lstm_layer(
+            hidden_in, recurrents[0],
+            ingate_peepholes[0], outgate_peepholes[0], forgetgate_peepholes[0],
+            f_hiddens[0])
+
+        exprs['state_0'] = state
+        exprs['hidden_0'] = hidden_rec
+
+        if leaky_coeffs is not None:
+            hidden_rec = leaky_integration(hidden_rec, leaky_coeffs[0])
+
+        exprs['hidden_0'] = hidden_rec
+
+        # Optional further recurrent layers.
+        zipped = zip(hidden_to_hiddens, hidden_biases[1:], recurrents[1:],
+                     ingate_peepholes[1:], outgate_peepholes[1:],
+                     forgetgate_peepholes[1:],
+                     f_hiddens[1:])
+        for i, (w, b, r, ig, og, fg, t) in enumerate(zipped):
+            hidden_m1 = hidden_rec
+            hidden_in = feedforward_layer(hidden_m1, w, b)
+
+            state, hidden_rec = lstm_layer(hidden_in, r, ig, og, fg, t)
+
+            if leaky_coeffs is not None:
+                hidden_rec = leaky_integration(hidden_rec, leaky_coeffs[i])
+
+            exprs['state_%i' % (i + 1)] = state
+            exprs['hidden_%i' % (i + 1)] = hidden_rec
+
+        unpooled = feedforward_layer(hidden_rec, hidden_to_out, out_bias)
+
+        if pooling is None:
+            output_in = unpooled
+        else:
+            output_in = pooling_layer(unpooled, pooling)
 
         output = f_output(output_in)
 
@@ -187,6 +288,37 @@ class BaseRecurrentNetwork(Model):
             self.n_inpt, self.n_hiddens, self.n_output)
         self.parameters = ParameterSet(**parspec)
 
+
+class LstmNetworkComponent(object):
+
+    @staticmethod
+    def get_parameter_spec(n_inpt, n_hiddens, n_output):
+        spec = {
+            'in_to_hidden': (n_inpt, 4 * n_hiddens[0]),
+            'hidden_to_out': (n_hiddens[-1], n_output),
+            'hidden_bias_0': 4 * n_hiddens[0],
+            'recurrent_0': (n_hiddens[0], 4 * n_hiddens[0]),
+            'out_bias': n_output,
+            'ingate_peephole_0': (n_hiddens[0],),
+            'outgate_peephole_0': (n_hiddens[0],),
+            'forgetgate_peephole_0': (n_hiddens[0],)
+        }
+
+        zipped = zip(n_hiddens[:-1], n_hiddens[1:])
+        for i, (inlayer, outlayer) in enumerate(zipped):
+            spec.update({
+                'hidden_bias_%i' % (i + 1): 4 * outlayer,
+                'hidden_to_hidden_%i': (inlayer, 4 * outlayer),
+                'recurrent_%i': (outlayer, 4 * outlayer),
+                'ingate_peephole_%i' % (i + 1): (outlayer,),
+                'outgate_peephole_%i' % (i + 1): (outlayer,),
+                'forgetgate_peephole_%i' % (i + 1): (outlayer,)
+            })
+        return spec
+
+
+class SimpleRnnComponent(object):
+
     @staticmethod
     def get_parameter_spec(n_inpt, n_hiddens, n_output):
         spec = {
@@ -208,7 +340,48 @@ class BaseRecurrentNetwork(Model):
         return spec
 
 
-class SupervisedRecurrentNetwork(BaseRecurrentNetwork):
+class UnsupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
+
+    def init_exprs(self):
+        inpt = T.tensor3('inpt')
+        pars = self.parameters
+        hidden_to_hiddens = [getattr(pars, 'hidden_to_hidden_%i' % i)
+                             for i in range(len(self.n_hiddens) - 1)]
+        hidden_biases = [getattr(pars, 'hidden_bias_%i' % i)
+                         for i in range(len(self.n_hiddens))]
+        recurrents = [getattr(pars, 'recurrent_%i' % i)
+                      for i in range(len(self.n_hiddens))]
+        initial_hiddens = [getattr(pars, 'initial_hidden_%i' % i)
+                           for i in range(len(self.n_hiddens))]
+        self.exprs = self.make_exprs(
+            inpt,
+            pars.in_to_hidden, hidden_to_hiddens, pars.hidden_to_out,
+            hidden_biases, initial_hiddens, recurrents, pars.out_bias,
+            self.hidden_transfers, self.out_transfer, self.loss,
+            self.pooling)
+
+    @staticmethod
+    def make_exprs(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
+                   hidden_biases, initial_hiddens, recurrents, out_bias,
+                   hidden_transfers, out_transfer, loss, pooling):
+        exprs = rnn(inpt, in_to_hidden, hidden_to_hiddens,
+                    hidden_to_out, hidden_biases, initial_hiddens, recurrents,
+                    out_bias, hidden_transfers, out_transfer, pooling)
+        f_loss = lookup(loss, loss_)
+        loss = f_loss(exprs['output'])
+
+        # We need to check whether the loss is a scalar. If it is not,
+        # we get a row wise and component wise loss, which we sum away
+        # component wise and mean away row wise.
+        if loss.ndim != 0:
+            sum_axis = 2 if not pooling else 1
+            loss = loss.sum(axis=sum_axis).mean()
+
+        exprs['loss'] = loss
+        return exprs
+
+
+class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
 
     def init_exprs(self):
         inpt = T.tensor3('inpt')
@@ -251,68 +424,54 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork):
         return exprs
 
 
-class UnsupervisedRecurrentNetwork(BaseRecurrentNetwork):
+class UnsupervisedLstmRecurrentNetwork(BaseRecurrentNetwork, LstmNetworkComponent):
 
     def init_exprs(self):
         inpt = T.tensor3('inpt')
         pars = self.parameters
+
         hidden_to_hiddens = [getattr(pars, 'hidden_to_hidden_%i' % i)
                              for i in range(len(self.n_hiddens) - 1)]
         hidden_biases = [getattr(pars, 'hidden_bias_%i' % i)
                          for i in range(len(self.n_hiddens))]
         recurrents = [getattr(pars, 'recurrent_%i' % i)
                       for i in range(len(self.n_hiddens))]
-        initial_hiddens = [getattr(pars, 'initial_hidden_%i' % i)
-                           for i in range(len(self.n_hiddens))]
+        ingate_peepholes = [getattr(pars, 'ingate_peephole_%i' % i)
+                            for i in range(len(self.n_hiddens))]
+        outgate_peepholes = [getattr(pars, 'outgate_peephole_%i' % i)
+                             for i in range(len(self.n_hiddens))]
+        forgetgate_peepholes = [getattr(pars, 'forgetgate_peephole_%i' % i)
+                                for i in range(len(self.n_hiddens))]
+
         self.exprs = self.make_exprs(
             inpt,
             pars.in_to_hidden, hidden_to_hiddens, pars.hidden_to_out,
-            hidden_biases, initial_hiddens, recurrents, pars.out_bias,
-            self.hidden_transfers, self.out_transfer, self.loss,
-            self.pooling)
+            hidden_biases, recurrents, pars.out_bias,
+            ingate_peepholes, outgate_peepholes, forgetgate_peepholes,
+            self.hidden_transfers, self.out_transfer, self.loss, self.pooling,
+            self.leaky_coeffs)
 
     @staticmethod
-    def make_exprs(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
-                   hidden_biases, initial_hiddens, recurrents, out_bias,
-                   hidden_transfers, out_transfer, loss, pooling):
-        exprs = rnn(inpt, in_to_hidden, hidden_to_hiddens,
-                    hidden_to_out, hidden_biases, initial_hiddens, recurrents,
-                    out_bias, hidden_transfers, out_transfer, pooling)
+    def make_exprs(inpt,
+                   in_to_hidden, hidden_to_hiddens, hidden_to_out,
+                   hidden_biases, recurrents, out_bias,
+                   ingate_peepholes, outgate_peepholes, forgetgate_peepholes,
+                   hidden_transfers, out_transfer, loss, pooling, leaky_coeffs):
+
+        exprs = lstm_rnn(
+            inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
+            hidden_biases, recurrents, out_bias,
+            ingate_peepholes, outgate_peepholes, forgetgate_peepholes,
+            hidden_transfers, out_transfer, pooling, leaky_coeffs)
+
         f_loss = lookup(loss, loss_)
-        loss = f_loss(exprs['output'])
-
-        # We need to check whether the loss is a scalar. If it is not,
-        # we get a row wise and component wise loss, which we sum away
-        # component wise and mean away row wise.
-        if loss.ndim != 0:
-            sum_axis = 2 if not pooling else 1
-            loss = loss.sum(axis=sum_axis).mean()
-
+        sum_axis = 2 if not pooling else 1
+        loss = f_loss(exprs['output']).sum(axis=sum_axis).mean()
         exprs['loss'] = loss
         return exprs
 
 
-class SupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
-
-    def __init__(self, n_inpt, n_hidden, n_output,
-                 hidden_transfer, out_transfer='identity', loss='squared',
-                 pooling=None):
-        super(SupervisedLstmRecurrentNetwork, self).__init__(
-            n_inpt, n_hidden, n_output, hidden_transfer, out_transfer, loss,
-            pooling)
-
-    @staticmethod
-    def get_parameter_spec(n_inpt, n_hidden, n_output):
-        return {
-            'in_to_hidden': (n_inpt, 4 * n_hidden),
-            'hidden_to_hidden': (n_hidden, 4 * n_hidden),
-            'hidden_to_out': (n_hidden, n_output),
-            'hidden_bias': 4 * n_hidden,
-            'out_bias': n_output,
-            'ingate_peephole': (n_hidden,),
-            'outgate_peephole': (n_hidden,),
-            'forgetgate_peephole': (n_hidden,)
-        }
+class SupervisedLstmRecurrentNetwork(BaseRecurrentNetwork, LstmNetworkComponent):
 
     def init_exprs(self):
         inpt = T.tensor3('inpt')
@@ -321,216 +480,46 @@ class SupervisedLstmRecurrentNetwork(SupervisedRecurrentNetwork):
         else:
             target = T.matrix('tensor3')
         pars = self.parameters
+
+        hidden_to_hiddens = [getattr(pars, 'hidden_to_hidden_%i' % i)
+                             for i in range(len(self.n_hiddens) - 1)]
+        hidden_biases = [getattr(pars, 'hidden_bias_%i' % i)
+                         for i in range(len(self.n_hiddens))]
+        recurrents = [getattr(pars, 'recurrent_%i' % i)
+                      for i in range(len(self.n_hiddens))]
+        ingate_peepholes = [getattr(pars, 'ingate_peephole_%i' % i)
+                            for i in range(len(self.n_hiddens))]
+        outgate_peepholes = [getattr(pars, 'outgate_peephole_%i' % i)
+                             for i in range(len(self.n_hiddens))]
+        forgetgate_peepholes = [getattr(pars, 'forgetgate_peephole_%i' % i)
+                                for i in range(len(self.n_hiddens))]
+
         self.exprs = self.make_exprs(
             inpt, target,
-            pars.in_to_hidden, pars.hidden_to_hidden, pars.hidden_to_out,
-            pars.hidden_bias, pars.out_bias,
-            pars.ingate_peephole, pars.outgate_peephole,
-            pars.forgetgate_peephole,
-            self.hidden_transfer, self.out_transfer, self.loss, self.pooling)
+            pars.in_to_hidden, hidden_to_hiddens, pars.hidden_to_out,
+            hidden_biases, recurrents, pars.out_bias,
+            ingate_peepholes, outgate_peepholes, forgetgate_peepholes,
+            self.hidden_transfers, self.out_transfer, self.loss, self.pooling,
+            self.leaky_coeffs)
 
     @staticmethod
     def make_exprs(inpt, target,
-                   in_to_hidden, hidden_to_hidden, hidden_to_out,
-                   hidden_bias, out_bias,
-                   ingate_peephole, outgate_peephole, forgetgate_peephole,
-                   hidden_transfer, out_transfer, loss, pooling):
+                   in_to_hidden, hidden_to_hiddens, hidden_to_out,
+                   hidden_biases, recurrents, out_bias,
+                   ingate_peepholes, outgate_peepholes, forgetgate_peepholes,
+                   hidden_transfers, out_transfer, loss, pooling, leaky_coeffs):
 
-        f_hidden = lookup(hidden_transfer, transfer)
-        f_output = lookup(out_transfer, transfer)
+        exprs = lstm_rnn(
+            inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
+            hidden_biases, recurrents, out_bias,
+            ingate_peepholes, outgate_peepholes, forgetgate_peepholes,
+            hidden_transfers, out_transfer, pooling, leaky_coeffs)
+
         f_loss = lookup(loss, loss_)
+        sum_axis = 2 if not pooling else 1
+        loss = f_loss(target, exprs['output']).sum(axis=sum_axis).mean()
 
-        n_time_steps = inpt.shape[0]
-        n_samples = inpt.shape[1]
-        n_inpt = in_to_hidden.shape[0]
-        n_hidden_in = hidden_to_hidden.shape[1]
-        n_hidden_out = hidden_to_hidden.shape[0]
-        n_output = hidden_to_out.shape[1]
+        exprs['loss'] = loss
+        exprs['target'] = target
 
-        # If we ever want to enable disabling of peepholes, we can make this
-        # variable be setable to False.
-        peepholes = True
-
-        def lstm_step(x_t, s_tm1, h_tm1):
-            x_t += T.dot(h_tm1, hidden_to_hidden)
-
-            inpt = T.tanh(x_t[:, :n_hidden_out])
-            gates = x_t[:, n_hidden_out:]
-            inpeep = 0 if not peepholes else s_tm1 * ingate_peephole
-            outpeep = 0 if not peepholes else s_tm1 * outgate_peephole
-            forgetpeep = 0 if not peepholes else s_tm1 * forgetgate_peephole
-
-            ingate = f_hidden(gates[:, :n_hidden_out] + inpeep)
-            forgetgate = f_hidden(
-                gates[:, n_hidden_out:2 * n_hidden_out] + forgetpeep)
-            outgate = f_hidden(gates[:, 2 * n_hidden_out:] + outpeep)
-
-            s_t = inpt * ingate + s_tm1 * forgetgate
-            h_t = f_hidden(s_t) * outgate
-            return [s_t, h_t]
-
-        inpt_flat = inpt.reshape((n_time_steps * n_samples, n_inpt))
-        hidden_flat = T.dot(inpt_flat, in_to_hidden)
-        hidden = hidden_flat.reshape((n_time_steps, n_samples, n_hidden_in))
-        hidden += hidden_bias.dimshuffle('x', 'x', 0)
-
-        (states, hidden_rec), _ = theano.scan(
-            lstm_step,
-            sequences=hidden,
-            outputs_info=[T.zeros_like(hidden[0, :, 0:n_hidden_out]),
-                          T.zeros_like(hidden[0, :, 0:n_hidden_out])
-                          ])
-
-        hidden_rec_flat = hidden_rec.reshape(
-            (n_time_steps * n_samples, n_hidden_out))
-
-        output_flat = T.dot(hidden_rec_flat, hidden_to_out)
-        output_in = output_flat.reshape((n_time_steps, n_samples, n_output))
-        output_in += out_bias.dimshuffle('x', 'x', 0)
-
-        if pooling is None:
-            pass
-        elif pooling == 'mean':
-            output_in = T.mean(output_in, axis=0)
-        elif pooling == 'sum':
-            output_in = T.sum(output_in, axis=0)
-        elif pooling == 'prod':
-            output_in = T.prod(output_in, axis=0)
-        elif pooling == 'min':
-            output_in = T.min(output_in, axis=0)
-        elif pooling == 'max':
-            output_in = T.max(output_in, axis=0)
-        else:
-            raise ValueError('unknown pooling operator %s' % pooling)
-
-        output = f_output(output_in)
-
-        loss = f_loss(target, output).sum(axis=2).mean()
-
-        return {'inpt': inpt,
-                'target': target,
-                'states': states,
-                'hidden': hidden_rec,
-                'output-in': output_in,
-                'output': output,
-                'loss': loss}
-
-
-class UnsupervisedLstmRecurrentNetwork(UnsupervisedRecurrentNetwork):
-
-    def __init__(self, n_inpt, n_hidden, n_output,
-                 hidden_transfer, out_transfer='identity', loss='squared',
-                 pooling=None):
-        super(UnsupervisedLstmRecurrentNetwork, self).__init__(
-            n_inpt, n_hidden, n_output, hidden_transfer, out_transfer, loss,
-            pooling)
-
-    @staticmethod
-    def get_parameter_spec(n_inpt, n_hidden, n_output):
-        return {
-            'in_to_hidden': (n_inpt, 4 * n_hidden),
-            'hidden_to_hidden': (n_hidden, 4 * n_hidden),
-            'hidden_to_out': (n_hidden, n_output),
-            'hidden_bias': 4 * n_hidden,
-            'out_bias': n_output,
-            'ingate_peephole': (n_hidden,),
-            'outgate_peephole': (n_hidden,),
-            'forgetgate_peephole': (n_hidden,)
-        }
-
-    def init_exprs(self):
-        inpt = T.tensor3('inpt')
-        pars = self.parameters
-        self.exprs = self.make_exprs(
-            inpt,
-            pars.in_to_hidden, pars.hidden_to_hidden, pars.hidden_to_out,
-            pars.hidden_bias, pars.out_bias,
-            pars.ingate_peephole, pars.outgate_peephole,
-            pars.forgetgate_peephole,
-            self.hidden_transfer, self.out_transfer, self.loss, self.pooling)
-
-    @staticmethod
-    def make_exprs(inpt,
-                   in_to_hidden, hidden_to_hidden, hidden_to_out,
-                   hidden_bias, out_bias,
-                   ingate_peephole, outgate_peephole, forgetgate_peephole,
-                   hidden_transfer, out_transfer, loss, pooling):
-
-        f_hidden = lookup(hidden_transfer, transfer)
-        f_output = lookup(out_transfer, transfer)
-        f_loss = lookup(loss, loss_)
-
-        n_time_steps = inpt.shape[0]
-        n_samples = inpt.shape[1]
-        n_inpt = in_to_hidden.shape[0]
-        n_hidden_in = hidden_to_hidden.shape[1]
-        n_hidden_out = hidden_to_hidden.shape[0]
-        n_output = hidden_to_out.shape[1]
-
-        # If we ever want to enable disabling of peepholes, we can make this
-        # variable be setable to False.
-        peepholes = True
-
-        def lstm_step(x_t, s_tm1, h_tm1):
-            x_t += T.dot(h_tm1, hidden_to_hidden)
-
-            inpt = T.tanh(x_t[:, :n_hidden_out])
-            gates = x_t[:, n_hidden_out:]
-            inpeep = 0 if not peepholes else s_tm1 * ingate_peephole
-            outpeep = 0 if not peepholes else s_tm1 * outgate_peephole
-            forgetpeep = 0 if not peepholes else s_tm1 * forgetgate_peephole
-
-            ingate = f_hidden(gates[:, :n_hidden_out] + inpeep)
-            forgetgate = f_hidden(
-                gates[:, n_hidden_out:2 * n_hidden_out] + forgetpeep)
-            outgate = f_hidden(gates[:, 2 * n_hidden_out:] + outpeep)
-
-            s_t = inpt * ingate + s_tm1 * forgetgate
-            h_t = f_hidden(s_t) * outgate
-            return [s_t, h_t]
-
-        inpt_flat = inpt.reshape((
-            n_time_steps * n_samples, n_inpt))
-        hidden_flat = T.dot(inpt_flat, in_to_hidden)
-        hidden = hidden_flat.reshape((n_time_steps, n_samples, n_hidden_in))
-        hidden += hidden_bias.dimshuffle('x', 'x', 0)
-
-        (states, hidden_rec), _ = theano.scan(
-            lstm_step,
-            sequences=hidden,
-            outputs_info=[T.zeros_like(hidden[0, :, 0:n_hidden_out]),
-                          T.zeros_like(hidden[0, :, 0:n_hidden_out])
-                          ])
-
-        hidden_rec_flat = hidden_rec.reshape(
-            (n_time_steps * n_samples, n_hidden_out))
-
-        output_flat = T.dot(hidden_rec_flat, hidden_to_out)
-        output_in = output_flat.reshape((n_time_steps, n_samples, n_output))
-        output_in += out_bias.dimshuffle('x', 'x', 0)
-
-        if pooling is None:
-            pass
-        elif pooling == 'mean':
-            output_in = T.mean(output_in, axis=0)
-        elif pooling == 'sum':
-            output_in = T.sum(output_in, axis=0)
-        elif pooling == 'prod':
-            output_in = T.prod(output_in, axis=0)
-        elif pooling == 'min':
-            output_in = T.min(output_in, axis=0)
-        elif pooling == 'max':
-            output_in = T.max(output_in, axis=0)
-        else:
-            raise ValueError('unknown pooling operator %s' % pooling)
-
-        output = f_output(output_in)
-
-        loss = f_loss(output).sum(axis=2).mean()
-
-        return {'inpt': inpt,
-                'states': states,
-                'hidden': hidden_rec,
-                'output-in': output_in,
-                'output': output,
-                'loss': loss}
+        return exprs
