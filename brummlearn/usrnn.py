@@ -1,3 +1,4 @@
+import theano
 import theano.tensor as T
 
 from .rnn import UnsupervisedRnn
@@ -57,6 +58,7 @@ class SfRnn(UnsupervisedRnn):
                  out_transfer='softabs',
                  pooling='mean',
                  leaky_coeffs=None,
+                 corrupt_inpt=None,
                  optimizer='rprop',
                  batch_size=None,
                  max_iter=1000,
