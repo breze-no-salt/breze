@@ -46,6 +46,7 @@ class RimRnn(UnsupervisedRnn):
             'neg_mi': neg_mi,
             'l2': l2,
             'loss': neg_mi + self.c_l2 * l2,
+            'representation': self.exprs['output_in'],
         })
 
 
