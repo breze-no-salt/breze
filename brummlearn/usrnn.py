@@ -72,9 +72,9 @@ class SfRnn(UnsupervisedRnn):
         output = self.exprs['output']
 
         col_normalized = T.sqrt(
-            norm.normalize(output, lambda x: x**2, axis=0) + 1E-8)
+            norm.normalize(output, lambda x: x**2, axis=0) + 1E-4)
         row_normalized = T.sqrt(
-            norm.normalize(col_normalized, lambda x: x**2, axis=1) + 1E-8)
+            norm.normalize(col_normalized, lambda x: x**2, axis=1) + 1E-4)
 
         loss_rowwise = row_normalized.sum(axis=1)
         loss = loss_rowwise.mean()
