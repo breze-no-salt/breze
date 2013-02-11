@@ -108,8 +108,8 @@ class OneStepPredictRnn(UnsupervisedRnn):
                  max_iter=1000,
                  verbose=False):
         super(OneStepPredictRnn, self).__init__(
-            n_inpt, n_hidden, n_output, hidden_transfer, out_transfer,
-            dummy_loss, pooling, leaky_coeffs, optimizer, batch_size,
+            n_inpt, n_hidden, n_inpt, hidden_transfer, out_transfer,
+            dummy_loss, None, leaky_coeffs, optimizer, batch_size,
             max_iter, verbose)
 
     def init_exprs(self):
@@ -118,7 +118,7 @@ class OneStepPredictRnn(UnsupervisedRnn):
         inpt, output = self.exprs['inpt'], self.exprs['output']
 
         loss = ((inpt[1:] - output[:-1])**2).sum(axis=2).mean()
-        representation = self.exprs['hidden'].mean(axis=0)
+        representation = self.exprs['hidden_0'].mean(axis=0)
 
         self.exprs.update({
             'representation': representation,
