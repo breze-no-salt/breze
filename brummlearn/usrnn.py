@@ -89,3 +89,34 @@ class SfRnn(UnsupervisedRnn):
             'loss_rowwise': loss_rowwise,
             'representation': representation,
             'loss': loss})
+
+
+class OneStepPredictRnn(UnsupervisedRnn):
+
+    def __init__(self, n_inpt, n_hidden, n_output,
+                 hidden_transfer='tanh',
+                 out_transfer='identity',
+                 pooling='mean',
+                 loss='squared',
+                 leaky_coeffs=None,
+                 corrupt_inpt=None,
+                 optimizer='rprop',
+                 batch_size=None,
+                 max_iter=1000,
+                 verbose=False):
+        super(OneStepPredictRnn, self).__init__(
+            n_inpt, n_hidden, n_output, hidden_transfer, out_transfer,
+            dummy_loss, pooling, leaky_coeffs, optimizer, batch_size,
+            max_iter, verbose)
+
+    def init_exprs(self):
+        super(OneStepPredictRnn, self).init_exprs()
+
+        inpt, output = self.exprs['inpt'], self.exprs['output']
+
+        loss = ((inpt[1:] - output[:-1])**2).sum(axis=2).mean()
+        representation = self.exprs['hidden'].mean(axis=0)
+
+        self.exprs.update({
+            'representation': representation,
+            'loss': loss})
