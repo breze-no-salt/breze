@@ -94,7 +94,10 @@ def leaky_integration(inpt, coefficients):
 
 
 def multinomial_weights(inpt):
+    # Numerical stability.
+    inpt = T.maximum(inpt, -10)
     inpt_normed = inpt - inpt.min(axis=0).dimshuffle('x', 0)
+    inpt_normed = T.minimum(inpt_normed, 100)
     return T.exp(inpt_normed) / (T.exp(inpt_normed).sum(axis=0) + 1e-4)
 
 
