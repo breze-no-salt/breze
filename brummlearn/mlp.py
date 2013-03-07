@@ -191,12 +191,9 @@ class DropoutMlp(Mlp):
         for i, info in enumerate(opt):
             yield info
             W = self.parameters['in_to_hidden']
-            truncate(W, self.max_norm, axis=1)
+            truncate(W, self.max_norm, axis=0)
 
             n_layers = len(self.n_hiddens)
             for i in range(n_layers - 1):
                 W = self.parameters['hidden_to_hidden_%i' % i]
-                truncate(W, self.max_norm, axis=1)
-
-    def predict(self, X):
-        pass
+                truncate(W, self.max_norm, axis=0)
