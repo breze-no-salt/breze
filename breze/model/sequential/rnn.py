@@ -173,6 +173,7 @@ def rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
 
         zipped = zip(hidden_to_hiddens, hidden_biases[1:], recurrents[1:],
                      f_hiddens[1:], initial_hiddens[1:])
+
         for i, (w, b, r, t, j) in enumerate(zipped):
             hidden_m1 = hidden_rec
             hidden_in = feedforward_layer(hidden_m1, w, b)
@@ -378,7 +379,10 @@ class UnsupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
         # component wise and mean away row wise.
         if loss.ndim != 0:
             sum_axis = 2 if not pooling else 1
-            loss = loss.sum(axis=sum_axis).mean()
+            loss_row_wise = loss.sum(axis=sum_axis)
+            exprs['loss_row_wise'] = loss_row_wise
+
+            loss = loss_row_wise.mean()
 
         exprs['loss'] = loss
         return exprs
@@ -421,9 +425,11 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
                     leaky_coeffs)
         f_loss = lookup(loss, loss_)
         sum_axis = 2 if not pooling else 1
-        loss = f_loss(target, exprs['output']).sum(axis=sum_axis).mean()
+        loss_row_wise = f_loss(target, exprs['output']).sum(axis=sum_axis)
+        loss = loss_row_wise.mean()
         exprs['target'] = target
         exprs['loss'] = loss
+        exprs['loss_row_wise'] = loss_row_wise
         return exprs
 
 
