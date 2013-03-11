@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Module containing models for Gaussian processes."""
+
 
 import numpy as np
 import theano.tensor as T
@@ -9,44 +11,13 @@ minv = MatrixInverse()
 det = Det()
 cholesky = Cholesky()
 
-from ..util import ParameterSet, Model
-from ..component import misc
-
-
-def linear_kernel(X, X_, length_scales, amplitude, diag=False):
-    X = X * length_scales.dimshuffle('x', 0)
-    X_ = X_ * length_scales.dimshuffle('x', 0)
-    if diag:
-        return amplitude * (X * X_).sum(axis=1)
-    else:
-        return amplitude * T.dot(X, X_.T)
-
-
-def matern52_kernel(X, X_, length_scales, amplitude, diag=False):
-    X = X * length_scales.dimshuffle('x', 0)
-    X_ = X_ * length_scales.dimshuffle('x', 0)
-    if not diag:
-        D2 = misc.distance_matrix(X, X_, 'l2')
-    else:
-        D2 = ((X - X_)**2).sum(axis=1)
-    D = T.sqrt(D2 + 1e-8)
-    return amplitude * (1.0 + T.sqrt(5.) * D + (5. / 3.) * D2) * T.exp(-T.sqrt(5.) * D)
-
-
-def rbf_kernel(X, X_, length_scales, amplitude, diag=False):
-    X = X * length_scales.dimshuffle('x', 0)
-    X_ = X_ * length_scales.dimshuffle('x', 0)
-    if not diag:
-        D2 = misc.distance_matrix(X, X_, 'l2')
-    else:
-        D2 = ((X - X_)**2).sum(axis=1)
-
-    return amplitude * T.exp(-D2)
+from ..util import ParameterSet, Model, lookup
+from ..component import misc, kernel as kernel_
 
 
 class GaussianProcess(Model):
 
-    minimal_noise = 1e-4
+    minimal_noise = 1e-2
     minimal_length_scale = 1e-8
 
     def __init__(self, n_inpt, kernel='linear'):
@@ -55,7 +26,6 @@ class GaussianProcess(Model):
         self.f_predict = None
 
         super(GaussianProcess, self).__init__()
-        self.parameters.data[:] = np.random.normal(0, 1e-1, self.parameters.data.shape)
 
     def init_pars(self):
         parspec = self.get_parameter_spec(self.n_inpt)
@@ -87,10 +57,7 @@ class GaussianProcess(Model):
         length_scales = T.exp(length_scales) + GaussianProcess.minimal_length_scale
         amplitude = T.exp(amplitude) + 1e-4
 
-        if isinstance(kernel, (unicode, str)):
-            kernel_func = globals()['%s_kernel' % kernel]
-        else:
-            kernel_func = kernel
+        kernel_func = lookup(kernel, kernel_)
 
         # For training.
         K = kernel_func(inpt, inpt, length_scales, amplitude)
