@@ -110,18 +110,23 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
     data_arguments = 'inpt', 'target'
     sample_dim = 0, 0
 
-    def _make_loss_functions(self, mode=None):
+    def _make_loss_functions(self, mode=None, givens=None,
+                             on_unused_input='raise'):
         """Return pair (f_loss, f_d_loss) of functions.
 
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
         """
         d_loss = self._d_loss()
+        givens = {} if givens is None else givens
 
         f_loss = self.function(['inpt', 'target'], 'loss', explicit_pars=True,
-                               mode=mode)
+                               mode=mode, givens=givens,
+                               on_unused_input=on_unused_input)
         f_d_loss = self.function(['inpt', 'target'], d_loss, explicit_pars=True,
-                                 mode=mode)
+                                 mode=mode, givens=givens,
+                                 on_unused_input=on_unused_input)
+
         return f_loss, f_d_loss
 
     def _make_args(self, X, Z):
@@ -228,16 +233,20 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
         args = ((i, {}) for i in data)
         return args
 
-    def _make_loss_functions(self):
+    def _make_loss_functions(self, mode=None, givens=None,
+                             on_unused_input='raise'):
         """Return pair (f_loss, f_d_loss) of functions.
 
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
         """
         d_loss = self._d_loss()
+        givens = {} if givens is None else givens
 
-        f_loss = self.function(['inpt'], 'loss', explicit_pars=True)
-        f_d_loss = self.function(['inpt'], d_loss, explicit_pars=True)
+        f_loss = self.function(['inpt'], 'loss', explicit_pars=True,
+                               givens=givens, on_unused_input=on_unused_input)
+        f_d_loss = self.function(['inpt'], d_loss, explicit_pars=True,
+                                 givens=givens, on_unused_input=on_unused_input)
         return f_loss, f_d_loss
 
 
