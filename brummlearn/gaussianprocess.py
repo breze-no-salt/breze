@@ -39,12 +39,8 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         self.f_predict_var = None
         self.f_gram_matrix = None
 
-        sample = np.random.random(self.parameters.data.shape) * 0.5 + 0.5
-        self.parameters.data[:] = sample
+        self.parameters.data[:] = 0
         self._gram_matrix = None
-
-        sample = np.random.random(self.parameters.data.shape) * 0.5 + 0.5
-        self.parameters.data[:] = sample
 
     def _make_predict_functions(self, stored_inpt, stored_target):
         """Return a function to predict targets from input sequences."""
@@ -75,10 +71,17 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         self.stored_X = (X - self.mean_x) / self.std_x
         self.stored_Z = (Z - self.mean_z) / self.std_z
 
-    def iter_fit(self, X, Z):
+    def iter_fit(self, X, Z, mode=None):
         self.store_dataset(X, Z)
 
-        f_loss, f_d_loss = self._make_loss_functions()
+        if 'diff' in self.exprs:
+            f_diff = self.function(['inpt'], 'diff')
+            diff = f_diff(X)
+            givens = {self.exprs['diff']: diff}
+        else:
+            givens = {}
+        f_loss, f_d_loss = self._make_loss_functions(
+            givens=givens, mode=mode, on_unused_input='warn')
 
         args = self._make_args(self.stored_X, self.stored_Z)
         opt = self._make_optimizer(f_loss, f_d_loss, args)
