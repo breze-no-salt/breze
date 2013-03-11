@@ -3,17 +3,26 @@
 
 import theano.tensor as T
 
-import norm
+import norm as norm_
 from ..util import lookup
 
 
-def distance_matrix(X, Y=None, norm_=norm.l2):
-    """Return an expression containing the distances given the norm."""
-    if isinstance(norm_, (str, unicode)):
-        norm_ = lookup(norm_, norm)
+def pairwise_diff(X, Y=None):
     Y = X if Y is None else Y
     diffs = X.T.dimshuffle(1, 0, 'x') - Y.T.dimshuffle('x', 0, 1)
-    dist_comps = norm_(diffs, axis=1)
+    return diffs
+
+
+def distance_matrix(X, Y=None, norm=norm_.l2):
+    """Return an expression containing the distances given the norm."""
+    diff = pairwise_diff(X, Y)
+    return distance_matrix_by_diff(diff, norm=norm)
+
+
+def distance_matrix_by_diff(diff, norm=norm_.l2):
+    if isinstance(norm, (str, unicode)):
+        norm = lookup(norm, norm_)
+    dist_comps = norm(diff, axis=1)
     return dist_comps
 
 
