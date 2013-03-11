@@ -63,9 +63,13 @@ def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
     return wrapper
 
 
-def lookup(what, where):
+def lookup(what, where, default=None):
     """Return where.what if what is a string, else what."""
-    return getattr(where, what) if isinstance(what, (str, unicode)) else what
+    if isinstance(what, (str, unicode)):
+        res = getattr(where, what, default)
+    else:
+        res = what
+    return res
 
 
 def lookup_some_key(what, where, default=None):
