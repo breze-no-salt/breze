@@ -137,8 +137,7 @@ def tile_raster_images(X, img_shape, tile_shape, tile_spacing=(0, 0),
                         # do this by calling the `scale_to_unit_interval`
                         # function
                         this_img = scale_to_unit_interval(
-                            X[tile_row * tile_shape[1]
-                             + tile_col].reshape(img_shape))
+                            X[tile_row * tile_shape[1] + tile_col].reshape(img_shape))
                     else:
                         this_img = X[tile_row * tile_shape[1] + tile_col].reshape(img_shape)
                     # add the slice to the corresponding position in the
@@ -147,10 +146,9 @@ def tile_raster_images(X, img_shape, tile_shape, tile_spacing=(0, 0),
                     if output_pixel_vals:
                         c = 255
                     out_array[
-                        tile_row * (H+Hs):tile_row*(H+Hs)+H,
-                        tile_col * (W+Ws):tile_col*(W+Ws)+W
-                        ] \
-                        = this_img * c
+                        tile_row * (H + Hs):tile_row * (H + Hs) + H,
+                        tile_col * (W + Ws):tile_col * (W + Ws) + W
+                        ] = this_img * c
         return out_array
 
 

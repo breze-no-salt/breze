@@ -38,13 +38,17 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
             is either a string pointing to a function in
             ``breze.component.transfer`` or a function taking a theano 2D tensor
             and returning a tensor of the same shape.
+        :param out_transfers: Output transfer function. A transfer function
+            is either a string pointing to a function in
+            ``breze.component.transfer`` or a function taking a theano 2D tensor
+            and returning a tensor of the same shape.
         :param optimizer: Can be either a string or a pair. In any case,
             climin.util.optimizer is used to construct an optimizer. In the case
             of a string, the string is used as an identifier for the optimizer
             which is then instantiated with default arguments. If a pair,
             expected to be (`identifier`, `kwargs`) for more fine control of the
             optimizer.
-        :param batch_size: Number of examples per batch when calculing the loss
+        :param batch_size: Number of examples per batch when calculting the loss
             and its derivatives. None means to use all samples every time.
         :param max_iter: Maximum number of optimization iterations to perform.
         :param verbose: Flag indicating whether to print out information during
@@ -74,7 +78,7 @@ def truncate(arr, max_sqrd_length, axis):
     if arr.ndim != 2 or axis not in (0, 1):
         raise ValueError('only 2d arrays allowed')
 
-    sqrd_lengths = (arr**2).sum(axis=axis)
+    sqrd_lengths = (arr ** 2).sum(axis=axis)
     too_big_by = sqrd_lengths / max_sqrd_length
     divisor = np.sqrt(too_big_by)
     non_violated = sqrd_lengths < max_sqrd_length
@@ -197,3 +201,9 @@ class DropoutMlp(Mlp):
             for i in range(n_layers - 1):
                 W = self.parameters['hidden_to_hidden_%i' % i]
                 truncate(W, self.max_norm, axis=0)
+                #b = self.parameters['hidden_bias_%i' % i]
+                #b /= (b ** 2).sum() * self.max_norm
+            W = self.parameters['hidden_to_out']
+            truncate(W, self.max_norm, axis=0)
+            #b = self.parameters['out_bias']
+            #b /= (b ** 2).sum() * self.max_norm
