@@ -11,24 +11,51 @@ from brummlearn.sampling import slice_
 
 
 class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
+    """GaussianProcess class.
+
+    Parameters
+    ----------
+
+    n_inpt : scalar
+        Input dimensionality of a single input.
+
+    kernel : string or function, optional
+        Kernel to use. Can be a string which is then looked up in
+        ``breze.component.kernel``. Can also be a function that has the same
+        interface.
+
+    optimizer : string, or tuple of the form (string, dict), optional
+        Arguments for ``climin.util.optimizer`` to construct an optimizer. See
+        the docs for the exact behaviour.
+
+    max_iter : int, optional
+        Maximum number of optimization iterations to perform. Only respected
+        if ``.fit()`` is used, not in the case of ``.iter_fit()``.
+
+    verbose : boolean, optional
+        Flag indicating whether to print out information during fitting.
+
+
+    Examples
+    --------
+
+    See ``notebooks/Gaussian process on toy data.ipynb`` for an example.
+
+
+    Notes
+    -----
+    The implementation is based on Kevin Murphy's book [MLPP]_.
+
+
+    References
+    ----------
+    .. [MLPP] `Kevin Murphy. Machine Learning---A Propabilistic Perspective`.
+        (2012)
+        http://www.cs.ubc.ca/~murphyk/MLbook/index.html
+    """
 
     def __init__(self, n_inpt, kernel='linear', optimizer='rprop',
                  max_iter=1000, verbose=False):
-        """Create a GaussianProcess object.
-
-        :param n_inpt: Input dimensionality of a single input.
-        :param kernel: String that identifies what kernel to use. Options are
-            'linear', 'rbf' and 'matern52'.
-        :param optimizer: Can be either a string or a pair. In any case,
-            climin.util.optimizer is used to construct an optimizer. In the case
-            of a string, the string is used as an identifier for the optimizer
-            which is then instantiated with default arguments. If a pair,
-            expected to be (`identifier`, `kwargs`) for more fine control of the
-            optimizer.
-        :param max_iter: Maximum number of optimization iterations to perform.
-        :param verbose: Flag indicating whether to print out information during
-            fitting.
-        """
         super(GaussianProcess, self).__init__(n_inpt, kernel=kernel)
 
         self.optimizer = optimizer
@@ -63,6 +90,21 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         return f_predict, f_predict_var
 
     def store_dataset(self, X, Z):
+        """Store the training set in the object.
+
+        Gaussian processes are non-parametric models and thus rely on a set of
+        training points. This set will be used for predictions and sampling from
+        the posterior.
+
+        Parameters
+        ----------
+
+        X : array_like
+            Array of shape ``(n_sample, n_inpt)`` containing the training data.
+        Z : array_like
+            Array of shape ``(n_sample, 1)`` containing the target values.
+        """
+
         self._gram_matrix = None
         self.mean_x = X.mean(axis=0)
         self.mean_z = Z.mean(axis=0)
@@ -90,15 +132,31 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
             yield info
 
     def predict(self, X, var=False, max_rows=1000):
-        """Return the prediction of the Gaussian process given input sequences.
+        """Predict the target values.
 
-        :param X: A (n, d) array where _n_ is the number of data samples and
-            _d_ is the dimensionality of a data sample.
-        :param var: If True, returns the variance of the prediction as
-            well.
-        :param max_rows: Maximum number of predictions to do in one step; a
-            lower number might help performance if the call stalls.
-        :returns: A (n, 1) array where _n_ is the same as in _X_.
+        Parameters
+        ----------
+
+        X : array_like
+            Array of shape (n_samples, n_features).
+
+        var : boolean
+            Flag indicating whether the variance of the predictions should be
+            returned as well. In this case, the complexity rises from O(n) to
+            O(n^2).
+
+        max_rows : integer
+            Maximum number of predictions to do in one step; a lower number
+            might help performance.
+
+        Returns
+        -------
+        mean : array_like
+            Array of the form (n_samples, 1) containing the mean of the
+            predictions.
+        variance : array_like
+            Only if ``var == True``. Array of shape (n_samples, 1) containing
+            the variance of the predictions.
         """
         if self.f_predict is None or self.f_predict_var is None:
             self.f_predict, self.f_predict_var = self._make_predict_functions(
@@ -138,11 +196,7 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         One step of slice sampling is performed with the current parameters as
         a starting point. The current parameters are overwritten by the sample.
 
-        :param X: A (n, d) array where _n_ is the number of data samples and
-            _d_ is the dimensionality of a data sample containing the input
-            data.
-        :param Z: A (n, 1) array where _n_ is the number of data samples
-            containing the output data.
+        For sampling, the current stored data set is used.
         """
         if getattr(self, 'f_nll_expl', None) is None:
             self.f_nll_expl = self.function(['inpt', 'target'], 'nll', explicit_pars=True)
