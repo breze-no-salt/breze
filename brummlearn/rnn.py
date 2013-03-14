@@ -16,6 +16,63 @@ from brummlearn.base import (
 
 
 class BaseRnn(object):
+    """Base class for RNNs.
+
+    Parameters
+    ----------
+
+    n_inpt : integer
+        Number of inputs per time step to the network.
+
+    n_hidden : integer
+        Size of the hidden state.
+
+    n_output : integer
+        Size of the output of the network.
+
+    hidden_transfer : string or function
+        Transfer function to use for the network. This can either (a) be a
+        string and reference a transfer function from
+        ``breze.component.transfer`` or a function which takes a theano tensor3
+        and returns a tensor of equal size.
+
+    out_transfer : string or functions
+        Output function to use for the network. This can either (a) be a string
+        and reference a transfer function from ``breze.component.transfer`` or
+        a function which takes a theano tensor3 and returns a tensor of equal
+        size.
+
+    loss : string or function
+        Loss which is going to be optimized. This can either be a string and
+        reference a loss function found in ``breze.component.distance`` or a
+        function which takes two theano tensors (one being the output of the
+        network, the other some target) and returns a theano scalar.
+
+    pooling: string
+        One of ``sum``, ``mean``, ``prod``, ``min``, ``max`` or ``None``. If
+        not None, the output is pooled over the time dimension, essentially
+        making the network return a tensor2 instead of a tensor3.
+
+    leaky_coeffs : list of arrays or list of scalars
+        Coefficients for leaky integration, given in a list for each layer. If
+        a list of arrays, the length of the array should be the same as the
+        number of hidden units in that layer.
+
+    optimizer : string, pair
+        Argument is passed to ``climin.util.optimizer`` to construct an
+        optimizer.
+
+    batch_size : integer, None
+        Number of examples per batch when calculting the loss
+        and its derivatives. None means to use all samples every time.
+
+    max_iter : int
+        Maximum number of optimization iterations to perform. Only respected
+        during``.fit()``, not ``.iter_fit()``.
+
+    verbose : boolean
+        Flag indicating whether to print out information during fitting.
+    """
 
     def __init__(self, n_inpt, n_hidden, n_output,
                  hidden_transfer='tanh', out_transfer='identity',
@@ -25,36 +82,6 @@ class BaseRnn(object):
                  batch_size=None,
                  max_iter=1000,
                  verbose=False):
-        """Create and return an ``Rnn`` object.
-
-        :param n_inpt: Number of inputs per time step to the network.
-        :param n_hidden: Size of the hidden state.
-        :param n_output: Size of the output of the network.
-        :param hidden_transfer: Transfer function to use for the network. This
-            can either (a) be a string and reference a transfer function from
-            ``breze.component.transfer`` or a function which takes a theano
-            tensor3 and returns a tensor of equal size.
-        :param out_transfer: Output function to use for the network. This
-            can either (a) be a string and reference a transfer function from
-            ``breze.component.transfer`` or a function which takes a theano
-            tensor3 and returns a tensor of equal size.
-        :param loss: Loss which is going to be optimized. This can either be a
-            string and reference a loss function found in
-            ``breze.component.distance`` or a function which takes two theano
-            tensors (one being the output of the network, the other some target)
-            and returns a theano scalar.
-        :param pooling: One of ``sum``, ``mean``, ``prod``, ``min``, ``max`` or
-            ``None``. If not None, the output is pooled over the time dimension,
-            essentially making the network return a tensor2 instead of a
-            tensor3.
-        :param optimizer: Either ``ksd`` referring to KrylovSubspaceDescent or
-            ``rprop``.
-        :param batch_size: Number of examples per batch when calculing the loss
-            and its derivatives. None means to use all samples every time.
-        :param max_iter: Maximum number of optimization iterations to perform.
-        :param verbose: Flag indicating whether to print out information during
-            fitting.
-        """
         super(BaseRnn, self).__init__(
             n_inpt, n_hidden, n_output, hidden_transfer, out_transfer,
             loss, pooling, leaky_coeffs)
@@ -100,7 +127,7 @@ class BaseRnn(object):
 
 class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
                     SupervisedBrezeWrapperBase):
-    """Class implementing recurrent neural networks for supervised learning..
+    """Class implementing recurrent neural networks for supervised learning.
 
     The class inherits from breze's RecurrentNetwork class and adds several
     sklearn like methods.
