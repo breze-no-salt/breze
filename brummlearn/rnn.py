@@ -86,6 +86,7 @@ class BaseRnn(object):
             n_inpt, n_hidden, n_output, hidden_transfer, out_transfer,
             loss, pooling, leaky_coeffs)
         self.optimizer = optimizer
+        self.batch_size = batch_size
         self.max_iter = max_iter
         self.verbose = verbose
 
