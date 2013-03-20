@@ -6,7 +6,7 @@ colors = 'kcmrbyg' * 5
 def scatterplot(X, C=None, symb='o', alpha=1, figsize=(16, 9)):
     N = X.shape[1]
     fig = plt.figure(figsize=figsize)
-    n_colors = len(set(C))
+    n_colors = len(set(C)) if C is not None else 0
 
     for i in range(N):
         for j in range(N):
