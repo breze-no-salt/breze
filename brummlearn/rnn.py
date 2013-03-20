@@ -135,7 +135,7 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
     """
 
     def __init__(self, n_inpt, n_hidden, n_output,
-                 hidden_transfer='tanh', out_transfer='identity',
+                 hidden_transfers='tanh', out_transfer='identity',
                  loss='squared', pooling=None,
                  leaky_coeffs=None,
                  optimizer='rprop',
@@ -147,7 +147,7 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
         else:
             self.sample_dim = 1, 0
         super(SupervisedRnn, self).__init__(
-            n_inpt, n_hidden, n_output, hidden_transfer, out_transfer, loss,
+            n_inpt, n_hidden, n_output, hidden_transfers, out_transfer, loss,
             pooling, leaky_coeffs,
             optimizer, batch_size, max_iter, verbose)
 
