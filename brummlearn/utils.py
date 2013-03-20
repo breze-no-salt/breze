@@ -267,3 +267,22 @@ class DocInherit(object):
         return func
 
 doc_inherit = DocInherit
+
+
+def parameter_copy(source, sink, par_map):
+    """Copy the parameters from one model to another model.
+
+    Parameters
+    ----------
+
+    source : model
+        Model from which to copy the parameters.
+    sink : model
+        Model to which to copy the parameters.
+    par_map : dictionary like
+        Map of strings to strings. Each key has to index a field in the sink's
+        parameter set, each value has to index one in the source's parameter
+        set.
+    """
+    for key, value in par_map.items():
+        sink.parameters[key][...] = source.parameters[value]
