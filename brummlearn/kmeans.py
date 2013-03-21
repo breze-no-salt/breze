@@ -107,7 +107,6 @@ class GainShapeKMeans(object):
 
         X : array_like
             Input data of shape ``(n_samples, n_inpt)``.
-
         activation: {'identity', 'omp-1'}, optional, default: 'linear'
             Activation to use. 'linear' does not alter the output. 'omp-1'
             only retains the component with the largest absolute value.
@@ -136,5 +135,4 @@ class GainShapeKMeans(object):
             pass
         else:
             raise ValueError('unknown activation %s' % activation)
-
         return code

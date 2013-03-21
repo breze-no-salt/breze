@@ -14,7 +14,7 @@ def test_pca():
     X = np.dot(l, expand)
     X += np.random.normal(0, 1E-6, X.shape)
 
-    pca = Pca(1)
+    pca  = Pca(1)
     pca.fit(X)
 
     desired = np.array([[-0.9015], [-0.4327]])
