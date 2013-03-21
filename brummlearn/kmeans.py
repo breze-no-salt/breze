@@ -99,7 +99,7 @@ class GainShapeKMeans(object):
             self.normalize_dict()
             yield {'n_iter': i}
 
-    def transform(self, X, activation='identity'):
+    def transform(self, X, activation='identity', threshold=0.1):
         """Transform the data according to the dictionary.
 
         Parameters
@@ -107,9 +107,16 @@ class GainShapeKMeans(object):
 
         X : array_like
             Input data of shape ``(n_samples, n_inpt)``.
+
         activation: {'identity', 'omp-1'}, optional, default: 'linear'
             Activation to use. 'linear' does not alter the output. 'omp-1'
             only retains the component with the largest absolute value.
+            'soft-threshold' only sets components below a certain threshold to
+            zero, but separates positive and negative parts.
+
+        threshold : scalar,
+            Threshold used for soft-thresholding activation. Ignored if another
+            activation is used.
         """
         if self.zscores:
             X -= self.mean
@@ -121,4 +128,13 @@ class GainShapeKMeans(object):
             mask = np.zeros(code.shape)
             mask[xrange(X.shape[0]), abs(code).argmax(axis=1)] = 1
             code *= mask
+        elif activation == 'soft-threshold':
+            positive = np.maximum(0, code - threshold)
+            negative = np.maximum(0, -code - threshold)
+            code = np.concatenate([positive, negative], axis=1)
+        elif activation == 'identity':
+            pass
+        else:
+            raise ValueError('unknown activation %s' % activation)
+
         return code

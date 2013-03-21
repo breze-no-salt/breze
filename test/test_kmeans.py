@@ -10,6 +10,6 @@ def test_gainshapekmeans():
     kmeans = GainShapeKMeans(3)
     kmeans.fit(X)
 
-    kmeans.transform(X, 'linear')
+    kmeans.transform(X, 'identity')
     Y = kmeans.transform(X, 'omp-1')
     assert np.allclose((Y != 0).sum(axis=1), np.ones_like(Y[:, 0]))
