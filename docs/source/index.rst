@@ -28,6 +28,7 @@ Learning representations:
    cca
    sfa
    tsne
+   kmeans
    :maxdepth: 1
 
 Denoising:
