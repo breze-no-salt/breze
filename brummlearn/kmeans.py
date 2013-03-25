@@ -46,7 +46,7 @@ class GainShapeKMeans(object):
                  random_state=None):
         self.n_component = n_component
         self.max_iter = max_iter
-        self.random_state = None
+        self.random_state = random_state
         self.zscores = zscores
         self.whiten = whiten
 
