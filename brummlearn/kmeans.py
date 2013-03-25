@@ -35,6 +35,20 @@ class GainShapeKMeans(object):
         generator is used.
 
 
+    Attributes
+    ----------
+
+    activation: {'identity', 'omp-1', 'soft-threshold'}, optional, default: None
+        Activation to for transformation. 'identity' does not alter the output.
+        'omp-1' only retains the component with the largest absolute value.
+        'soft-threshold' only sets components below a certain threshold to
+        zero, but separates positive and negative parts.
+
+    threshold : scalar,
+        Threshold used for soft-thresholding activation. Ignored if another
+        activation is used.
+
+
     References
     ----------
     .. [LFRKM] `Learning Feature Representations with K-means`,
@@ -49,6 +63,9 @@ class GainShapeKMeans(object):
         self.random_state = random_state
         self.zscores = zscores
         self.whiten = whiten
+
+        self.activation = 'identity'
+        self.threshold = None
 
     def prepare(self, n_inpt):
         """Initialize the models internal structures.
@@ -99,7 +116,7 @@ class GainShapeKMeans(object):
             self.normalize_dict()
             yield {'n_iter': i}
 
-    def transform(self, X, activation='identity', threshold=0.1):
+    def transform(self, X, activation=None):
         """Transform the data according to the dictionary.
 
         Parameters
@@ -107,16 +124,15 @@ class GainShapeKMeans(object):
 
         X : array_like
             Input data of shape ``(n_samples, n_inpt)``.
-        activation: {'identity', 'omp-1'}, optional, default: 'linear'
+        activation: {'identity', 'omp-1'}, optional, default: None
             Activation to use. 'linear' does not alter the output. 'omp-1'
             only retains the component with the largest absolute value.
             'soft-threshold' only sets components below a certain threshold to
-            zero, but separates positive and negative parts.
+            zero, but separates positive and negative parts. If None,
+            ``.activation`` is used.
 
-        threshold : scalar,
-            Threshold used for soft-thresholding activation. Ignored if another
-            activation is used.
         """
+        activation = self.activation if activation is None else activation
         if self.zscores:
             X -= self.mean
             X /= self.std
@@ -128,8 +144,8 @@ class GainShapeKMeans(object):
             mask[xrange(X.shape[0]), abs(code).argmax(axis=1)] = 1
             code *= mask
         elif activation == 'soft-threshold':
-            positive = np.maximum(0, code - threshold)
-            negative = np.maximum(0, -code - threshold)
+            positive = np.maximum(0, code - self.threshold)
+            negative = np.maximum(0, -code - self.threshold)
             code = np.concatenate([positive, negative], axis=1)
         elif activation == 'identity':
             pass
