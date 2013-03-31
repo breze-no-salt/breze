@@ -84,7 +84,7 @@ def feedforward_layer(inpt, weights, bias):
 def leaky_integration(inpt, coefficients):
     def step(x, y_tm1):
         c = coefficients[np.newaxis]
-        y = (1 - c) * y_tm1 + c * x
+        y = c * y_tm1 + (1 - c) * x
         return y
     output, _ = theano.scan(
         step,
