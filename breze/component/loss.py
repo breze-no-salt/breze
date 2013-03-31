@@ -20,6 +20,7 @@ to pass. Here are some abstrations.
 """
 
 
+import numpy as np
 import theano.tensor as T
 
 from misc import distance_matrix
@@ -34,7 +35,7 @@ def squared(target, prediction):
     :param prediction: An array of the same shape as `target`.
     :returns: An array of the same size as `target` and `prediction`xi
         representing the pairwise divergences."""
-    return (target - prediction)**2
+    return (target - prediction) ** 2
 
 
 def absolute(target, prediction):
@@ -192,7 +193,7 @@ def ncar(target, embedding):
     # Set diagonal to 0.
     target_distance -= target_distance * T.identity_like(target_distance)
 
-    loss_vector = (p * target_distance**2).sum(axis=1)
+    loss_vector = (p * target_distance ** 2).sum(axis=1)
     # To be compatible with the API, we make this a (n, 1) matrix.
     return T.shape_padright(loss_vector)
 
@@ -231,7 +232,7 @@ def drlim(margin, c_contrastive):
 
         # Calculate distances of pairs.
         diff = (embedding[:, :n_feature] - embedding[:, n_feature:])
-        dist = (diff**2).sum(axis=1)
+        dist = (diff ** 2).sum(axis=1)
 
         pull = target * dist
         push = (1 - target) * T.maximum(0, margin - dist)
@@ -253,9 +254,9 @@ def diag_gaussian_nll(target, prediction):
     elif prediction.ndim == 2:
         # We have static data.
         mean, std = prediction[:, :n_output], prediction[:, n_output:]
-    var = std**2
+    var = std ** 2
     residuals = target - mean
-    weighted_squares = -(residuals**2) / (2 * var + 1e-3)
+    weighted_squares = -(residuals ** 2) / (2 * var + 1e-3)
     normalization = T.log(T.sqrt(2 * np.pi * var + 1e-3))
     ll = weighted_squares - normalization
     return -ll
