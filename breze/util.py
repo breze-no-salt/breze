@@ -2,16 +2,14 @@
 
 
 import collections
-import contextlib
-import sys
-import time
 
 import numpy as np
 import theano.tensor as T
 import theano
 
+
 def flatten(nested):
-    """Flattens nested tuples and/or lists into a flat list"""
+    """Flatten nested tuples and/or lists into a flat list."""
     if isinstance(nested, (tuple, list)):
         flat = []
         for elem in nested:
@@ -20,8 +18,9 @@ def flatten(nested):
     else:
         return [nested]
 
+
 def unflatten(tmpl, flat):
-    """Nests the items in flat into the shape of tmpl"""
+    """Nest the items in flat into the shape of tmpl."""
     def unflatten_recursive(tmpl, flat):
         if isinstance(tmpl, (tuple, list)):
             nested = []
@@ -42,8 +41,9 @@ def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
     """Creates and returns a theano.function that takes values for `variables`
     as arguments, where `variables` may contain nested lists and/or tuples,
     and returns values for `exprs`, where again `exprs` may contain nested
-    lists and/or tuples. All other arguments are passed to theano.function
-    without modification."""
+    lists and/or tuples.
+
+    All other arguments are passed to theano.function without modification."""
 
     flat_variables = flatten(variables)
     flat_exprs = flatten(exprs)
@@ -63,13 +63,21 @@ def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
     return wrapper
 
 
-def lookup(what, where):
-    """Return where.what if what is a string, else what."""
-    return getattr(where, what) if isinstance(what, (str, unicode)) else what
+def lookup(what, where, default=None):
+    """Return ``where.what`` if what is a string, otherwise what. If not found
+    return ``default``."""
+    if isinstance(what, (str, unicode)):
+        res = getattr(where, what, default)
+    else:
+        res = what
+    return res
 
 
 def lookup_some_key(what, where, default=None):
-    """Return where[w] where w is the first element in `what` which `where` has.
+    """Given a list of keys ``what``, return the first of those to which there
+    is an item in ``where``.
+
+    If nothing is found, return ``default``.
     """
     for w in what:
         try:
@@ -90,15 +98,60 @@ def opt_from_model(model, fargs, args, opt_klass, opt_kwargs):
 
 
 class ParameterSet(object):
+    """ParameterSet class.
+
+    This class provides functionality to group several Theano tensors of
+    different sizes in a consecutive chunk of memory. The main aim of this is
+    to allow a view on several tensors as a single long vector.
+
+    In the following, a (parameter) array refers to a concrete instantiation of
+    a parameter variable (with concrete values) while a (parameter)
+    tensor/variable refers to the symbolic Theano variable.
+
+
+    Parameters
+    ----------
+
+    Initialization takes a variable amount of keyword arguments, where each has
+    to be a single integer or a tuple of arbitrary length containing only
+    integers. For each of the keyword argument keys a tensor of the shape given
+    by the value will be created. The key is the identifier of that variable.
+
+
+    Attributes
+    ----------
+
+    n_pars : integer
+        Total amount of parameters.
+
+    flat : Theano vector
+        Flat one dimensional tensor containing all the different tensors
+        flattened out. Symbolic pendant to ``data``.
+
+    data : array_like
+        Concrete array containig all the different arrays flattened out.
+        Concrete pendant to ``flat``.
+
+    views : dictionary
+        All parameter arrays can be accessed by with their identifier as key
+        in this dictionary.
+
+    All symbolic variables can be accessed as attributes of the object, all
+    concrete variables as keys. E.g. parameter_set.x references the symbolic
+    variable, while parameter_set['x'] will give you the concrete array.
+    """
 
     def __init__(self, **kwargs):
         # Make sure all size specifications are tuples.
         kwargs = dict((k, v if isinstance(v, tuple) else (v,))
                       for k, v in kwargs.iteritems())
+
         # Find out total size of needed parameters and create memory for it.
         sizes = [np.prod(i) for i in kwargs.values()]
+
         self.n_pars = sum(sizes)
         self.flat = theano.shared(np.empty(self.n_pars, dtype=theano.config.floatX), name='flat')
+
         # Go through parameters and assign space and variable.
         self.views = {}
         n_used = 0 	# Number of used parameters.
@@ -132,6 +185,46 @@ class ParameterSet(object):
 
 
 class Model(object):
+    """Model class.
+
+    Intended as a base class for parameterized models providing a convenience
+    method for compilation and a common interface.
+
+    We partition Theano variables for parametrized models in three groups.
+    (1) The *adaptable parameters*, (2) *external variables* such as inputs and
+    targets, the data (3) *expressions* composed out of the two, such as the
+    prediction of a model or the loss resulting from those.
+
+    Attributes
+    ----------
+
+    pars : ParameterSet object
+        Holding the adaptable parameters of the object.
+
+    exprs : dictionary
+        Containig the expressions. Out of convenience, the external variables
+        are held in here as well.
+
+    updates : dictionary containing update variables, e.g. due to the use of
+        ``theano.scan``.
+
+
+    Expression Names
+    ----------------
+
+    There are several "reserved" names for expressions.
+
+      - ``inpt``: observations of a supervised or unsupervised model,
+      - ``target``: desired outputs of a supervised model,
+      - ``loss``: quantity to be optimized for fitting the parameters;
+        might not refer to the criterion of interest, but instead to a
+        regularzied objective.
+      - ``true_loss``: Quantity of interst for the user, e.g. the loss without
+        regularization or the empirical risk.
+
+    Overriding these names is possible in general, but is part of the interface
+    and will lead to unexpected behaviour with functionality building upon this.
+    """
 
     def __init__(self):
         self.updates = collections.defaultdict(dict)
@@ -147,12 +240,41 @@ class Model(object):
     def function(self, variables, exprs, mode=None, explicit_pars=False,
                  givens=None,
                  on_unused_input='raise'):
-        """Return a function for the given `exprs` given `variables`.
+        """Return a compiled function for the given `exprs` given `variables`.
 
-        If `mode` is different to None, the specified mode is used, otherwise
-        the Theano default. In case `explicit_pars` is set to True, the first
-        argument of the function needs to be a numpy array from which the
-        parameters of the LossBased model will be extracted."""
+
+        Parameters
+        ----------
+
+        variables : list of strings
+            Each string refers to an item in ``.exprs`` and is considered an
+            input to the function.
+
+        exprs : (List of) Theano expression or string
+            Expressions for which to create the function. If a single expression
+            is given, the function will return a single value; if a list is
+            given, the result will be a tuple containing one element for each.
+            An expression can either be a Theano expression or a string. In the
+            latter case, the corresponding expression will be retrieved from
+            ``.exprs``.
+
+        mode : string or None, optional, default: None
+            Mode to use for compilation. Passed on to ``theano.function``.
+            See Theano documentation for details.
+
+        explicit_pars: boolean, optional, default: False
+            If True, the first argument to the function is expected to be an
+            array representing the adaptable parameters of the model.
+
+        givens : dictionary, optional, default: None
+            Dictionary of substitutions for compilation. Not passed on to
+            ``theano.function``, instead the expressions are cloned. See code
+            for further details.
+
+        on_unused_input: string
+            Specifiy behaviour in case of unused inputs. Passed on to
+            ``theano.function``. See Theano documentation for details.
+        """
 
         def lookup(varname):
             res = getattr(self.parameters, varname, None)
@@ -187,8 +309,7 @@ class Model(object):
             pars = T.dvector(self.parameters.flat.name + '-substitute')
             variables = [pars] + variables
             givens = {}
-            givens[self.parameters.flat] =  pars
-
+            givens[self.parameters.flat] = pars
 
         # Build update dictionary.
         updates = collections.defaultdict(lambda: {})
