@@ -34,8 +34,8 @@ def linear(X, X_, length_scales, amplitude, diag=False):
         return amplitude * T.dot(X, X_.T)
 
 
-def rbf_by_dist(D2):
-    """Return a tensor containing the RBF kernel given a tensor of distances.
+def ardse_by_dist(D2):
+    """Return a tensor containing the ARDSE kernel given a tensor of distances.
 
     :parameter D2: Tensor of arbitrary size containing Euclidean squared
         distances.
@@ -44,8 +44,8 @@ def rbf_by_dist(D2):
     return T.exp(-D2)
 
 
-def rbf(X, X_, length_scales, amplitude, diag=False, return_distance=False):
-    """Return an expression representing a Kernel matrix of the radial basis
+def ardse(X, X_, length_scales, amplitude, diag=False, return_distance=False):
+    """Return an expression representing a Kernel matrix of the ardse
     function kernel between rows in ``X`` and rows in ``X_``.
 
     :parameter X: Array of the size ``(n, d)`` where ``n`` is the number of
@@ -71,7 +71,7 @@ def rbf(X, X_, length_scales, amplitude, diag=False, return_distance=False):
     else:
         D2 = ((X - X_) ** 2).sum(axis=1)
 
-    return amplitude * rbf_by_dist(D2)
+    return amplitude * ardse_by_dist(D2)
 
 
 def matern52_by_dist(D2):
@@ -83,7 +83,7 @@ def matern52_by_dist(D2):
     :returns: Theano tensor of the same size as the input.
     """
     D = T.sqrt(D2 + 1e-8)
-    return amplitude * (1.0 + T.sqrt(5.) * D + (5. / 3.) * D2) * T.exp(-T.sqrt(5.) * D)
+    return (1.0 + T.sqrt(5.) * D + (5. / 3.) * D2) * T.exp(-T.sqrt(5.) * D)
 
 
 def matern52(X, X_, length_scales, amplitude, diag=False):

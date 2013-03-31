@@ -17,8 +17,8 @@ from ..component import misc, kernel as kernel_
 
 class GaussianProcess(Model):
 
-    minimal_noise = 1e-2
-    minimal_length_scale = 1e-8
+    minimal_noise = 1e-4
+    minimal_length_scale = 1e-4
 
     def __init__(self, n_inpt, kernel='linear'):
         self.n_inpt = n_inpt
@@ -47,10 +47,12 @@ class GaussianProcess(Model):
     def make_exprs(inpt, test_inpt, target,
                    length_scales, noise, amplitude, kernel):
         exprs = {}
-        # To stay compatible to the prediction api, target will
+
+        # To stay compatible with the prediction api, target will
         # be a matrix to the outside. But in the following, it's easier
         # if it is a vector in the inside. We keep a reference to the
         # matrix anyway, to return it.
+
         target_ = target
         target = target[:, 0]
         noise = T.exp(noise) + GaussianProcess.minimal_noise
@@ -70,9 +72,10 @@ class GaussianProcess(Model):
         kernel_func = lookup(kernel, kernel_)
 
         if stationary:
-            diff = exprs['diff'] = misc.pairwise_diff(inpt, inpt)
+            inpt_scaled = inpt * length_scales.dimshuffle('x', 0)
+            diff = exprs['diff'] = misc.pairwise_diff(inpt_scaled, inpt_scaled)
             D2 = exprs['sqrd_dist'] = misc.distance_matrix_by_diff(diff, 'l2')
-            K = kernel_by_dist_func(D2)
+            K = amplitude * kernel_by_dist_func(D2)
             exprs['D2'] = D2
         else:
             K = kernel_func(inpt, inpt, length_scales, amplitude)
@@ -83,14 +86,16 @@ class GaussianProcess(Model):
         # methods (e.g. using cholesky first) and came to the conclusion that
         # this way of doing it was way faster than explicitly doing a Cholesky
         # or so.
+
         psd(K)
         inv_K = minv(K)
 
         n_samples = K.shape[0]
-        nll = (
-            0.5 * T.dot(T.dot(target.T, inv_K), target)
-            + 0.5 * T.log(det(K) + 1e-8)
-            + 0.5 * n_samples * T.log(2 * np.pi))
+        ll = (
+            - 0.5 * T.dot(T.dot(target.T, inv_K), target)
+            - 0.5 * T.log(det(K))
+            - 0.5 * n_samples * T.log(2 * np.pi))
+        nll = -ll
 
         # We are interested in a loss that is invariant to the number of
         # samples.
