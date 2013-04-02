@@ -254,7 +254,7 @@ def diag_gaussian_nll(target, prediction):
     elif prediction.ndim == 2:
         # We have static data.
         mean, std = prediction[:, :n_output], prediction[:, n_output:]
-    var = std ** 2
+    var = (std + 1e-4) ** 2
     residuals = target - mean
     weighted_squares = -(residuals ** 2) / (2 * var + 1e-3)
     normalization = T.log(T.sqrt(2 * np.pi * var + 1e-3))
