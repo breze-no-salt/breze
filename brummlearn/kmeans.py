@@ -5,7 +5,7 @@ import itertools
 import numpy as np
 from sklearn.utils import check_random_state
 
-from brummlearn.pca import Pca
+from brummlearn.pca import Zca
 
 
 class GainShapeKMeans(object):
@@ -26,6 +26,9 @@ class GainShapeKMeans(object):
     whiten : boolean, optional, default: False
         Flag indicating whether the data should be whitened before training and
         transformation.
+
+    c_zca : float, optional, default: 1e-8
+        Small number that is added to each singular value during ZCA.
 
     max_iter : integer, optional
         Maximum number of iterations to perform.
@@ -56,13 +59,15 @@ class GainShapeKMeans(object):
 
     """
 
-    def __init__(self, n_component, zscores=False, whiten=False, max_iter=10,
-                 random_state=None):
+    def __init__(self, n_component, zscores=False, whiten=False, c_zca=1e-8,
+                 max_iter=10, random_state=None):
         self.n_component = n_component
-        self.max_iter = max_iter
-        self.random_state = random_state
         self.zscores = zscores
         self.whiten = whiten
+        self.c_zca = c_zca
+
+        self.max_iter = max_iter
+        self.random_state = random_state
 
         self.activation = 'identity'
         self.threshold = None
@@ -100,9 +105,9 @@ class GainShapeKMeans(object):
             X -= self.mean
             X /= self.std
         if self.whiten:
-            self.pca = Pca(whiten=True)
-            self.pca.fit(X)
-            X = self.pca.transform(X)
+            self.zca = Zca(self.c_zca)
+            self.zca.fit(X)
+            X = self.zca.transform(X)
         self.prepare(X.shape[1])
         for i, info in enumerate(self.iter_fit(X)):
             if i + 1 >= self.max_iter:
@@ -113,6 +118,16 @@ class GainShapeKMeans(object):
         for i in itertools.count():
             code = self.transform(X, activation='omp-1')
             self.dictionary += np.dot(X.T, code)
+
+            # If a cluster does not get any samples, reset it to a sample from
+            # the training set.
+            empty_clusters, = np.where(code.sum(axis=0) == 0)
+            for i in empty_clusters:
+                break
+                print i, X.shape, self.dictionary.shape
+                idx = np.random.randint(X.shape[0])
+                self.dictionary[:, i] = X[idx]
+
             self.normalize_dict()
             yield {'n_iter': i}
 
@@ -137,7 +152,7 @@ class GainShapeKMeans(object):
             X -= self.mean
             X /= self.std
         if self.whiten:
-            X = self.pca.transform(X)
+            X = self.zca.transform(X)
         code = np.dot(X, self.dictionary)
         if activation == 'omp-1':
             mask = np.zeros(code.shape)
