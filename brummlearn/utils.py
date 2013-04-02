@@ -152,43 +152,6 @@ def tile_raster_images(X, img_shape, tile_shape, tile_spacing=(0, 0),
         return out_array
 
 
-# From the matpplotlib cookbook at
-# http://www.scipy.org/Cookbook/Matplotlib/HintonDiagrams.
-# Adapte to work on an axis which can be given as an argument.
-
-def _blob(ax, x, y, area, colour):
-    """Draws a square-shaped blob with the given area (< 1) at
-    the given coordinates."""
-    hs = np.sqrt(area) / 2
-    xcorners = np.array([x - hs, x + hs, x + hs, x - hs])
-    ycorners = np.array([y - hs, y - hs, y + hs, y + hs])
-    ax.fill(xcorners, ycorners, colour, edgecolor=colour)
-
-
-def hinton(ax, W, max_weight=None):
-    """
-    Draws a Hinton diagram  for the matrix `W` to axis `ax`.
-    """
-    reenable = False
-
-    height, width = W.shape
-    if not max_weight:
-        max_weight = 2**np.ceil(np.log(np.max(np.abs(W)))/np.log(2))
-
-    ax.fill(np.array([0,width,width,0]),np.array([0,0,height,height]),'gray')
-    ax.axis('off')
-    ax.axis('equal')
-    for x in xrange(width):
-        for y in xrange(height):
-            _x = x+1
-            _y = y+1
-            w = W[y,x]
-            if w > 0:
-                _blob(ax, _x - 0.5, height - _y + 0.5, min(1,w/max_weight),'white')
-            elif w < 0:
-                _blob(ax, _x - 0.5, height - _y + 0.5, min(1,-w/max_weight),'black')
-
-
 def dict_to_hdf5(dct, fn, mode='w'):
     fp = h5py.File(fn, mode)
     add_to_hdf5(dct, fp)
