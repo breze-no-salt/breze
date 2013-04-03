@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+
+
+"""Module containing convenience functions."""
+
+
 import theano
 
 from breze.component import norm, corrupt as _corrupt

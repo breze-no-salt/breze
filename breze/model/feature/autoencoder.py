@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 
+import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
 
@@ -99,12 +100,13 @@ class DenoisingAutoEncoder(AutoEncoder):
             raise ValueError('unknown noise type %s' % noise_type)
 
         exprs = TwoLayerPerceptron.make_exprs(
-            corrupted, inpt, in_to_hidden, hidden_to_out,
+            inpt, inpt, in_to_hidden, hidden_to_out,
             hidden_bias, out_bias, hidden_transfer, out_transfer,
             loss)
         # Otherwise, corrupted will be treated as the input argument by
         # the function generating facilities of Breze on top.
-        exprs['inpt'] = inpt
+        exprs['true_loss'] = exprs['loss']
+        exprs['loss'] = theano.clone(exprs['loss'], {inpt: corrupted})
         exprs['corrupted'] = corrupted
         return exprs
 

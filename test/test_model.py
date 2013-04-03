@@ -118,13 +118,13 @@ def test_rica():
 
 def test_dnae():
     l = DenoisingAutoEncoder(2, 10, 'tanh', 'identity', 'nces', 'gauss', 0.1)
-    f = l.function(['corrupted', 'inpt'], 'loss', mode='FAST_COMPILE')
+    f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
-    fprime = l.function(['corrupted', 'inpt'], grad, mode='FAST_COMPILE')
+    fprime = l.function(['inpt'], grad, mode='FAST_COMPILE')
 
     mtx = np.asarray(np.random.random((10, 2)), dtype=theano.config.floatX)
-    f(mtx, mtx)
-    fprime(mtx, mtx)
+    f(mtx)
+    fprime(mtx)
 
 
 def test_rim():
