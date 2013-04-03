@@ -123,8 +123,6 @@ class GainShapeKMeans(object):
             # the training set.
             empty_clusters, = np.where(code.sum(axis=0) == 0)
             for i in empty_clusters:
-                break
-                print i, X.shape, self.dictionary.shape
                 idx = np.random.randint(X.shape[0])
                 self.dictionary[:, i] = X[idx]
 
