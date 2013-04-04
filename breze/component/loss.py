@@ -198,31 +198,53 @@ def ncar(target, embedding):
     return T.shape_padright(loss_vector)
 
 
-def drlim(margin, c_contrastive):
+def drlim(push_margin, pull_margin, c_contrastive):
     """Return a function that implements the
 
     'Dimensionality reduction by learning an invariant mapping' by
     Hadsell, R. and Chopra, S. and LeCun, Y. (2006).
 
     For an example of such a function, see `drlim1` with a margin of 1.
+    
+    Parameters
+    ----------
+    
+    push_margin : Float
+        The minimum margin that negative pairs should be seperated by.
+        Pairs seperated by higher distance than push_margin will not
+        contribute to the loss.
 
-    :parameter margin: Float, the margin used.
-    :parameter c_contrastive: Coefficient to weigh the contrastive term relative
-        to the positive term.
-    :returns: function that takes two arguments, a target and an embedding."""
+    pull_margin: Float
+        The maximum margin that positive pairs may be seperated by.
+        Pairs seperated by lower distances do not contribute to the loss.
+    
+    c_contrastive : Float
+        Coefficient to weigh the contrastive term relative to the 
+        positive term
+
+    Returns
+    -------
+
+    loss : callable
+        Function that takes two arguments, a target and an embedding."""
 
     def inner(target, embedding):
         """Return a theano expression of a vector containing the sample wise
         loss of drlim.
 
-        The margin and coefficient for the contrastives used are %.f and %.f
-        respectively.
+        The push_margin, pull_margin and coefficient for the contrastives 
+        used are %.f, %.f and %.f respectively.
 
-        :parameter target: A vector of length `n`. If 1, sample `2 * n` and
-            sample `2 * n + 1` are deemed similar.
-        :parameter embedding: Array containing the embeddings of samples row
-            wise.
-        """ % (margin, c_contrastive)
+        Parameters
+        ----------
+
+        target : array_like
+            A vector of length `n`. If 1, sample `2 * n` and sample 
+            `2 * n + 1` are deemed similar.
+
+        embedding : array_like
+            Array containing the embeddings of samples row wise.
+        """ % (push_margin, pull_margin, c_contrastive)
         target = target[:, 0]
         n_pair = embedding.shape[0] / 2
         n_feature = embedding.shape[1]
@@ -232,10 +254,10 @@ def drlim(margin, c_contrastive):
 
         # Calculate distances of pairs.
         diff = (embedding[:, :n_feature] - embedding[:, n_feature:])
-        dist = (diff ** 2).sum(axis=1)
+        dist = T.sqrt((diff ** 2).sum(axis=1) + 1e-8)
 
-        pull = target * dist
-        push = (1 - target) * T.maximum(0, margin - dist)
+        pull = target * T.maximum(0, dist - pull_margin)
+        push = (1 - target) * T.maximum(0, push_margin - dist) ** 2
 
         loss = pull + c_contrastive * push
         return loss.dimshuffle(0, 'x')
@@ -243,7 +265,7 @@ def drlim(margin, c_contrastive):
     return inner
 
 
-drlim1 = drlim(1, 0.5)
+drlim1 = drlim(1, 0, 0.5)
 
 
 def diag_gaussian_nll(target, prediction):
