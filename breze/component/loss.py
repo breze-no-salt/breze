@@ -198,17 +198,18 @@ def ncar(target, embedding):
     return T.shape_padright(loss_vector)
 
 
-def drlim(push_margin, pull_margin, c_contrastive):
+def drlim(push_margin, pull_margin, c_contrastive,
+          push_loss='squared', pull_loss='squared'):
     """Return a function that implements the
 
     'Dimensionality reduction by learning an invariant mapping' by
     Hadsell, R. and Chopra, S. and LeCun, Y. (2006).
 
     For an example of such a function, see `drlim1` with a margin of 1.
-    
+
     Parameters
     ----------
-    
+
     push_margin : Float
         The minimum margin that negative pairs should be seperated by.
         Pairs seperated by higher distance than push_margin will not
@@ -217,10 +218,16 @@ def drlim(push_margin, pull_margin, c_contrastive):
     pull_margin: Float
         The maximum margin that positive pairs may be seperated by.
         Pairs seperated by lower distances do not contribute to the loss.
-    
+
     c_contrastive : Float
-        Coefficient to weigh the contrastive term relative to the 
+        Coefficient to weigh the contrastive term relative to the
         positive term
+
+    push_loss : One of {'squared', 'absolute'}, optional, default: 'squared'
+        Loss to encourage Euclidean distances between non pairs.
+
+    pull_loss : One of {'squared', 'absolute'}, optional, default: 'squared'
+        Loss to punish Euclidean distances between pairs.
 
     Returns
     -------
@@ -228,18 +235,24 @@ def drlim(push_margin, pull_margin, c_contrastive):
     loss : callable
         Function that takes two arguments, a target and an embedding."""
 
+    # One might think that we'd need to use abs as the non-squared loss here.
+    # Yet, due to the maximum operation later one we can just take the identity
+    # as well.
+    f_push_loss = T.square if push_loss == 'squared' else lambda x: x
+    f_pull_loss = T.square if pull_loss == 'squared' else lambda x: x
+
     def inner(target, embedding):
         """Return a theano expression of a vector containing the sample wise
         loss of drlim.
 
-        The push_margin, pull_margin and coefficient for the contrastives 
+        The push_margin, pull_margin and coefficient for the contrastives
         used are %.f, %.f and %.f respectively.
 
         Parameters
         ----------
 
         target : array_like
-            A vector of length `n`. If 1, sample `2 * n` and sample 
+            A vector of length `n`. If 1, sample `2 * n` and sample
             `2 * n + 1` are deemed similar.
 
         embedding : array_like
@@ -256,8 +269,8 @@ def drlim(push_margin, pull_margin, c_contrastive):
         diff = (embedding[:, :n_feature] - embedding[:, n_feature:])
         dist = T.sqrt((diff ** 2).sum(axis=1) + 1e-8)
 
-        pull = target * T.maximum(0, dist - pull_margin)
-        push = (1 - target) * T.maximum(0, push_margin - dist) ** 2
+        pull = target * f_pull_loss(T.maximum(0, dist - pull_margin))
+        push = (1 - target) * f_push_loss(T.maximum(0, push_margin - dist))
 
         loss = pull + c_contrastive * push
         return loss.dimshuffle(0, 'x')
