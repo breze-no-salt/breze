@@ -7,6 +7,8 @@ import random
 import numpy as np
 import scipy.interpolate
 
+from sklearn.utils import check_random_state
+
 
 def one_hot(array, n_classes=None):
     """Return one of k vectors for an array of class indices.
@@ -30,6 +32,23 @@ def shuffle(data):
         swappartner = random.randint(i + 1, len(data) - 1)
         a, b = data[swappartner][:], data[i][:]
         data[i][:], data[swappartner][:] = b, a
+
+
+def shuffle_many(arrays, axes, random_state=None):
+    rng = check_random_state(random_state)
+
+    # We need to swap the axes of the arrays so that the axes along to shuffle
+    # is the first for each. We don't need to swap back, since these will be
+    # views.
+    arrays = [i.swapaxes(0, j) for i, j in zip(arrays, axes)]
+
+    assert all(i.shape[0] == arrays[0].shape[0] for i in arrays[1:])
+
+    permutation = rng.permutation(arrays[0].shape[0])
+
+    for old_index, new_index in enumerate(permutation):
+        for a in arrays:
+            a[old_index], a[new_index] = a[new_index], a[old_index]
 
 
 def padzeros(lst):
