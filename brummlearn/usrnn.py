@@ -1,4 +1,3 @@
-import theano
 import theano.tensor as T
 
 from .rnn import UnsupervisedRnn
@@ -41,7 +40,7 @@ class RimRnn(UnsupervisedRnn):
 
         # negative mutual information -> we are minimizing
         neg_mi = cond_entropy - entropy
-        l2 = (weights**2).sum()
+        l2 = (weights ** 2).sum()
 
         self.exprs.update({
             'neg_mi': neg_mi,
@@ -74,9 +73,9 @@ class SfRnn(UnsupervisedRnn):
         output = self.exprs['output']
 
         col_normalized = T.sqrt(
-            norm.normalize(output, lambda x: x**2, axis=0) + 1E-4)
+            norm.normalize(output, lambda x: x ** 2, axis=0) + 1E-4)
         row_normalized = T.sqrt(
-            norm.normalize(col_normalized, lambda x: x**2, axis=1) + 1E-4)
+            norm.normalize(col_normalized, lambda x: x ** 2, axis=1) + 1E-4)
 
         loss_rowwise = row_normalized.sum(axis=1)
         loss = loss_rowwise.mean()
@@ -117,7 +116,7 @@ class OneStepPredictRnn(UnsupervisedRnn):
 
         inpt, output = self.exprs['inpt'], self.exprs['output']
 
-        loss = ((inpt[1:] - output[:-1])**2).sum(axis=2).mean()
+        loss = ((inpt[1:] - output[:-1]) ** 2).sum(axis=2).mean()
         representation = self.exprs['hidden_0'].mean(axis=0)
 
         self.exprs.update({
