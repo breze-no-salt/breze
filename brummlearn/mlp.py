@@ -14,6 +14,7 @@ import theano.tensor as T
 import theano.tensor.shared_randomstreams
 
 from breze.model.neural import MultiLayerPerceptron
+from breze.model import fastdropout
 from breze.component import corrupt
 from brummlearn.base import SupervisedBrezeWrapperBase
 
@@ -222,3 +223,30 @@ class DropoutMlp(Mlp):
             truncate(W, self.max_norm, axis=0)
             #b = self.parameters['out_bias']
             #b /= (b ** 2).sum() * self.max_norm
+
+
+class FastDropoutNetwork(fastdropout.FastDropoutNetwork,
+                         SupervisedBrezeWrapperBase):
+
+    def __init__(self, n_inpt, n_hiddens, n_output,
+                 hidden_transfers, out_transfer, loss,
+                 optimizer='lbfgs',
+                 batch_size=None,
+                 p_dropout_inpt=.2,
+                 p_dropout_hidden=.5,
+                 max_iter=1000, verbose=False):
+        self.inpt_var = p_dropout_inpt * (1 - p_dropout_inpt)
+        self.hidden_var = p_dropout_hidden * (1 - p_dropout_hidden)
+
+        super(FastDropoutNetwork, self).__init__(
+            n_inpt, n_hiddens, n_output, hidden_transfers, out_transfer,
+            loss)
+        self.optimizer = optimizer
+        self.batch_size = batch_size
+
+        self.max_iter = max_iter
+        self.verbose = verbose
+
+        self.f_predict = None
+        self.parameters.data[:] = np.random.standard_normal(
+            self.parameters.data.shape)
