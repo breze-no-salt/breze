@@ -282,7 +282,7 @@ drlim1 = drlim(1, 0, 0.5)
 
 
 def diag_gaussian_nll(target, prediction):
-    n_output = prediction.shape[-1] / 2
+    n_output = prediction.shape[-1] // 2
     if prediction.ndim == 3:
         # We have dynamic data.
         mean, std = prediction[:, :, :n_output], prediction[:, :, n_output:]
