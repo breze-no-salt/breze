@@ -5,19 +5,17 @@ import numpy as np
 import theano.tensor as T
 
 
-z = 1. / np.sqrt(2 * np.pi)
 
 
 def normal_pdf(x, location=0, scale=1):
-    Z = z / scale
+    z = 1. / (np.sqrt(2 * np.pi) * scale)
     exp_arg = -((x - location) ** 2) / (2 * scale ** 2)
-    return T.exp(exp_arg) * Z
+    return T.exp(exp_arg) * z
 
 
 def normal_cdf(x, location=0, scale=1):
     erf_arg = (x - location) / T.sqrt(2 * scale ** 2)
     return .5 * (1 + T.erf(erf_arg))
-    pass
 
 
 def rectifier(mean, var):
