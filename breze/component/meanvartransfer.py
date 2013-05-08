@@ -59,3 +59,19 @@ def sampling_softmax(axis=1, rng=None):
         return result, T.zeros_like(var)
 
     return inner
+
+
+def sigmoid(mean, var):
+    mean_arg = mean / T.sqrt(1 + np.pi * var / 8)
+    mean_ = T.nnet.sigmoid(mean_arg)
+
+    a = 4 - 2 * np.sqrt(2)
+    b = -np.log(np.sqrt(2) - 1)
+
+    var_arg_1 = (
+        a * (mean - b) /
+        T.sqrt(1 + np.pi / (8 * a**2 * var)))
+
+    var_ = T.nnet.sigmoid(var_arg_1) - mean_ ** 2
+
+    return mean_, var_
