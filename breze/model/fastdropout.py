@@ -52,7 +52,7 @@ class MeanVarianceNetwork(MultiLayerPerceptron):
         hidden = mean_var_forward(inpt_mean, inpt_var, in_to_hidden,
                                   hidden_biases[0], f_hidden)
         (hidden_in_mean, hidden_in_var, hidden_mean, hidden_var) = hidden
-        #hidden_var += hidden_var_inc
+        hidden_var += hidden_var_inc
 
         exprs['hidden_in_mean_0'] = hidden_in_mean
         exprs['hidden_in_var_0'] = hidden_in_mean
@@ -65,7 +65,7 @@ class MeanVarianceNetwork(MultiLayerPerceptron):
             f = lookup(t, meanvartransfer)
             hidden = mean_var_forward(hidden_mean_m1, hidden_var_m1, w, b, f)
             (hidden_in_mean, hidden_in_var, hidden_mean, hidden_var) = hidden
-            #hidden_var += hidden_var_inc
+            hidden_var += hidden_var_inc
 
             exprs['hidden_in_mean_%i' % i] = hidden_in_mean
             exprs['hidden_in_var_%i' % i] = hidden_in_mean
