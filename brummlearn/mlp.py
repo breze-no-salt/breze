@@ -8,6 +8,7 @@ import itertools
 import climin
 import climin.util
 import climin.gd
+from climin.project import max_length_columns
 
 import numpy as np
 import theano.tensor as T
@@ -85,28 +86,6 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
             self.parameters.data.shape)
 
 
-def truncate(arr, max_sqrd_length, axis):
-    """Truncate rows/columnns (given by `axis` of a 2D array `arr` to be of a
-    maximum squared length of `max_sqrd_length`.
-
-    Works inplace.
-    """
-    if arr.ndim != 2 or axis not in (0, 1):
-        raise ValueError('only 2d arrays allowed')
-
-    sqrd_lengths = (arr ** 2).sum(axis=axis)
-    too_big_by = sqrd_lengths / max_sqrd_length
-    divisor = np.sqrt(too_big_by)
-    non_violated = sqrd_lengths < max_sqrd_length
-    divisor[np.where(non_violated)] = 1.
-
-    if axis == 0:
-        divisor = divisor[np.newaxis, :]
-    else:
-        divisor = divisor[:, np.newaxis]
-    arr /= divisor
-
-
 def dropout_optimizer_conf(
         steprate_0=1, steprate_decay=0.998, momentum_0=0.5,
         momentum_eq=0.99, n_momentum_anneal_steps=500,
@@ -136,14 +115,14 @@ class DropoutMlp(Mlp):
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
                  p_dropout_inpt=.2, p_dropout_hidden=.5,
-                 max_norm=15,
+                 max_length=15,
                  optimizer=None,
                  batch_size=-1,
                  max_iter=1000, verbose=False):
 
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hidden = p_dropout_hidden
-        self.max_norm = max_norm
+        self.max_length = max_length
 
         if optimizer is None:
             optimizer = dropout_optimizer_conf()
@@ -211,18 +190,14 @@ class DropoutMlp(Mlp):
         for i, info in enumerate(opt):
             yield info
             W = self.parameters['in_to_hidden']
-            truncate(W, self.max_norm, axis=0)
+            max_length_columns(W, self.max_length)
 
             n_layers = len(self.n_hiddens)
             for i in range(n_layers - 1):
                 W = self.parameters['hidden_to_hidden_%i' % i]
-                truncate(W, self.max_norm, axis=0)
-                #b = self.parameters['hidden_bias_%i' % i]
-                #b /= (b ** 2).sum() * self.max_norm
+                max_length_columns(W, self.max_length)
             W = self.parameters['hidden_to_out']
-            truncate(W, self.max_norm, axis=0)
-            #b = self.parameters['out_bias']
-            #b /= (b ** 2).sum() * self.max_norm
+            max_length_columns(W, self.max_length)
 
 
 class FastDropoutNetwork(fastdropout.FastDropoutNetwork,
@@ -234,9 +209,11 @@ class FastDropoutNetwork(fastdropout.FastDropoutNetwork,
                  batch_size=None,
                  p_dropout_inpt=.2,
                  p_dropout_hidden=.5,
+                 max_length=15,
                  max_iter=1000, verbose=False):
         self.inpt_var = p_dropout_inpt * (1 - p_dropout_inpt)
         self.hidden_var = p_dropout_hidden * (1 - p_dropout_hidden)
+        self.max_length = max_length
 
         super(FastDropoutNetwork, self).__init__(
             n_inpt, n_hiddens, n_output, hidden_transfers, out_transfer,
@@ -250,3 +227,16 @@ class FastDropoutNetwork(fastdropout.FastDropoutNetwork,
         self.f_predict = None
         self.parameters.data[:] = np.random.standard_normal(
             self.parameters.data.shape)
+
+    def iter_fit(self, X, Z):
+        for info in super(FastDropoutNetwork, self).iter_fit(X, Z):
+            yield info
+            W = self.parameters['in_to_hidden']
+            max_length_columns(W, self.max_length)
+
+            n_layers = len(self.n_hiddens)
+            for i in range(n_layers - 1):
+                W = self.parameters['hidden_to_hidden_%i' % i]
+                max_length_columns(W, self.max_length)
+            W = self.parameters['hidden_to_out']
+            max_length_columns(W, self.max_length)
