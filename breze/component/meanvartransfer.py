@@ -15,13 +15,13 @@ def normal_pdf(x, location=0, scale=1):
 
 
 def normal_cdf(x, location=0, scale=1):
-    erf_arg = (x - location) / T.sqrt(2 * scale ** 2)
+    erf_arg = (x - location) / T.sqrt(2 * scale ** 2 + 1e-8)
     return .5 * (1 + T.erf(erf_arg))
 
 
 def rectifier(mean, var):
     std = T.sqrt(var)
-    ratio = mean / std
+    ratio = mean / (std + 1e-8)
 
     mean_ = normal_cdf(ratio) * mean + normal_pdf(ratio) * std
 
@@ -73,5 +73,8 @@ def sigmoid(mean, var):
         T.sqrt(1 + np.pi / (8 * a**2 * var)))
 
     var_ = T.nnet.sigmoid(var_arg_1) - mean_ ** 2
+    # It seems as if this aproximation yields non positive variances in corner
+    # cases. We catch that here.
+    var_ = T.maximum(1e-4, var_)
 
     return mean_, var_
