@@ -165,6 +165,7 @@ class DropoutMlp(Mlp):
                                  mode=mode)
         return f_loss, f_d_loss
 
+    # TODO: wrong docstring
     def iter_fit(self, X, Z):
         """Iteratively fit the parameters of the model to the given data with
         the given error function.
@@ -203,6 +204,8 @@ class DropoutMlp(Mlp):
 class FastDropoutNetwork(fastdropout.FastDropoutNetwork,
                          SupervisedBrezeWrapperBase):
 
+    # TODO: dropout rates have to be strictly positive, otherwise there is a
+    # non positive variance.
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
                  optimizer='lbfgs',
@@ -210,10 +213,14 @@ class FastDropoutNetwork(fastdropout.FastDropoutNetwork,
                  p_dropout_inpt=.2,
                  p_dropout_hidden=.5,
                  max_length=15,
+                 inpt_var=0,
+                 var_bias_offset=0.0,
                  max_iter=1000, verbose=False):
-        self.inpt_var = p_dropout_inpt * (1 - p_dropout_inpt)
-        self.hidden_var = p_dropout_hidden * (1 - p_dropout_hidden)
+        self.p_dropout_inpt = p_dropout_inpt
+        self.p_dropout_hidden = p_dropout_hidden
         self.max_length = max_length
+        self.inpt_var = inpt_var
+        self.var_bias_offset = var_bias_offset
 
         super(FastDropoutNetwork, self).__init__(
             n_inpt, n_hiddens, n_output, hidden_transfers, out_transfer,
