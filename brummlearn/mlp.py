@@ -132,8 +132,8 @@ class DropoutMlp(Mlp):
             loss=loss, optimizer=optimizer, batch_size=batch_size,
             max_iter=max_iter, verbose=verbose)
 
-        self.parameters.data[:] = np.random.normal(0, 0.01,
-            self.parameters.data.shape)
+        self.parameters.data[:] = np.random.normal(
+            0, 0.01, self.parameters.data.shape)
 
     def _make_loss_functions(self, mode=None):
         """Return pair (f_loss, f_d_loss) of functions.
