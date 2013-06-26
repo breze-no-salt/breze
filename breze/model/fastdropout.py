@@ -26,7 +26,7 @@ def mean_var_forward(in_mean, in_var, weights, bias, variance_bias, transfer,
 
 class MeanVarianceNetwork(MultiLayerPerceptron):
 
-    hidden_var_inc = 1e-4
+    hidden_var_inc = 0
 
     def init_exprs(self):
         hidden_to_hiddens = [getattr(self.parameters, 'hidden_to_hidden_%i' % i)
