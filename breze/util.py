@@ -306,7 +306,7 @@ class Model(object):
                 exprs = theano.clone(exprs, givens)
 
         if explicit_pars:
-            pars = T.dvector(self.parameters.flat.name + '-substitute')
+            pars = T.vector(self.parameters.flat.name + '-substitute')
             variables = [pars] + variables
             givens = {}
             givens[self.parameters.flat] = pars
