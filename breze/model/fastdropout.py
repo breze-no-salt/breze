@@ -8,9 +8,6 @@ from ..component import meanvartransfer, loss as loss_
 from ..model.neural import MultiLayerPerceptron
 
 
-# TODO handle zero variance
-
-
 def mean_var_forward(in_mean, in_var, weights, bias, variance_bias, transfer,
                      p_dropout):
     out_in_mean = T.dot(in_mean, weights) * p_dropout
@@ -44,8 +41,7 @@ class MeanVarianceNetwork(MultiLayerPerceptron):
             hidden_biases,
             self.parameters.out_bias,
             self.hidden_transfers, self.out_transfer, self.loss,
-            # TODO: see the todo above, this is a workaround for no dropout:
-            # very small dropout.
+            # Workaround for no dropout: very small dropout.
             self.hidden_var_inc, 1e-32, 1e-32)
 
         self.exprs['inpt'] = inpt
