@@ -86,7 +86,7 @@ class MeanVarianceNetwork(MultiLayerPerceptron):
         hidden_var += hidden_var_inc
 
         exprs['hidden_in_mean_0'] = hidden_in_mean
-        exprs['hidden_in_var_0'] = hidden_in_mean
+        exprs['hidden_in_var_0'] = hidden_in_var
         exprs['hidden_mean_0'] = hidden_mean
         exprs['hidden_var_0'] = hidden_var
 
@@ -103,7 +103,7 @@ class MeanVarianceNetwork(MultiLayerPerceptron):
             hidden_var += hidden_var_inc
 
             exprs['hidden_in_mean_%i' % (i + 1)] = hidden_in_mean
-            exprs['hidden_in_var_%i' % (i + 1)] = hidden_in_mean
+            exprs['hidden_in_var_%i' % (i + 1)] = hidden_in_var
             exprs['hidden_mean_%i' % (i + 1)] = hidden_mean
             exprs['hidden_var_%i' % (i + 1)] = hidden_var
 
