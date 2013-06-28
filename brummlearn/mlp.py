@@ -10,6 +10,7 @@ import climin.util
 import climin.gd
 
 import numpy as np
+import theano
 import theano.tensor as T
 import theano.tensor.shared_randomstreams
 
@@ -81,7 +82,7 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
 
         self.f_predict = None
         self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape)
+            self.parameters.data.shape).astype(theano.config.floatX)
 
 
 def truncate(arr, max_sqrd_length, axis):
@@ -152,8 +153,9 @@ class DropoutMlp(Mlp):
             loss=loss, optimizer=optimizer, batch_size=batch_size,
             max_iter=max_iter, verbose=verbose)
 
-        self.parameters.data[:] = np.random.normal(0, 0.01,
-            self.parameters.data.shape)
+        self.parameters.data[:] = np.random.normal(
+            0, 0.01, self.parameters.data.shape
+            ).astype(theano.config.floatX)
 
     def _make_loss_functions(self, mode=None):
         """Return pair (f_loss, f_d_loss) of functions.

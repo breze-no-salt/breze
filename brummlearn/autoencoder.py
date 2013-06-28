@@ -79,7 +79,7 @@ described in the corresponding paragraphs.
 """
 
 import numpy as np
-import theano.config
+import theano
 
 from breze.model.feature import (
     AutoEncoder as _AutoEncoder,
@@ -137,7 +137,7 @@ class AutoEncoder(_AutoEncoder, UnsupervisedBrezeWrapperBase,
         self.f_transform = None
         self.f_reconstruct = None
         self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape, dtype=theano.config.floatX)
+            self.parameters.data.shape).astype(theano.config.floatX)
         self.max_iter = max_iter
         self.verbose = verbose
 
@@ -239,7 +239,7 @@ class SparseAutoEncoder(_SparseAutoEncoder, UnsupervisedBrezeWrapperBase,
         self.f_transform = None
         self.f_reconstruct = None
         self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape, dtype=theano.config.floatX)
+            self.parameters.data.shape).astype(theano.config.floatX)
         self.max_iter = max_iter
         self.verbose = verbose
 
@@ -316,7 +316,7 @@ class ContractiveAutoEncoder(_ContractiveAutoEncoder,
         self.f_transform = None
         self.f_reconstruct = None
         self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape, dtype=theano.config.floatX)
+            self.parameters.data.shape).astype(theano.config.floatX)
         self.max_iter = max_iter
         self.verbose = verbose
 

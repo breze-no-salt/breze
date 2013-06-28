@@ -13,6 +13,7 @@ import itertools
 
 import climin
 import numpy as np
+import theano
 import theano.tensor as T
 
 from breze.model.feature import Rica as _Rica
@@ -66,7 +67,7 @@ class Rica(_Rica, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin,
         self.f_transform = None
         self.f_reconstruct = None
         self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape)
+            self.parameters.data.shape).astype(theano.config.floatX)
         self.max_iter = max_iter
         self.verbose = verbose
 
