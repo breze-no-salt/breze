@@ -2,12 +2,16 @@
 
 
 import collections
-
 import numpy as np
 import theano
 import theano.tensor as T
 import theano.sandbox.cuda
 import theano.misc.gnumpy_utils as gput
+
+try:
+    import gnumpy
+except ImportError:
+    pass
 
 
 def flatten(nested):
@@ -149,11 +153,12 @@ def gnumpy_func_wrap(f):
     def inner(*args):
         args = garray_to_cudandarray_nested(args)
         res = f(*args)
-        print type(res)
         if isinstance(res, list):
             res = cudandarray_to_garray_nested(res)
         else:
-            res = gput.cudandarray_to_garray(res)
+            # TODO: check for CudaNdArray instance instead
+            if not isinstance(res, (float, np.ndarray)):
+                res = gput.cudandarray_to_garray(res)
         return res
     return inner
 
@@ -250,7 +255,14 @@ class ParameterSet(object):
         # Go through parameters and assign space and variable.
         self.views = {}
         n_used = 0 	# Number of used parameters.
-        self.data = self.flat.get_value(borrow=True, return_internal_type=True)
+
+	if theano.config.device == 'gpu':
+            self.data = gnumpy.zeros(self.flat.get_value().shape)
+	    #self.flat.set_value(gput.garray_to_cudandarray(self.data))
+        else:
+            self.data = np.empty(self.n_pars).astype(theano.config.floatX)
+	    self.flat.set_value(self.data)
+	
         for (key, shape), size in zip(kwargs.items(), sizes):
             # Make sure the key is legit -- that it does not overwrite anything.
             if hasattr(self, key):
@@ -338,7 +350,7 @@ class Model(object):
 
     def function(self, variables, exprs, mode=None, explicit_pars=False,
                  givens=None,
-                 on_unused_input='raise'):
+                 on_unused_input='raise', numpy_result=False):
         """Return a compiled function for the given `exprs` given `variables`.
 
 
@@ -374,6 +386,8 @@ class Model(object):
             Specifiy behaviour in case of unused inputs. Passed on to
             ``theano.function``. See Theano documentation for details.
         """
+        if theano.config.device == 'gpu' and not explicit_pars:
+            raise ValueError('only explicit parameters allowed when using gpu') 
 
         def lookup(varname):
             res = getattr(self.parameters, varname, None)
@@ -404,12 +418,6 @@ class Model(object):
             else:
                 exprs = theano.clone(exprs, givens)
 
-        if explicit_pars:
-            pars = T.dvector(self.parameters.flat.name + '-substitute')
-            variables = [pars] + variables
-            givens = {}
-            givens[self.parameters.flat] = pars
-
         # Build update dictionary.
         updates = collections.defaultdict(lambda: {})
         if isinstance(exprs, (list, tuple)):
@@ -421,7 +429,19 @@ class Model(object):
             updates.update(self.updates[exprs])
 
         if theano.config.device == 'gpu':
-            variables, exprs = self.var_exp_for_gpu(variables, exprs)
+            outputs = not numpy_result
+            variables, exprs = self.var_exp_for_gpu(variables, exprs, outputs=outputs)
+
+        if explicit_pars:
+            if theano.config.device == 'gpu':
+               par_tensor_klass = theano.sandbox.cuda.fvector
+            else:
+               T.vector
+            pars = par_tensor_klass(self.parameters.flat.name + '-substitute')
+            variables = [pars] + variables
+            givens = {}
+            givens[self.parameters.flat] = pars
+
 
         f = theano_function_with_nested_exprs(
             variables, exprs, givens=givens, mode=mode,
@@ -432,7 +452,7 @@ class Model(object):
 
         return f
 
-    def var_exp_for_gpu(self, variables, exprs):
+    def var_exp_for_gpu(self, variables, exprs, outputs=True):
         """Given variables and theano expressions built from these variables,
         return variables and expressions of the same form that are tailored
         towards GPU usage."""
@@ -468,7 +488,8 @@ class Model(object):
             for v, gv in zip(variables_flat, gpu_var_flat):
                 expr = theano.clone(expr, {v: gv})
             # (3)
-            expr = cpu_expr_to_gpu(expr)
+            if outputs:
+                expr = cpu_expr_to_gpu(expr)
             gpu_exprs_flat.append(expr)
 
         gpu_exprs = unflatten(exprs, gpu_exprs_flat)
