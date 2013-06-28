@@ -4,8 +4,10 @@
 import collections
 
 import numpy as np
-import theano.tensor as T
 import theano
+import theano.tensor as T
+import theano.sandbox.cuda
+import theano.misc.gnumpy_utils as gput
 
 
 def flatten(nested):
@@ -61,6 +63,72 @@ def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
     wrapper.flat_function = flat_function
 
     return wrapper
+
+
+def cpu_tensor_to_gpu(tensor):
+    """Given a tensor for the CPU return a tensor of the same type and name for
+    the GPU."""
+    if tensor.ndim == 0:
+        result = theano.sandbox.cuda.fscalar(tensor.name)
+    elif tensor.ndim == 1:
+        result = theano.sandbox.cuda.fvector(tensor.name)
+    elif tensor.ndim == 2:
+        result = theano.sandbox.cuda.fmatrix(tensor.name)
+    elif tensor.ndim == 3:
+        result = theano.sandbox.cuda.ftensor3(tensor.name)
+    elif tensor.ndim == 4:
+        result = theano.sandbox.cuda.ftensor4(tensor.name)
+    else:
+        raise ValueError('only up to dimension 4')
+
+    return result
+
+
+def cpu_expr_to_gpu(expr, unsafe=False):
+    """Given a CPU expr return the same expression for the GPU.
+
+    If unsafe is set to True, subsequent function calls evaluating the
+    expression might return arrays pointing at the same memory region.
+    """
+    return theano.Out(theano.sandbox.cuda.basic_ops.gpu_from_host(expr),
+                      borrow=unsafe)
+
+
+def cpu_to_gpu_nested(inpts):
+    """Given a list (of lists of...) expression, replace the CPU tensor
+    variables within with GPU tensor varaibles."""
+    inpts_flat = flatten(inpts)
+    inpts_flat = [cpu_tensor_to_gpu(i) for i in inpts_flat]
+    return unflatten(inpts, inpts_flat)
+
+
+def garray_to_cudandarray_nested(lst):
+    lst_flat = flatten(lst)
+    lst_flat = [gput.garray_to_cudandarray(i) for i in lst_flat]
+    lst = unflatten(lst, lst_flat)
+    return lst
+
+
+def cudandarray_to_garray_nested(lst):
+    lst_flat = flatten(lst)
+    lst_flat = [gput.cudandarray_to_garray(i) for i in lst_flat]
+    lst = unflatten(lst, lst_flat)
+    return lst
+
+
+def gnumpy_func_wrap(f):
+    """Wrap a function that accepts and returns CudaNdArrays to accept and
+    return gnumpy arrays."""
+    def inner(*args):
+        args = garray_to_cudandarray_nested(args)
+        res = f(*args)
+        print type(res)
+        if isinstance(res, list):
+            res = cudandarray_to_garray_nested(res)
+        else:
+            res = gput.cudandarray_to_garray(res)
+        return res
+    return inner
 
 
 def lookup(what, where, default=None):
@@ -321,11 +389,14 @@ class Model(object):
         else:
             updates.update(self.updates[exprs])
 
-        return theano_function_with_nested_exprs(variables, exprs,
-                                                 givens=givens,
-                                                 mode=mode,
-                                                 on_unused_input=on_unused_input,
-                                                 updates=updates)
+        f = theano_function_with_nested_exprs(
+            variables, exprs, givens=givens, mode=mode,
+            on_unused_input=on_unused_input, updates=updates)
+
+        if theano.config.device == 'gpu':
+            f = gnumpy_func_wrap(f)
+
+        return f
 
 
 class PrintEverythingMode(theano.Mode):
