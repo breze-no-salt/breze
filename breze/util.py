@@ -68,16 +68,17 @@ def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
 def cpu_tensor_to_gpu(tensor):
     """Given a tensor for the CPU return a tensor of the same type and name for
     the GPU."""
+    name = '%s-gpu' % tensor.name
     if tensor.ndim == 0:
-        result = theano.sandbox.cuda.fscalar(tensor.name)
+        result = theano.sandbox.cuda.fscalar(name)
     elif tensor.ndim == 1:
-        result = theano.sandbox.cuda.fvector(tensor.name)
+        result = theano.sandbox.cuda.fvector(name)
     elif tensor.ndim == 2:
-        result = theano.sandbox.cuda.fmatrix(tensor.name)
+        result = theano.sandbox.cuda.fmatrix(name)
     elif tensor.ndim == 3:
-        result = theano.sandbox.cuda.ftensor3(tensor.name)
+        result = theano.sandbox.cuda.ftensor3(name)
     elif tensor.ndim == 4:
-        result = theano.sandbox.cuda.ftensor4(tensor.name)
+        result = theano.sandbox.cuda.ftensor4(name)
     else:
         raise ValueError('only up to dimension 4')
 
@@ -445,7 +446,7 @@ class Model(object):
 
         exprs_flat = flatten(exprs)
         gpu_exprs_flat = [cpu_expr_to_gpu(i) for i in exprs_flat]
-        gpu_exprs = unflatten(gpu_exprs_flat)
+        gpu_exprs = unflatten(exprs, gpu_exprs_flat)
 
         return gpu_variables, gpu_exprs
 
