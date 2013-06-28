@@ -10,6 +10,7 @@ As introduced in
 """
 
 import numpy as np
+import theano
 
 from breze.model.rim import Rim as _Rim
 from brummlearn.base import (
@@ -41,7 +42,7 @@ class Rim(_Rim, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
             c_rim)
         self.f_transform = None
         self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape)
+            self.parameters.data.shape).astype(theano.config.floatX)
 
         self.optimizer = optimizer
         self.max_iter = max_iter

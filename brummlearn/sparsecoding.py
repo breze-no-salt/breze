@@ -16,6 +16,7 @@ since an optimization has to be performed.
 import itertools
 
 import numpy as np
+import theano
 import theano.tensor as T
 
 from breze.model.feature import SparseCoding as _SparseCoding
@@ -59,7 +60,7 @@ class SparseCoding(_SparseCoding, UnsupervisedBrezeWrapperBase,
         self.max_iter = max_iter
 
         self.parameters.data[:] = np.random.normal(0, 1e-5,
-                                                   self.parameters.data.shape)
+            self.parameters.data.shape).astype(theano.config.floatX)
         self.f_loss = None
         self.f_d_loss_wrt_feature = None
 

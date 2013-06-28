@@ -2,6 +2,7 @@
 
 
 import numpy as np
+import theano
 
 from breze.model.linear import Linear
 
@@ -48,4 +49,4 @@ class GeneralizedLinearModel(Linear, SupervisedBrezeWrapperBase):
         self.f_predict = None
 
         self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape)
+            self.parameters.data.shape).astype(theano.config.floatX)

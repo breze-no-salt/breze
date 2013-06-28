@@ -10,22 +10,19 @@ As introduced in
 
 """
 
-import itertools
-
-import climin
 import numpy as np
-import theano.tensor as T
+import theano
 
 from breze.model.feature import SparseFiltering as _SparseFiltering
 from brummlearn.base import (
     UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin)
 
 
-class SparseFiltering(_SparseFiltering, UnsupervisedBrezeWrapperBase,
-    TransformBrezeWrapperMixin):
+class SparseFiltering(
+    _SparseFiltering, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
 
     def __init__(self, n_inpt, n_feature, feature_transfer='softabs',
-        optimizer='lbfgs', max_iter=1000, verbose=False):
+                 optimizer='lbfgs', max_iter=1000, verbose=False):
         """Create a SparseFiltering object.
 
         :param n_inpt: Input dimensionality of the data.
@@ -40,11 +37,11 @@ class SparseFiltering(_SparseFiltering, UnsupervisedBrezeWrapperBase,
         :param verbose: Flag indicating whether to print out information during
             fitting.
         """
-        super(SparseFiltering, self).__init__(n_inpt, n_feature,
-            feature_transfer)
+        super(SparseFiltering, self).__init__(
+            n_inpt, n_feature, feature_transfer)
         self.f_transform = None
         self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape)
+            self.parameters.data.shape).astype(theano.config.floatX)
         self.optimizer = optimizer
         self.max_iter = max_iter
         self.verbose = verbose

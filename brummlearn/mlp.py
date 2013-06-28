@@ -11,6 +11,7 @@ import climin.gd
 from climin.project import max_length_columns
 
 import numpy as np
+import theano
 import theano.tensor as T
 import theano.tensor.shared_randomstreams
 
@@ -83,7 +84,7 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
 
         self.f_predict = None
         self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape)
+            self.parameters.data.shape).astype(theano.config.floatX)
 
 
 def dropout_optimizer_conf(
@@ -133,7 +134,8 @@ class DropoutMlp(Mlp):
             max_iter=max_iter, verbose=verbose)
 
         self.parameters.data[:] = np.random.normal(
-            0, 0.01, self.parameters.data.shape)
+            0, 0.01, self.parameters.data.shape
+            ).astype(theano.config.floatX)
 
     def _make_loss_functions(self, mode=None):
         """Return pair (f_loss, f_d_loss) of functions.

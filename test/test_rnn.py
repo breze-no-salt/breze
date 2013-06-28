@@ -104,6 +104,7 @@ def test_uslstm_transform():
 
 
 def test_gn_product_rnn():
+    raise SkipTest()
     np.random.seed(1010)
     n_timesteps = 3
     n_inpt = 3

@@ -6,8 +6,8 @@
 import itertools
 
 import breze.model.sequential.rnn as rnn
-
 import numpy as np
+import theano
 import theano.tensor as T
 
 from brummlearn.base import (
@@ -91,7 +91,8 @@ class BaseRnn(object):
         self.verbose = verbose
 
         self.f_predict = None
-        self.parameters.data[:] = np.random.standard_normal(self.parameters.data.shape)
+        self.parameters.data[:] = np.random.standard_normal(
+            self.parameters.data.shape).astype(theano.config.floatX)
 
     def _gauss_newton_product(self):
         """Return a theano expression for the product of the networks
