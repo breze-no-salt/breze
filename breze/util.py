@@ -84,6 +84,14 @@ def cpu_tensor_to_gpu(tensor):
     return result
 
 
+def cpu_tensor_to_gpu_nested(inpts):
+    """Given a list (of lists of...) CPU tensor variables return as list of the
+    same types of corresponding GPU tensor varaibles."""
+    inpts_flat = flatten(inpts)
+    inpts_flat = [cpu_tensor_to_gpu(i) for i in inpts_flat]
+    return unflatten(inpts, inpts_flat)
+
+
 def cpu_expr_to_gpu(expr, unsafe=False):
     """Given a CPU expr return the same expression for the GPU.
 
@@ -94,11 +102,15 @@ def cpu_expr_to_gpu(expr, unsafe=False):
                       borrow=unsafe)
 
 
-def cpu_to_gpu_nested(inpts):
-    """Given a list (of lists of...) expression, replace the CPU tensor
-    variables within with GPU tensor varaibles."""
+def cpu_expr_to_gpu_nested(inpts, unsafe=False):
+    """Given a list (of lists of...) expressions, return expressions for the
+    GPU.
+
+    If unsafe is set to True, subsequent function calls evaluating the
+    expression might return arrays pointing at the same memory region.
+    """
     inpts_flat = flatten(inpts)
-    inpts_flat = [cpu_tensor_to_gpu(i) for i in inpts_flat]
+    inpts_flat = [cpu_expr_to_gpu(i, unsafe) for i in inpts_flat]
     return unflatten(inpts, inpts_flat)
 
 
@@ -389,6 +401,9 @@ class Model(object):
         else:
             updates.update(self.updates[exprs])
 
+        if theano.config.device == 'gpu':
+            variables = cpu_to_gpu_nested(variables)
+            exprs =
         f = theano_function_with_nested_exprs(
             variables, exprs, givens=givens, mode=mode,
             on_unused_input=on_unused_input, updates=updates)
