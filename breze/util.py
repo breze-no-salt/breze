@@ -435,7 +435,7 @@ class Model(object):
     def var_exp_for_gpu(self, variables, exprs):
         """Given variables and theano expressions built from these variables,
         return variables and expressions of the same form that are tailored
-        towards GPU usage.  """
+        towards GPU usage."""
 
         # Here is the outline of this function.
         #
@@ -471,7 +471,7 @@ class Model(object):
             expr = cpu_expr_to_gpu(expr)
             gpu_exprs_flat.append(expr)
 
-        gpu_exprs = unflatten(gpu_exprs_flat, exprs)
+        gpu_exprs = unflatten(exprs, gpu_exprs_flat)
 
         return gpu_variables, gpu_exprs
 
