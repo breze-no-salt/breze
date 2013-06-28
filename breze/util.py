@@ -244,7 +244,7 @@ class ParameterSet(object):
             # Get the region from the big flat array.
             region = self.data[n_used:n_used + size]
             # Then shape it correctly and make it accessible from the outside.
-            region.shape = shape
+            region = region.reshape(shape)
             self.views[key] = region
 
             # Get the right variable as a subtensor.
@@ -402,8 +402,9 @@ class Model(object):
             updates.update(self.updates[exprs])
 
         if theano.config.device == 'gpu':
-            variables = cpu_to_gpu_nested(variables)
-            exprs =
+            variables = cpu_tensor_to_gpu_nested(variables)
+            exprs = cpu_expr_to_gpu_nested(exprs)
+
         f = theano_function_with_nested_exprs(
             variables, exprs, givens=givens, mode=mode,
             on_unused_input=on_unused_input, updates=updates)
