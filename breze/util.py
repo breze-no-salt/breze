@@ -84,12 +84,26 @@ def cpu_tensor_to_gpu(tensor):
     return result
 
 
-def cpu_tensor_to_gpu_nested(inpts):
+def cpu_tensor_to_gpu_nested(inpts, cache=None):
     """Given a list (of lists of...) CPU tensor variables return as list of the
-    same types of corresponding GPU tensor varaibles."""
+    same types of corresponding GPU tensor varaibles.
+
+    Also return a dictionary containing all substitutions done. This can
+    be provided to future calls to not make conversions multiple times.
+    """
+    if cache is None:
+        cache = {}
     inpts_flat = flatten(inpts)
-    inpts_flat = [cpu_tensor_to_gpu(i) for i in inpts_flat]
-    return unflatten(inpts, inpts_flat)
+    inpts_flat_conv = []
+    for inpt in inpts_flat:
+        if inpt in cache:
+            item = cache[inpt]
+        else:
+            item = cpu_tensor_to_gpu(inpt)
+            cache[inpt] = item
+        inpts_flat_conv.append(item)
+
+    return unflatten(inpts, inpts_flat_conv), cache
 
 
 def cpu_expr_to_gpu(expr, unsafe=False):
@@ -310,6 +324,7 @@ class Model(object):
         self.updates = collections.defaultdict(dict)
         self.init_pars()
         self.init_exprs()
+        self.gpu_variable_cache = None
 
     def init_pars(self):
         pass
@@ -402,7 +417,8 @@ class Model(object):
             updates.update(self.updates[exprs])
 
         if theano.config.device == 'gpu':
-            variables = cpu_tensor_to_gpu_nested(variables)
+            variables, self.gpu_variable_cache = cpu_tensor_to_gpu_nested(
+                variables, self.gpu_variable_cache
             exprs = cpu_expr_to_gpu_nested(exprs)
 
         f = theano_function_with_nested_exprs(
