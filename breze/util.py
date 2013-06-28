@@ -449,7 +449,6 @@ class Model(object):
         # them first and unflatten the results.
 
         # Stage (1)
-        The purpose of this function is to return
         variables_flat = flatten(variables)
         gpu_var_flat = []
         for var in variables_flat:
@@ -472,7 +471,7 @@ class Model(object):
             expr = cpu_expr_to_gpu(expr)
             gpu_exprs_flat.append(expr)
 
-        gpu_exprs = unflatten(gpu_exprs_flat)
+        gpu_exprs = unflatten(gpu_exprs_flat, exprs)
 
         return gpu_variables, gpu_exprs
 
