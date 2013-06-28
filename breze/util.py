@@ -324,7 +324,10 @@ class Model(object):
         self.updates = collections.defaultdict(dict)
         self.init_pars()
         self.init_exprs()
-        self.gpu_variable_cache = None
+
+        # This is a dictionary which is supposed to hold substitions of
+        # variables from .exprs for the use with the GPU.
+        self.gpu_variable_subs = {}
 
     def init_pars(self):
         pass
@@ -417,9 +420,7 @@ class Model(object):
             updates.update(self.updates[exprs])
 
         if theano.config.device == 'gpu':
-            variables, self.gpu_variable_cache = cpu_tensor_to_gpu_nested(
-                variables, self.gpu_variable_cache
-            exprs = cpu_expr_to_gpu_nested(exprs)
+            variables, exprs = self.var_exp_for_gpu(variables, exprs)
 
         f = theano_function_with_nested_exprs(
             variables, exprs, givens=givens, mode=mode,
@@ -429,6 +430,24 @@ class Model(object):
             f = gnumpy_func_wrap(f)
 
         return f
+
+    def var_exp_for_gpu(self, variables, exprs):
+        variables_flat = flatten(variables)
+        gpu_var_flat = []
+        for var in variables_flat:
+            if var in self.gpu_variable_subs:
+                gpu_var = self.gpu_variable_subs[var]
+            else:
+                gpu_var = cpu_tensor_to_gpu(var)
+                self.gpu_variable_subs[var] = gpu_var
+            gpu_var_flat.append(gpu_var)
+        gpu_variables = unflatten(variables, gpu_var_flat)
+
+        exprs_flat = flatten(exprs)
+        gpu_exprs_flat = [cpu_expr_to_gpu(i) for i in exprs_flat]
+        gpu_exprs = unflatten(gpu_exprs_flat)
+
+        return gpu_variables, gpu_exprs
 
 
 class PrintEverythingMode(theano.Mode):
