@@ -432,6 +432,23 @@ class Model(object):
         return f
 
     def var_exp_for_gpu(self, variables, exprs):
+        """Given variables and theano expressions built from these variables,
+        return variables and expressions of the same form that are tailored
+        towards GPU usage.  """
+
+        # Here is the outline of this function.
+        #
+        # (1) For each CPU tensor from theano.tensor create a corresponding GPU
+        #     tensor from theano.sandbox.cuda,
+        # (2) replace these in all expressions,
+        # (3) replace the output expressions with GPU expressions so no
+        #     auto-conversion to numpy is done.
+        #
+        # Since variables and expressions might be nested, we need to flatten
+        # them first and unflatten the results.
+
+        # Stage (1)
+        The purpose of this function is to return
         variables_flat = flatten(variables)
         gpu_var_flat = []
         for var in variables_flat:
@@ -443,8 +460,17 @@ class Model(object):
             gpu_var_flat.append(gpu_var)
         gpu_variables = unflatten(variables, gpu_var_flat)
 
+        # Loop for stage (2) and (3):
         exprs_flat = flatten(exprs)
-        gpu_exprs_flat = [cpu_expr_to_gpu(i) for i in exprs_flat]
+        gpu_exprs_flat = []
+        for expr in exprs_flat:
+            # (2)
+            for v, gv in zip(variables_flat, gpu_var_flat):
+                expr = theano.clone(expr, {v: gv})
+            # (3)
+            expr = cpu_expr_to_gpu(expr)
+            gpu_exprs_flat.append(expr)
+
         gpu_exprs = unflatten(gpu_exprs_flat)
 
         return gpu_variables, gpu_exprs
