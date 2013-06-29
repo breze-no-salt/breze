@@ -256,13 +256,12 @@ class ParameterSet(object):
         self.views = {}
         n_used = 0 	# Number of used parameters.
 
-	if theano.config.device == 'gpu':
+        if theano.config.device == 'gpu':
             self.data = gnumpy.zeros(self.flat.get_value().shape)
-	    #self.flat.set_value(gput.garray_to_cudandarray(self.data))
         else:
             self.data = np.empty(self.n_pars).astype(theano.config.floatX)
-	    self.flat.set_value(self.data)
-	
+        self.flat.set_value(self.data)
+
         for (key, shape), size in zip(kwargs.items(), sizes):
             # Make sure the key is legit -- that it does not overwrite anything.
             if hasattr(self, key):
@@ -387,7 +386,7 @@ class Model(object):
             ``theano.function``. See Theano documentation for details.
         """
         if theano.config.device == 'gpu' and not explicit_pars:
-            raise ValueError('only explicit parameters allowed when using gpu') 
+            raise ValueError('only explicit parameters allowed when using gpu')
 
         def lookup(varname):
             res = getattr(self.parameters, varname, None)
@@ -434,9 +433,9 @@ class Model(object):
 
         if explicit_pars:
             if theano.config.device == 'gpu':
-               par_tensor_klass = theano.sandbox.cuda.fvector
+                par_tensor_klass = theano.sandbox.cuda.fvector
             else:
-               T.vector
+                par_tensor_klass = T.vector
             pars = par_tensor_klass(self.parameters.flat.name + '-substitute')
             variables = [pars] + variables
             givens = {}
