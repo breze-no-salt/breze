@@ -8,10 +8,10 @@ import theano.tensor as T
 import theano.sandbox.cuda
 import theano.misc.gnumpy_utils as gput
 
-try:
+GPU = theano.config.device == 'gpu'
+
+if GPU:
     import gnumpy
-except ImportError:
-    pass
 
 
 def flatten(nested):
@@ -400,6 +400,7 @@ class Model(object):
             # We are only being given a single string expression.
             exprs = self.exprs[exprs]
         elif isinstance(exprs, theano.tensor.basic.TensorVariable):
+            # TODO: does this work in case of the GPU?
             exprs = exprs
         else:
             # We have several, either string or variable, thus make it a list
@@ -427,12 +428,12 @@ class Model(object):
         else:
             updates.update(self.updates[exprs])
 
-        if theano.config.device == 'gpu':
+        if GPU:
             outputs = not numpy_result
             variables, exprs = self.var_exp_for_gpu(variables, exprs, outputs=outputs)
 
         if explicit_pars:
-            if theano.config.device == 'gpu':
+            if GPU:
                 par_tensor_klass = theano.sandbox.cuda.fvector
             else:
                 par_tensor_klass = T.vector
@@ -441,12 +442,11 @@ class Model(object):
             givens = {}
             givens[self.parameters.flat] = pars
 
-
         f = theano_function_with_nested_exprs(
             variables, exprs, givens=givens, mode=mode,
             on_unused_input=on_unused_input, updates=updates)
 
-        if theano.config.device == 'gpu':
+        if GPU:
             f = gnumpy_func_wrap(f)
 
         return f
