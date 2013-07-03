@@ -59,16 +59,12 @@ def test_mvh():
     f_sample_vis = mvh.function([mvh.x_phid, mvh.x_shid],
                                 mvh.exprs.sample_vis(mvh.x_phid, mvh.x_shid))
 
-    f_gibbs_sample_vis = mvh.function(mvh.x_vis,
-                                      mvh.exprs.gibbs_sample_vis(mvh.x_vis,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 None,
-                                                                 1))
-    f_cd_learn = mvh.function(mvh.x_vis,
-                              mvh.exprs.cd_learning_update(mvh.x_vis))
+    f_gibbs_sample_vis = mvh.function(
+        mvh.x_vis, mvh.exprs.gibbs_sample_vis(
+            mvh.x_vis, None, None, None, None, None, 1))
+
+    f_cd_learn = mvh.function(
+        mvh.x_vis, mvh.exprs.cd_learning_update(mvh.x_vis))
 
     # test functions
     x_vis = [np.random.random((nodes, batch_size)) for nodes in n_vis_nodes]
