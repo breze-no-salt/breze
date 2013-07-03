@@ -78,14 +78,24 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
             self._gram_matrix = self.f_gram_matrix(stored_inpt)
 
         givens = {
-            self.exprs['gram_matrix']: theano.shared(self._gram_matrix),
-            self.exprs['target']: theano.shared(stored_target),
-            self.exprs['inpt']: theano.shared(stored_inpt),
+            self.exprs['gram_matrix']: theano.shared(
+                self._gram_matrix, name='gram_matrix-sub'),
+            self.exprs['target']: theano.shared(
+                stored_target, name='stored-target'),
+            self.exprs['inpt']: theano.shared(
+                stored_inpt, name='stored-inpt'),
         }
 
-        f_predict = self.function(['test_inpt'], 'output', givens=givens)
+        # We ignore warnings for unused inputs in both cases. Why?
+        # model.function will add the parameters vector to this function; but
+        # since we substitute the kernel matrix expression (which is the only
+        # way the parameters play a role) with a precomputed one, they will not
+        # be part of the computational graph anymore.
+        f_predict = self.function(['test_inpt'], 'output', givens=givens,
+                                  on_unused_input='ignore')
         f_predict_var = self.function(
-            ['test_inpt'], ['output', 'output_var'], givens=givens)
+            ['test_inpt'], ['output', 'output_var'], givens=givens,
+            on_unused_input='ignore')
 
         return f_predict, f_predict_var
 
