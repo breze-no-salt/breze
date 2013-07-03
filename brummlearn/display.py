@@ -79,14 +79,18 @@ def time_series_filter_plot(filters, n_rows=None, n_cols=None, fig=None):
 
     fig = plt.figure() if fig is None else fig
 
-    axisNum = 0
+    axis_num = 1
     for row in range(n_rows):
         for col in range(n_cols):
-            ax = plt.subplot(n_rows, n_cols, axisNum)
+            ax = plt.subplot(n_rows, n_cols, axis_num)
             ax.set_yticks([])
             ax.set_xticks([])
-            ax.plot(filters[axisNum])
-            axisNum += 1
+            ax.plot(filters[axis_num - 1])
+            axis_num += 1
+            if axis_num > filters.shape[0]:
+                break
+        if axis_num > filters.shape[0]:
+            break
     return fig
 
 
