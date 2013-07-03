@@ -250,17 +250,23 @@ class ParameterSet(object):
         sizes = [np.prod(i) for i in kwargs.values()]
 
         self.n_pars = sum(sizes)
-        self.flat = theano.shared(np.empty(self.n_pars, dtype=theano.config.floatX), name='flat')
+
+        # Create two representations of the parameters of the object. The first
+        # is the symbolic theano variable (of which the type is GPU/CPU
+        # specific), the second either a gnumpy or numpy array (depending on
+        # GPU/CPU again). Also set a default size for testing.
+        if theano.config.device == 'gpu':
+            self.data = gnumpy.zeros(self.n_pars)
+            self.flat = theano.sandbox.cuda.fvector('parameters')
+        else:
+            self.data = np.empty(self.n_pars).astype(theano.config.floatX)
+            self.flat = T.vector('parameters')
+
+        self.flat.tag.test_value = self.data
 
         # Go through parameters and assign space and variable.
         self.views = {}
         n_used = 0 	# Number of used parameters.
-
-        if theano.config.device == 'gpu':
-            self.data = gnumpy.zeros(self.flat.get_value().shape)
-        else:
-            self.data = np.empty(self.n_pars).astype(theano.config.floatX)
-        self.flat.set_value(self.data)
 
         for (key, shape), size in zip(kwargs.items(), sizes):
             # Make sure the key is legit -- that it does not overwrite anything.
@@ -385,9 +391,6 @@ class Model(object):
             Specifiy behaviour in case of unused inputs. Passed on to
             ``theano.function``. See Theano documentation for details.
         """
-        if theano.config.device == 'gpu' and not explicit_pars:
-            raise ValueError('only explicit parameters allowed when using gpu')
-
         def lookup(varname):
             res = getattr(self.parameters, varname, None)
             if res is None:
@@ -417,6 +420,8 @@ class Model(object):
                 exprs = [theano.clone(e, givens) for e in exprs]
             else:
                 exprs = theano.clone(exprs, givens)
+        else:
+            givens = {}
 
         # Build update dictionary.
         updates = collections.defaultdict(lambda: {})
@@ -433,14 +438,13 @@ class Model(object):
             variables, exprs = self.var_exp_for_gpu(variables, exprs, outputs=outputs)
 
         if explicit_pars:
+            variables = [self.parameters.flat] + variables
+        else:
             if GPU:
-                par_tensor_klass = theano.sandbox.cuda.fvector
+                givens[self.parameters.flat] = theano.shared(
+                    gput.garray_to_cudandarray(self.parameters.data))
             else:
-                par_tensor_klass = T.vector
-            pars = par_tensor_klass(self.parameters.flat.name + '-substitute')
-            variables = [pars] + variables
-            givens = {}
-            givens[self.parameters.flat] = pars
+                givens[self.parameters.flat] = theano.shared(self.parameters.data)
 
         f = theano_function_with_nested_exprs(
             variables, exprs, givens=givens, mode=mode,
