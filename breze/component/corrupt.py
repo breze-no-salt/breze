@@ -1,6 +1,7 @@
 """This module contains functionality to corrupt Theano variables
 with noise."""
 
+import theano
 import theano.tensor as T
 
 
@@ -17,5 +18,5 @@ def mask(x, p, rng=None):
     with a probability of ``p``."""
     if rng is None:
         rng = T.shared_randomstreams.RandomStreams()
-    this_mask = rng.binomial(size=x.shape, p=p)
+    this_mask = T.cast(rng.binomial(size=x.shape, p=p), theano.config.floatX)
     return x * this_mask
