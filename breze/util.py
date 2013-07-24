@@ -437,14 +437,7 @@ class Model(object):
             outputs = not numpy_result
             variables, exprs = self.var_exp_for_gpu(variables, exprs, outputs=outputs)
 
-        if explicit_pars:
-            variables = [self.parameters.flat] + variables
-        else:
-            if GPU:
-                givens[self.parameters.flat] = theano.shared(
-                    gput.garray_to_cudandarray(self.parameters.data))
-            else:
-                givens[self.parameters.flat] = theano.shared(self.parameters.data)
+        variables = [self.parameters.flat] + variables
 
         f = theano_function_with_nested_exprs(
             variables, exprs, givens=givens, mode=mode,
@@ -453,7 +446,12 @@ class Model(object):
         if GPU:
             f = gnumpy_func_wrap(f)
 
-        return f
+        if not explicit_pars:
+            def f_implicit_pars(*args, **kwargs):
+                return f(self.parameters.data, *args, **kwargs)
+            return f_implicit_pars
+        else:
+            return f
 
     def var_exp_for_gpu(self, variables, exprs, outputs=True):
         """Given variables and theano expressions built from these variables,
