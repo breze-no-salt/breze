@@ -8,20 +8,23 @@ import theano.tensor.extra_ops
 from theano.tensor.shared_randomstreams import RandomStreams
 
 
+epsilon = 1e-4
+
+
 def normal_pdf(x, location=0, scale=1):
-    z = 1. / (np.sqrt(2 * np.pi) * scale)
-    exp_arg = -((x - location) ** 2) / (2 * scale ** 2)
+    z = 1. / (np.sqrt(2 * np.pi) * scale + epsilon)
+    exp_arg = -((x - location) ** 2) / (2 * scale ** 2 + epsilon)
     return T.exp(exp_arg) * z
 
 
 def normal_cdf(x, location=0, scale=1):
-    erf_arg = (x - location) / T.sqrt(2 * scale ** 2 + 1e-8)
-    return .5 * (1 + T.erf(erf_arg))
+    erf_arg = (x - location) / T.sqrt(2 * scale ** 2 + epsilon)
+    return .5 * (1 + T.erf(erf_arg + epsilon))
 
 
 def rectifier(mean, var):
     std = T.sqrt(var)
-    ratio = mean / (std + 1e-8)
+    ratio = mean / (std + epsilon)
 
     mean_ = normal_cdf(ratio) * mean + normal_pdf(ratio) * std
 
@@ -50,7 +53,7 @@ def sampling_softmax(axis=1, rng=None):
         # Subtract minimum for numerical stability.
         samples -= samples.min(axis=axis).dimshuffle(0, 'x')
         exped = T.exp(samples)
-        normalizer = exped.sum(axis=axis)
+        normalizer = exped.sum(axis=axis) + epsilon
         if axis == 1:
             result = exped / normalizer.dimshuffle(0, 'x')
         if axis == 2:
@@ -70,7 +73,7 @@ def sigmoid(mean, var):
 
     var_arg_1 = (
         a * (mean - b) /
-        T.sqrt(1 + np.pi / (8 * a**2 * var)))
+        T.sqrt(1 + np.pi / (8 * a**2 * var + epsilon)))
 
     var_ = T.nnet.sigmoid(var_arg_1) - mean_ ** 2
     # It seems as if this aproximation yields non positive variances in corner
