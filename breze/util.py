@@ -440,7 +440,8 @@ class Model(object):
 
         if GPU:
             outputs = not numpy_result
-            variables, exprs = self.var_exp_for_gpu(variables, exprs, outputs=outputs)
+            variables, exprs = self.var_exp_for_gpu(
+                variables, exprs, outputs=outputs)
 
         if explicit_pars:
             variables = [self.parameters.flat] + variables
