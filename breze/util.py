@@ -449,7 +449,8 @@ class Model(object):
                 givens[self.parameters.flat] = theano.shared(
                     gput.garray_to_cudandarray(self.parameters.data))
             else:
-                givens[self.parameters.flat] = theano.shared(self.parameters.data)
+                givens[self.parameters.flat] = theano.shared(
+                    self.parameters.data)
 
         f = theano_function_with_nested_exprs(
             variables, exprs, givens=givens, mode=mode,
@@ -484,6 +485,7 @@ class Model(object):
                 gpu_var = self.gpu_variable_subs[var]
             else:
                 gpu_var = cpu_tensor_to_gpu(var)
+                gpu_var.name = var.name + '-for-gpu'
                 self.gpu_variable_subs[var] = gpu_var
             gpu_var_flat.append(gpu_var)
         gpu_variables = unflatten(variables, gpu_var_flat)
