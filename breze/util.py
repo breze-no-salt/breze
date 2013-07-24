@@ -391,6 +391,10 @@ class Model(object):
         on_unused_input: string
             Specifiy behaviour in case of unused inputs. Passed on to
             ``theano.function``. See Theano documentation for details.
+
+        numpy_result : boolean, optional, default: False
+            If set to True, a numpy array is always returned, even if the computation is
+            done on the GPU and a gnumpy array was more natural.
         """
         def lookup(varname):
             res = getattr(self.parameters, varname, None)
