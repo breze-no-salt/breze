@@ -70,7 +70,7 @@ def test_gp_predict_maxrows():
     Y = gp.predict(X)
     Y2 = gp.predict(X, max_rows=2)
 
-    assert (Y == Y2).all()
+    assert np.allclose(Y, Y2)
 
 
 def test_gp_sample_parameters():
