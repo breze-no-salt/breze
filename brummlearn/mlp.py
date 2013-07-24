@@ -47,8 +47,8 @@ class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):
         returns a tensor of the same shape.
 
     out_transfer : string or function
-        Either a string to look up a function in ``breze.component.transfer`` or
-        a function that given a Theano tensor returns a tensor of the same
+        Either a string to look up a function in ``breze.component.transfer``
+        or a function that given a Theano tensor returns a tensor of the same
         shape.
 
     optimizer : string, pair
@@ -215,7 +215,7 @@ class FastDropoutNetwork(fastdropout.FastDropoutNetwork,
                  p_dropout_inpt=.2,
                  p_dropout_hidden=.5,
                  max_length=15,
-                 inpt_var=0,
+                 inpt_var=1e-8,
                  var_bias_offset=0.0,
                  max_iter=1000, verbose=False):
         self.p_dropout_inpt = p_dropout_inpt
