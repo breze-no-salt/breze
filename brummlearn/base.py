@@ -5,12 +5,37 @@ learning algorithms."""
 
 
 import itertools
+import warnings
 
 import climin
 import climin.util
+import climin.mathadapt as ma
+import theano
 import theano.tensor as T
 
 from brummlearn.data import iter_minibatches
+
+GPU = theano.config.device == 'gpu'
+if GPU:
+    import gnumpy as gp
+
+
+def assert_gpu_if_necessary(arr):
+    """Given an array (HDF5, numpy, gnumpy) return a gnumpy garray if current
+    theano is set to gpu."""
+    res = arr
+    if GPU and not isinstance(arr, gp.garray):
+        warnings.warn('Implicilty converting numpy.ndarray to gnumpy.garray')
+        res = gp.as_garray(res)
+    return res
+
+
+def assert_ndarray(arr):
+    """If ``arr`` is a ``gnumpy.garray``, convert it to a ``numpy.ndarray``.
+    Otherwise pass silently."""
+    if GPU and isinstance(arr, gp.garray):
+        arr = arr.as_numpy_array()
+    return arr
 
 
 class BrezeWrapperBase(object):
@@ -58,21 +83,22 @@ class BrezeWrapperBase(object):
 
         Each dictionary yielded is directly obtained from the optimizer used to
         optimize the loss. It is augmented with the keys `loss`, `best_pars`
-        and `best_loss`. The best loss is obtained by evaluating the loss of the
-        model (given by model.exprs['loss']) on `eval_data`, while training
+        and `best_loss`. The best loss is obtained by evaluating the loss of
+        the model (given by model.exprs['loss']) on `eval_data`, while training
         is done on `fit_data`.
 
         This method respects a ``true_loss`` entry in the ``exprs``
-        dictionary: if it is present, it will be used for reporting the loss and
-        for comparing models throughout optimization instead of ``loss``, which
-        will be used for the optimization itself. This makes it possible to add
-        regularization terms to the loss and use other losses (such as the
-        zero-one loss) for comparison of parameters.
+        dictionary: if it is present, it will be used for reporting the loss
+        and for comparing models throughout optimization instead of ``loss``,
+        which will be used for the optimization itself. This makes it possible
+        to add regularization terms to the loss and use other losses (such as
+        the zero-one loss) for comparison of parameters.
 
         :param fit_data: A tuple containing arrays representing the data the
             model should be fitted on.
         :param eval_data: A tuple containing arrays representing the data the
-            model should be evaluated on, and which gives which model is "best".
+            model should be evaluated on, and which gives which model is
+            "best".
         :param stop: A function receiving an info dictionary which returns True
             if the iterator should stop.
         :param report: A function receiving an info dictionary which should
@@ -85,13 +111,16 @@ class BrezeWrapperBase(object):
         best_pars = None
         best_loss = float('inf')
 
+        fit_data = [assert_gpu_if_necessary(i) for i in fit_data]
+        eval_data = [assert_gpu_if_necessary(i) for i in eval_data]
+
         for info in self.iter_fit(*fit_data):
             if report(info):
                 if 'loss' not in info:
                     # Not all optimizers, e.g. ilne and gd, do actually
                     # calculate the loss.
-                    info['loss'] = f_loss(*fit_data)
-                info['val_loss'] = f_loss(*eval_data)
+                    info['loss'] = ma.scalar(f_loss(*fit_data))
+                info['val_loss'] = ma.scalar(f_loss(*eval_data))
 
                 if info['val_loss'] < best_loss:
                     best_loss = info['val_loss']
@@ -123,13 +152,14 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         f_loss = self.function(['inpt', 'target'], 'loss', explicit_pars=True,
                                mode=mode, givens=givens,
                                on_unused_input=on_unused_input)
-        f_d_loss = self.function(['inpt', 'target'], d_loss, explicit_pars=True,
-                                 mode=mode, givens=givens,
-                                 on_unused_input=on_unused_input)
+        f_d_loss = self.function(
+            ['inpt', 'target'], d_loss, explicit_pars=True, mode=mode,
+            givens=givens, on_unused_input=on_unused_input)
 
         return f_loss, f_d_loss
 
     def _make_args(self, X, Z):
+        X, Z = assert_gpu_if_necessary(X), assert_gpu_if_necessary(Z)
         batch_size = getattr(self, 'batch_size', None)
         if batch_size is None:
             data = itertools.repeat([X, Z])
@@ -144,9 +174,9 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         """Iteratively fit the parameters of the model to the given data with
         the given error function.
 
-        Each iteration of the learning algorithm is an iteration of the returned
-        iterator. The model is in a valid state after each iteration, so that
-        the optimization can be broken any time by the caller.
+        Each iteration of the learning algorithm is an iteration of the
+        returned iterator. The model is in a valid state after each iteration,
+        so that the optimization can be broken any time by the caller.
 
         This method does `not` respect the max_iter attribute.
 
@@ -180,12 +210,23 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
     def predict(self, X):
         """Return the prediction of the model given the input.
 
-        :param X: Array representing the inputs.
-        :returns: Output array.
+        Parameters
+        ----------
+
+        X : array_like
+            Input to the model.
+
+        Returns
+        -------
+
+        Y : array_like
         """
+        X = assert_gpu_if_necessary(X)
         if self.f_predict is None:
             self.f_predict = self._make_predict_functions()
-        return self.f_predict(X)
+        Y = self.f_predict(X)
+
+        return Y
 
 
 class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
@@ -196,9 +237,9 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
     def iter_fit(self, X):
         """Iteratively fit the parameters of the model to the given data.
 
-        Each iteration of the learning algorithm is an iteration of the returned
-        iterator. The model is in a valid state after each iteration, so that
-        the optimization can be broken any time by the caller.
+        Each iteration of the learning algorithm is an iteration of the
+        returned iterator. The model is in a valid state after each iteration,
+        so that the optimization can be broken any time by the caller.
 
         This method does `not` respect the max_iter attribute.
 
@@ -245,8 +286,9 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
 
         f_loss = self.function(['inpt'], 'loss', explicit_pars=True,
                                givens=givens, on_unused_input=on_unused_input)
-        f_d_loss = self.function(['inpt'], d_loss, explicit_pars=True,
-                                 givens=givens, on_unused_input=on_unused_input)
+        f_d_loss = self.function(
+            ['inpt'], d_loss, explicit_pars=True, givens=givens,
+            on_unused_input=on_unused_input)
         return f_loss, f_d_loss
 
 
@@ -264,12 +306,27 @@ class TransformBrezeWrapperMixin(object):
     def transform(self, X):
         """Return the feature representation of the model given X.
 
+        Parameters
+        ----------
+
+        X : array_like
+            Represents the inputs to be transformed.
+
+        Returns
+        -------
+
+        Y : array_like
+            Transformation of X under the model.
+
         :param X: An array representing the inputs.
         :returns: An array representing the transformed inputs.
         """
+        X = assert_gpu_if_necessary(X)
         if self.f_transform is None:
             self.f_transform = self._make_transform_function()
-        return self.f_transform(X)
+        Y = self.f_transform(X)
+
+        return Y
 
 
 class ReconstructBrezeWrapperMixin(object):
