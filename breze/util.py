@@ -54,7 +54,8 @@ def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
     flat_variables = flatten(variables)
     flat_exprs = flatten(exprs)
 
-    flat_function = theano.function(flat_variables, flat_exprs, *args, **kwargs)
+    flat_function = theano.function(
+        flat_variables, flat_exprs, *args, **kwargs)
 
     def wrapper(*fargs):
         flat_fargs = flatten(fargs)
@@ -270,7 +271,8 @@ class ParameterSet(object):
         n_used = 0 	# Number of used parameters.
 
         for (key, shape), size in zip(kwargs.items(), sizes):
-            # Make sure the key is legit -- that it does not overwrite anything.
+            # Make sure the key is legit -- that it does not overwrite
+            # anything.
             if hasattr(self, key):
                 raise ValueError("%s is an illegal name for a variable")
 
@@ -336,8 +338,8 @@ class Model(object):
         regularization or the empirical risk.
 
     Overriding these names is possible in general, but is part of the interface
-    and will lead to unexpected behaviour with functionality building upon this.
-    """
+    and will lead to unexpected behaviour with functionality building upon
+    this."""
 
     def __init__(self):
         self.updates = collections.defaultdict(dict)
@@ -354,6 +356,41 @@ class Model(object):
     def init_exprs(self):
         pass
 
+    def _unify_variables(self, variables):
+        """Given a list of variables where each identifier given as a astring
+        is repaced by the corresponding variable from the .exprs
+        dictionary."""
+        def lookup(varname):
+            res = getattr(self.parameters, varname, None)
+            if res is None:
+                res = self.exprs[i]
+            return res
+        variables = [lookup(i) if isinstance(i, str) else i
+                     for i in variables]
+        return variables
+
+    def _unify_exprs(self, exprs):
+        """Expressions can be identified either as a reference to the
+        expression object or by its name in the .exprs dictionary.  In either
+        case, it can also be a mixed list of both when passed to
+        Model.function.
+
+        This function unifies all possible arguments in that way and returns a
+        list of proper expressions."""
+        if isinstance(exprs, (str, unicode)):
+            # We are only being given a single string expression.
+            exprs = self.exprs[exprs]
+        elif isinstance(exprs, theano.tensor.basic.TensorVariable):
+            # TODO: does this work in case of the GPU?
+            exprs = exprs
+        else:
+            # We have several, either string or variable, thus make it a list
+            # and substitute the strings.
+            exprs = list(exprs)
+            exprs = [self.exprs[i] if isinstance(i, str) else i for i in exprs]
+
+        return exprs
+
     def function(self, variables, exprs, mode=None, explicit_pars=False,
                  givens=None,
                  on_unused_input='raise', numpy_result=False):
@@ -368,12 +405,12 @@ class Model(object):
             input to the function.
 
         exprs : (List of) Theano expression or string
-            Expressions for which to create the function. If a single expression
-            is given, the function will return a single value; if a list is
-            given, the result will be a tuple containing one element for each.
-            An expression can either be a Theano expression or a string. In the
-            latter case, the corresponding expression will be retrieved from
-            ``.exprs``.
+            Expressions for which to create the function. If a single
+            expression is given, the function will return a single value; if a
+            list is given, the result will be a tuple containing one element
+            for each.  An expression can either be a Theano expression or a
+            string. In the latter case, the corresponding expression will be
+            retrieved from ``.exprs``.
 
         mode : string or None, optional, default: None
             Mode to use for compilation. Passed on to ``theano.function``.
@@ -393,28 +430,11 @@ class Model(object):
             ``theano.function``. See Theano documentation for details.
 
         numpy_result : boolean, optional, default: False
-            If set to True, a numpy array is always returned, even if the computation is
-            done on the GPU and a gnumpy array was more natural.
+            If set to True, a numpy array is always returned, even if the
+            computation is done on the GPU and a gnumpy array was more natural.
         """
-        def lookup(varname):
-            res = getattr(self.parameters, varname, None)
-            if res is None:
-                res = self.exprs[i]
-            return res
-        variables = [lookup(i) if isinstance(i, str) else i
-                     for i in variables]
-
-        if isinstance(exprs, (str, unicode)):
-            # We are only being given a single string expression.
-            exprs = self.exprs[exprs]
-        elif isinstance(exprs, theano.tensor.basic.TensorVariable):
-            # TODO: does this work in case of the GPU?
-            exprs = exprs
-        else:
-            # We have several, either string or variable, thus make it a list
-            # and substitute the strings.
-            exprs = list(exprs)
-            exprs = [self.exprs[i] if isinstance(i, str) else i for i in exprs]
+        variables = self._unify_variables(variables)
+        exprs = self._unify_exprs(exprs)
 
         # We need to clone instead of using the givens parameter of
         # theano.function, because otherwise we might get an theano error
@@ -516,8 +536,10 @@ class PrintEverythingMode(theano.Mode):
             fn()
             print [output[0] for output in fn.outputs]
             print '>' * 50
-        wrap_linker = theano.gof.WrapLinkerMany([theano.gof.OpWiseCLinker()], [print_eval])
-        super(PrintEverythingMode, self).__init__(wrap_linker, optimizer='fast_compile')
+        wrap_linker = theano.gof.WrapLinkerMany(
+            [theano.gof.OpWiseCLinker()], [print_eval])
+        super(PrintEverythingMode, self).__init__(
+            wrap_linker, optimizer='fast_compile')
 
 
 class WarnNaNMode(theano.Mode):
@@ -532,5 +554,7 @@ class WarnNaNMode(theano.Mode):
                         pdb.set_trace()
                 except TypeError:
                     print 'could not check for NaN in:', inpt
-        wrap_linker = theano.gof.WrapLinkerMany([theano.gof.OpWiseCLinker()], [print_eval])
-        super(WarnNaNMode, self).__init__(wrap_linker, optimizer='fast_compile')
+        wrap_linker = theano.gof.WrapLinkerMany(
+            [theano.gof.OpWiseCLinker()], [print_eval])
+        super(WarnNaNMode, self).__init__(
+            wrap_linker, optimizer='fast_compile')
