@@ -117,6 +117,7 @@ def cpu_expr_to_gpu(expr, unsafe=False):
     If unsafe is set to True, subsequent function calls evaluating the
     expression might return arrays pointing at the same memory region.
     """
+    expr = T.cast(expr, 'float32')
     return theano.Out(theano.sandbox.cuda.basic_ops.gpu_from_host(expr),
                       borrow=unsafe)
 
