@@ -10,8 +10,10 @@ import warnings
 import climin
 import climin.util
 import climin.mathadapt as ma
+import numpy as np
 import theano
 import theano.tensor as T
+
 
 from brummlearn.data import iter_minibatches
 
@@ -20,13 +22,19 @@ if GPU:
     import gnumpy as gp
 
 
-def assert_gpu_if_necessary(arr):
-    """Given an array (HDF5, numpy, gnumpy) return a gnumpy garray if current
-    theano is set to gpu."""
+def cast_array_to_local_type(arr):
+    """Given an array (HDF5, numpy, gnumpy) return an array that matches the
+    current theano configuration.
+
+    That is, if the current device is GPU, make it a gnumpy.garry. If the
+    current theano.config.floatX does not match the dtype of arr, return an
+    array that does."""
     res = arr
     if GPU and not isinstance(arr, gp.garray):
         warnings.warn('Implicilty converting numpy.ndarray to gnumpy.garray')
         res = gp.as_garray(res)
+    elif isinstance(arr, np.ndarray) and arr.dtype != theano.config.floatX:
+        res = arr.astype(theano.config.floatX)
     return res
 
 
@@ -111,8 +119,8 @@ class BrezeWrapperBase(object):
         best_pars = None
         best_loss = float('inf')
 
-        fit_data = [assert_gpu_if_necessary(i) for i in fit_data]
-        eval_data = [assert_gpu_if_necessary(i) for i in eval_data]
+        fit_data = [cast_array_to_local_type(i) for i in fit_data]
+        eval_data = [cast_array_to_local_type(i) for i in eval_data]
 
         for info in self.iter_fit(*fit_data):
             if report(info):
@@ -159,7 +167,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         return f_loss, f_d_loss
 
     def _make_args(self, X, Z):
-        X, Z = assert_gpu_if_necessary(X), assert_gpu_if_necessary(Z)
+        X, Z = cast_array_to_local_type(X), cast_array_to_local_type(Z)
         batch_size = getattr(self, 'batch_size', None)
         if batch_size is None:
             data = itertools.repeat([X, Z])
@@ -221,7 +229,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
         Y : array_like
         """
-        X = assert_gpu_if_necessary(X)
+        X = cast_array_to_local_type(X)
         if self.f_predict is None:
             self.f_predict = self._make_predict_functions()
         Y = self.f_predict(X)
@@ -321,7 +329,7 @@ class TransformBrezeWrapperMixin(object):
         :param X: An array representing the inputs.
         :returns: An array representing the transformed inputs.
         """
-        X = assert_gpu_if_necessary(X)
+        X = cast_array_to_local_type(X)
         if self.f_transform is None:
             self.f_transform = self._make_transform_function()
         Y = self.f_transform(X)
