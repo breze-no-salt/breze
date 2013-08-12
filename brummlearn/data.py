@@ -9,6 +9,8 @@ import scipy.interpolate
 
 from sklearn.utils import check_random_state
 
+from climin.util import minibatches, iter_minibatches
+
 
 def one_hot(array, n_classes=None):
     """Return one of k vectors for an array of class indices.
@@ -101,46 +103,6 @@ def skip(X, n, d=1):
     X_ = X.reshape((X.shape[0], X.shape[1] / d, d))
     X_ = X_[:, ::n, :]
     return X_.reshape((X.shape[0], X_.size / X.shape[0]))
-
-
-def minibatches(arr, batchsize, d=0):
-    """Return a list of views of the given arr.
-
-    Given `batchsize`, each batch but the last one will have the specified
-    size. Slicing will be performed along the `d`th dimension."""
-    n_batches, rest = divmod(arr.shape[d], batchsize)
-    if rest != 0:
-        n_batches += 1
-
-    slices = (slice(i * batchsize, (i + 1) * batchsize)
-              for i in range(n_batches))
-    if d == 0:
-        res = [arr[i] for i in slices]
-    elif d == 1:
-        res = [arr[:, i] for i in slices]
-    elif d == 2:
-        res = [arr[:, :, i] for i in slices]
-
-    return res
-
-
-def iter_minibatches(lst, batchsize, dims):
-    """Return an iterator that successively yields tuples containing aligned
-    minibatches of size `batchsize` from slicable objects given in `lst`.
-
-    Because different containers might require slicing over different
-    dimensions, the dimension of each container has to be givens as a list
-    `dims`."""
-    batches = [minibatches(i, batchsize, d) for i, d in zip(lst, dims)]
-    if len(batches) > 1:
-        if any(len(i) != len(batches[0]) for i in batches[1:]):
-            raise ValueError("containers to be batched have different lengths")
-    while True:
-        indices = [i for i, _ in enumerate(batches[0])]
-        while True:
-            random.shuffle(indices)
-            for i in indices:
-                yield tuple(b[i] for b in batches)
 
 
 def interleave(lst):
