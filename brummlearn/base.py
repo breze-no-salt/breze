@@ -169,7 +169,15 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         :param Z: Array representing the outputs.
         """
         itr = self.iter_fit(X, Z)
+        if self.verbose:
+            print 'Optimizing for %i iterations.' % self.max_iter
         for i, info in enumerate(itr):
+            if self.verbose:
+                if 'loss' in info:
+                    print '%i/%i %g' % (info['n_iter'], self.max_iter,
+                                        info['loss'])
+                else:
+                    print '%i/%i' % (info['n_iter'], self.max_iter)
             if i + 1 >= self.max_iter:
                 break
 
@@ -218,7 +226,15 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
         :param X: Array representing the samples.
         """
         itr = self.iter_fit(X)
+        if self.verbose:
+            print 'Optimizing for %i iterations.' % self.max_iter
         for i, info in enumerate(itr):
+            if self.verbose:
+                if 'loss' in info:
+                    print '%i/%i %g' % (info['n_iter'], self.max_iter,
+                                        info['loss'])
+                else:
+                    print '%i/%i' % (info['n_iter'], self.max_iter)
             if i + 1 >= self.max_iter:
                 break
 
