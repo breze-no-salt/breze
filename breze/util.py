@@ -257,7 +257,7 @@ class ParameterSet(object):
         # is the symbolic theano variable (of which the type is GPU/CPU
         # specific), the second either a gnumpy or numpy array (depending on
         # GPU/CPU again). Also set a default size for testing.
-        if theano.config.device == 'gpu':
+        if GPU:
             self.data = gnumpy.zeros(self.n_pars)
             self.flat = theano.sandbox.cuda.fvector('parameters')
         else:
