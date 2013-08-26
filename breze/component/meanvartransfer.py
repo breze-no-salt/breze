@@ -8,17 +8,33 @@ import theano.tensor.extra_ops
 from theano.tensor.shared_randomstreams import RandomStreams
 
 
-epsilon = 1e-4
+PI = np.array(np.pi, dtype=theano.config.floatX)
+SQRT_2 = np.array(np.sqrt(2.), dtype=theano.config.floatX)
+epsilon = np.array(1e-4, dtype=theano.config.floatX)
 
 
 def normal_pdf(x, location=0, scale=1):
-    z = 1. / (np.sqrt(2 * np.pi) * scale + epsilon)
-    exp_arg = -((x - location) ** 2) / (2 * scale ** 2 + epsilon)
+    location = T.cast(location, theano.config.floatX)
+    SQRT_2_PI = np.sqrt(2 * PI)
+    SQRT_2_PI = T.cast(SQRT_2_PI, theano.config.floatX)
+
+    divisor = 2 * scale ** 2 + epsilon,
+    divisor = T.cast(divisor, theano.config.floatX)
+
+    exp_arg = -((x - location) ** 2) / divisor
+    z = 1. / (SQRT_2_PI * scale + epsilon)
+
     return T.exp(exp_arg) * z
 
 
 def normal_cdf(x, location=0, scale=1):
-    erf_arg = (x - location) / T.sqrt(2 * scale ** 2 + epsilon)
+    location = T.cast(location, theano.config.floatX)
+    scale = T.cast(scale, theano.config.floatX)
+
+    div = T.sqrt(2 * scale ** 2 + epsilon)
+    div = T.cast(div, theano.config.floatX)
+
+    erf_arg = (x - location) / div
     return .5 * (1 + T.erf(erf_arg + epsilon))
 
 
@@ -65,19 +81,24 @@ def sampling_softmax(axis=1, rng=None):
 
 
 def sigmoid(mean, var):
-    mean_arg = mean / T.sqrt(1 + np.pi * var / 8)
+    mean_arg = mean / T.sqrt(1 + PI * var / 8)
     mean_ = T.nnet.sigmoid(mean_arg)
 
-    a = 4 - 2 * np.sqrt(2)
-    b = -np.log(np.sqrt(2) - 1)
+    a = 4 - 2 * SQRT_2
+    b = -np.log(SQRT_2 - 1)
+
+    # If we do not do the following (curiously) a will be float64 in all cases.
+    a = T.cast(a, theano.config.floatX)
+    b = T.cast(b, theano.config.floatX)
 
     var_arg_1 = (
-        a * (mean - b) /
-        T.sqrt(1 + np.pi / (8 * a**2 * var + epsilon)))
+        a *
+        (mean - b) /
+        T.sqrt(1 + PI / (8 * a**2 * var + epsilon)))
 
     var_ = T.nnet.sigmoid(var_arg_1) - mean_ ** 2
     # It seems as if this aproximation yields non positive variances in corner
     # cases. We catch that here.
-    var_ = T.maximum(1e-4, var_)
+    var_ = T.maximum(epsilon, var_)
 
     return mean_, var_
