@@ -8,6 +8,27 @@ from ..component import meanvartransfer, loss as loss_
 from ..model.neural import MultiLayerPerceptron
 
 
+def expected_hinge(target, prediction):
+    target = 2 * target - 1
+    pred_mean = prediction[:, :prediction.shape[1] // 2]
+    pred_var = prediction[:, prediction.shape[1] // 2:]
+    mean, _ = meanvartransfer.rectifier(-target * pred_mean + 1, pred_var)
+    return mean
+
+
+def expected_squared_hinge(target, prediction):
+    target = 2 * target - 1
+    pred_mean = prediction[:, :prediction.shape[1] // 2]
+    pred_var = prediction[:, prediction.shape[1] // 2:]
+
+    # Source for this step: http://math.stackexchange.com/questions/99025/what-is-the-expectation-of-x2-where-x-is-distributed-normally
+    mean_unsquared, var_unsquared = meanvartransfer.rectifier(
+        -target * pred_mean, pred_var)
+    mean = var_unsquared + mean_unsquared ** 2
+
+    return mean
+
+
 def mean_var_forward(in_mean, in_var, weights, bias, variance_bias, transfer,
                      p_dropout):
     out_in_mean = T.dot(in_mean, weights) * p_dropout
