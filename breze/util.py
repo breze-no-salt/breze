@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
-
+import os
+import sys
 import collections
 import numpy as np
 import theano
@@ -8,7 +9,18 @@ import theano.tensor as T
 import theano.sandbox.cuda
 import theano.misc.gnumpy_utils as gput
 
-GPU = theano.config.device == 'gpu'
+
+try:
+    gpu_environ = os.environ['BREZE_PARAMETERSET_DEVICE']
+    if gpu_environ == 'gpu':
+        GPU = True
+    elif gpu_environ == 'cpu':
+        GPU = False
+    else:
+        print "BREZE_PARAMETERSET_DEVICE must be either 'cpu' or 'gpu'"
+        sys.exit(1)
+except KeyError:
+    GPU = theano.config.device == 'gpu'
 
 if GPU:
     import gnumpy
@@ -257,7 +269,7 @@ class ParameterSet(object):
         # is the symbolic theano variable (of which the type is GPU/CPU
         # specific), the second either a gnumpy or numpy array (depending on
         # GPU/CPU again). Also set a default size for testing.
-        if theano.config.device == 'gpu':
+        if GPU:
             self.data = gnumpy.zeros(self.n_pars)
             self.flat = theano.sandbox.cuda.fvector('parameters')
         else:
