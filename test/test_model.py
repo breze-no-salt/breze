@@ -7,6 +7,7 @@ import numpy as np
 
 from breze.model.linear import Linear
 from breze.model.neural import MultiLayerPerceptron, TwoLayerPerceptron
+from breze.model.varprop import VariancePropagationNetwork, FastDropoutNetwork
 from breze.model.feature import (
     AutoEncoder, ContractiveAutoEncoder, SparseAutoEncoder, SparseFiltering,
     Rica, DenoisingAutoEncoder, RestrictedBoltzmannMachine)
@@ -59,6 +60,26 @@ def test_mlp2():
 
     f(np.random.random((10, 2)), np.random.random((10, 3)))
     fprime(np.random.random((10, 2)), np.random.random((10, 3)))
+
+
+def test_vpn():
+    l = VariancePropagationNetwork(2, [10, 12], 4, ['rectifier', 'sigmoid'], 'identity', 'expected_hinge_1')
+    f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
+    grad = T.grad(l.exprs['loss'], l.parameters.flat)
+    fprime = l.function(['inpt', 'target'], grad, mode='FAST_COMPILE')
+
+    f(np.random.random((10, 4)), np.random.random((10, 4)))
+    fprime(np.random.random((10, 4)), np.random.random((10, 4)))
+
+
+def test_fdn():
+    l = FastDropoutNetwork(2, [10, 12], 4, ['rectifier', 'sigmoid'], 'identity', 'squared')
+    f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
+    grad = T.grad(l.exprs['loss'], l.parameters.flat)
+    fprime = l.function(['inpt', 'target'], grad, mode='FAST_COMPILE')
+
+    f(np.random.random((10, 2)), np.random.random((10, 4)))
+    fprime(np.random.random((10, 2)), np.random.random((10, 4)))
 
 
 def test_autoencoder():

@@ -4,34 +4,8 @@
 import theano.tensor as T
 
 from ..util import lookup
-from ..component import meanvartransfer, loss as loss_
+from ..component.varprop import transfer, loss as loss_
 from ..model.neural import MultiLayerPerceptron
-
-
-def make_expected_hinge(margin):
-    def expected_hinge(target, prediction):
-        target = 2 * target - 1
-        pred_mean = prediction[:, :prediction.shape[1] // 2]
-        pred_var = prediction[:, prediction.shape[1] // 2:]
-        mean, _ = meanvartransfer.rectifier(-target * pred_mean + margin,
-                                            pred_var)
-        return mean
-    return expected_hinge
-
-
-def make_expected_squared_hinge(margin):
-    def expected_squared_hinge(target, prediction):
-        target = 2 * target - 1
-        pred_mean = prediction[:, :prediction.shape[1] // 2]
-        pred_var = prediction[:, prediction.shape[1] // 2:]
-
-        # Source for this step: http://math.stackexchange.com/questions/99025/what-is-the-expectation-of-x2-where-x-is-distributed-normally
-        mean_unsquared, var_unsquared = meanvartransfer.rectifier(
-            -target * pred_mean + margin, pred_var)
-        mean = var_unsquared + mean_unsquared ** 2
-
-        return mean
-    return expected_squared_hinge
 
 
 def mean_var_forward(in_mean, in_var, weights, bias, variance_bias, transfer,
@@ -42,18 +16,20 @@ def mean_var_forward(in_mean, in_var, weights, bias, variance_bias, transfer,
     dropout_var = p_dropout * (1 - p_dropout)
     out_in_var = (T.dot(in_mean ** 2, weights ** 2) * dropout_var
                   + T.dot(in_var, weights ** 2) * p_dropout)
-    out_in_var *= T.exp(variance_bias)
+    #out_in_var *= T.exp(variance_bias)
     out_mean, out_var = transfer(out_in_mean, out_in_var)
     return out_in_mean, out_in_var, out_mean, out_var
 
 
-class MeanVarianceNetwork(MultiLayerPerceptron):
+class VariancePropagationNetwork(MultiLayerPerceptron):
 
     def init_exprs(self):
         hidden_to_hiddens = [getattr(self.parameters, 'hidden_to_hidden_%i' % i)
                              for i in range(len(self.n_hiddens) - 1)]
         hidden_biases = [getattr(self.parameters, 'hidden_bias_%i' % i)
                          for i in range(len(self.n_hiddens))]
+        hidden_var_biases = [getattr(self.parameters, 'hidden_var_bias_%i' % i)
+                             for i in range(len(self.n_hiddens))]
         inpt = T.matrix('inpt')
         inpt_mean = inpt[:, :inpt.shape[1] // 2]
         inpt_var = inpt[:, inpt.shape[1] // 2:]
@@ -63,7 +39,9 @@ class MeanVarianceNetwork(MultiLayerPerceptron):
             hidden_to_hiddens,
             self.parameters.hidden_to_out,
             hidden_biases,
+            hidden_var_biases,
             self.parameters.out_bias,
+            self.parameters.out_var_bias,
             self.hidden_transfers, self.out_transfer, self.loss,
             # Workaround for no dropout: very small dropout.
             1e-32, 1e-32)
@@ -97,7 +75,7 @@ class MeanVarianceNetwork(MultiLayerPerceptron):
                    p_dropout_hidden):
         exprs = {}
 
-        f_hidden = lookup(hidden_transfers[0], meanvartransfer)
+        f_hidden = lookup(hidden_transfers[0], transfer)
         hidden = mean_var_forward(inpt_mean, inpt_var, in_to_hidden,
                                   hidden_biases[0], hidden_var_biases[0],
                                   f_hidden, p_dropout_inpt)
@@ -114,7 +92,7 @@ class MeanVarianceNetwork(MultiLayerPerceptron):
                      hidden_transfers[1:])
         for i, (w, b, bv, t) in enumerate(zipped):
             hidden_mean_m1, hidden_var_m1 = hidden_mean, hidden_var
-            f = lookup(t, meanvartransfer)
+            f = lookup(t, transfer)
             hidden = mean_var_forward(hidden_mean_m1, hidden_var_m1, w, b, bv,
                                       f, p_dropout_hidden)
             (hidden_in_mean, hidden_in_var, hidden_mean, hidden_var) = hidden
@@ -124,7 +102,7 @@ class MeanVarianceNetwork(MultiLayerPerceptron):
             exprs['hidden_mean_%i' % (i + 1)] = hidden_mean
             exprs['hidden_var_%i' % (i + 1)] = hidden_var
 
-        f_output = lookup(output_transfer, meanvartransfer)
+        f_output = lookup(output_transfer, transfer)
         output = mean_var_forward(hidden_mean, hidden_var, hidden_to_out,
                                   out_bias, out_var_bias,
                                   f_output, p_dropout_hidden)
@@ -152,26 +130,29 @@ class MeanVarianceNetwork(MultiLayerPerceptron):
         return exprs
 
 
-class FastDropoutNetwork(MeanVarianceNetwork):
+class FastDropoutNetwork(VariancePropagationNetwork):
 
     inpt_var = 0
-    var_bias_offset = 0.0
+    p_dropout_inpt = .2
+    p_dropout_hidden = .5
+
+    # This method overwrites the VariancePropagationNetwork's get_parameter_spec
+    # with the MultiLayerPerceptron's one. This is not very nice OOP, but we
+    # need to get rid of the hidden variance bias.
+    @staticmethod
+    def get_parameter_spec(n_inpt, n_hiddens, n_output):
+        spec = MultiLayerPerceptron.get_parameter_spec(
+            n_inpt, n_hiddens, n_output)
+
+        return spec
 
     def init_exprs(self):
         hidden_to_hiddens = [getattr(self.parameters, 'hidden_to_hidden_%i' % i)
                              for i in range(len(self.n_hiddens) - 1)]
         hidden_biases = [getattr(self.parameters, 'hidden_bias_%i' % i)
                          for i in range(len(self.n_hiddens))]
-        hidden_var_biases = [getattr(self.parameters, 'hidden_var_bias_%i' % i)
-                             for i in range(len(self.n_hiddens))]
         inpt_mean = T.matrix('inpt_mean')
         inpt_var = T.zeros_like(inpt_mean) + self.inpt_var
-
-        # Clamp the variance biases to a minimal value.
-        hidden_var_biases = [T.log(T.exp(i) + self.var_bias_offset)
-                             for i in hidden_var_biases]
-        out_var_bias = T.log(
-            T.exp(self.parameters.out_var_bias) + self.var_bias_offset)
 
         self.exprs = self.make_exprs(
             inpt_mean, inpt_var, T.matrix('target'),
@@ -179,9 +160,9 @@ class FastDropoutNetwork(MeanVarianceNetwork):
             hidden_to_hiddens,
             self.parameters.hidden_to_out,
             hidden_biases,
-            hidden_var_biases,
+            [0 for _ in hidden_biases],
             self.parameters.out_bias,
-            out_var_bias,
+            0,
             self.hidden_transfers, self.out_transfer, self.loss,
             self.p_dropout_inpt, self.p_dropout_hidden)
 
