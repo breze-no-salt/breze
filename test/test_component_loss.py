@@ -8,6 +8,10 @@ import numpy as np
 from breze.component.loss import absolute, squared, nce, nnce, ncac, drlim1
 from tools import roughly
 
+from nose.tools import with_setup
+
+from tools import test_values_off, test_values_raise
+
 
 test_X = np.array([[.1, .2, .3],
                    [.2, .1, .2]],
@@ -22,6 +26,7 @@ test_Y = np.array([[.13, .21, .32],
 test_Xc = np.array([0, 2], dtype=np.int32)
 
 
+@with_setup(test_values_raise, test_values_off)
 def test_absolute():
     X, Y = T.matrix(), T.matrix()
     X.tag.test_value = test_X
@@ -32,6 +37,7 @@ def test_absolute():
     assert res == 0.21, 'absolute loss not working'
 
 
+@with_setup(test_values_raise, test_values_off)
 def test_absolute_rowwise():
     X, Y = T.matrix(), T.matrix()
     X.tag.test_value = test_X
@@ -43,6 +49,7 @@ def test_absolute_rowwise():
     assert correct, 'absolute loss rowwise not working'
 
 
+@with_setup(test_values_raise, test_values_off)
 def test_absolute_colwise():
     X, Y = T.matrix(), T.matrix()
     X.tag.test_value = test_X
@@ -54,6 +61,7 @@ def test_absolute_colwise():
     assert correct, 'absolute loss colwise not working'
 
 
+@with_setup(test_values_raise, test_values_off)
 def test_squared():
     X, Y = T.matrix(), T.matrix()
     X.tag.test_value = test_X
@@ -64,6 +72,7 @@ def test_squared():
     assert roughly(res, 0.0097), 'squared loss not working'
 
 
+@with_setup(test_values_raise, test_values_off)
 def test_squared_rowwise():
     X, Y = T.matrix(), T.matrix()
     X.tag.test_value = test_X
@@ -75,6 +84,7 @@ def test_squared_rowwise():
     assert correct, 'squared loss rowwise not working'
 
 
+@with_setup(test_values_raise, test_values_off)
 def test_squared_colwise():
     X, Y = T.matrix(), T.matrix()
     X.tag.test_value = test_X
@@ -86,6 +96,7 @@ def test_squared_colwise():
     assert correct, 'squared loss colwise not working'
 
 
+@with_setup(test_values_raise, test_values_off)
 def test_neg_cross_entropy():
     X, Y = T.matrix(), T.matrix()
     X.tag.test_value = test_X > 0.2
@@ -97,6 +108,7 @@ def test_neg_cross_entropy():
     assert correct, 'nce loss not working'
 
 
+@with_setup(test_values_raise, test_values_off)
 def test_neg_cross_entropy_rowwise():
     X, Y = T.matrix(), T.matrix()
     X.tag.test_value = test_X > 0.2
@@ -108,6 +120,7 @@ def test_neg_cross_entropy_rowwise():
     assert correct, 'nce loss rowwise not working'
 
 
+@with_setup(test_values_raise, test_values_off)
 def test_neg_cross_entropy_colwise():
     X, Y = T.matrix(), T.matrix()
     X.tag.test_value = test_X > 0.2
@@ -119,9 +132,10 @@ def test_neg_cross_entropy_colwise():
     assert correct, 'nce loss colwise not working'
 
 
+@with_setup(test_values_raise, test_values_off)
 def test_nominal_neg_cross_entropy():
     Xc, Y = T.ivector(), T.matrix()
-    Xc.tag.test_value = (test_X > 0.2).argmax(axis=1)
+    Xc.tag.test_value = (test_X > 0.2).argmax(axis=1).astype('uint8')
     Y.tag.test_value = test_Y
     dist = nnce(Xc, Y).sum()
     f = theano.function([Xc, Y], dist, mode='FAST_COMPILE')
@@ -133,6 +147,7 @@ def test_nominal_neg_cross_entropy():
     assert correct, 'nnce loss not working'
 
 
+@with_setup(test_values_raise, test_values_off)
 def test_nca():
     X = T.matrix()
     X.tag.test_value = np.random.random((20, 10))
@@ -141,9 +156,10 @@ def test_nca():
     expr = ncac(X, Y)
 
 
+@with_setup(test_values_raise, test_values_off)
 def test_drlim():
     X = T.matrix()
     X.tag.test_value = np.random.random((20, 10))
-    Y = T.vector()
+    Y = T.matrix()
     Y.tag.test_value = np.random.random((10, 1)) > 0.5
-    expr = drlim1(X, Y)
+    expr = drlim1(Y, X)

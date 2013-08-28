@@ -259,7 +259,7 @@ def drlim(push_margin, pull_margin, c_contrastive,
             Array containing the embeddings of samples row wise.
         """ % (push_margin, pull_margin, c_contrastive)
         target = target[:, 0]
-        n_pair = embedding.shape[0] / 2
+        n_pair = embedding.shape[0] // 2
         n_feature = embedding.shape[1]
 
         # Reshape array to get pairs.
@@ -279,18 +279,3 @@ def drlim(push_margin, pull_margin, c_contrastive,
 
 
 drlim1 = drlim(1, 0, 0.5)
-
-
-def diag_gaussian_nll(target, prediction):
-    n_output = prediction.shape[-1] // 2
-    if prediction.ndim == 3:
-        # We have dynamic data.
-        mean, var = prediction[:, :, :n_output], prediction[:, :, n_output:]
-    elif prediction.ndim == 2:
-        # We have static data.
-        mean, var = prediction[:, :n_output], prediction[:, n_output:]
-    residuals = target - mean
-    weighted_squares = -(residuals ** 2) / (2 * var + 1e-4)
-    normalization = T.log(T.sqrt(2 * np.pi * var + 1e-4))
-    ll = weighted_squares - normalization
-    return -ll

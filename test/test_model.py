@@ -20,8 +20,12 @@ from breze.model.sequential import (
 from tools import roughly
 
 from nose.plugins.skip import SkipTest
+from nose.tools import with_setup
+
+from tools import test_values_off, test_values_raise
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_linear():
     l = Linear(2, 3, 'softabs', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
@@ -32,6 +36,7 @@ def test_linear():
     fprime(np.random.random((10, 2)), np.random.random((10, 3)))
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_2lp():
     l = TwoLayerPerceptron(2, 10, 3, 'tanh', 'softabs', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
@@ -42,6 +47,7 @@ def test_2lp():
     fprime(np.random.random((10, 2)), np.random.random((10, 3)))
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_mlp1():
     l = MultiLayerPerceptron(2, [10], 3, ['tanh'], 'softabs', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
@@ -52,6 +58,7 @@ def test_mlp1():
     fprime(np.random.random((10, 2)), np.random.random((10, 3)))
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_mlp2():
     l = MultiLayerPerceptron(2, [10, 12], 3, ['tanh', 'sigmoid'], 'softabs', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
@@ -62,6 +69,7 @@ def test_mlp2():
     fprime(np.random.random((10, 2)), np.random.random((10, 3)))
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_vpn():
     l = VariancePropagationNetwork(2, [10, 12], 4, ['rectifier', 'sigmoid'], 'identity', 'expected_hinge_1')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
@@ -72,6 +80,7 @@ def test_vpn():
     fprime(np.random.random((10, 4)), np.random.random((10, 4)))
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_fdn():
     l = FastDropoutNetwork(2, [10, 12], 4, ['rectifier', 'sigmoid'], 'identity', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
@@ -82,6 +91,7 @@ def test_fdn():
     fprime(np.random.random((10, 2)), np.random.random((10, 4)))
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_autoencoder():
     l = AutoEncoder(2, 10, 'tanh', 'identity', 'nces')
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
@@ -92,6 +102,7 @@ def test_autoencoder():
     fprime(np.random.random((10, 2)))
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_sae():
     l = SparseAutoEncoder(
         2, 10, 'sigmoid', 'sigmoid', 'nces',
@@ -105,6 +116,7 @@ def test_sae():
     fprime(np.random.random((10, 2)))
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_cae():
     l = ContractiveAutoEncoder(
         2, 10, 'sigmoid', 'sigmoid', 'nces',
@@ -117,6 +129,7 @@ def test_cae():
     fprime(np.random.random((10, 2)))
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_sparsefiltering():
     l = SparseFiltering(2, 10, 'softabs')
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
@@ -127,6 +140,7 @@ def test_sparsefiltering():
     fprime(np.random.random((10, 2)))
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_rica():
     l = Rica(2, 10, 'identity', 'softabs', 'identity', 'squared', 1.5)
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
@@ -137,6 +151,7 @@ def test_rica():
     fprime(np.random.random((10, 2)))
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_dnae():
     l = DenoisingAutoEncoder(2, 10, 'tanh', 'identity', 'nces', 'gauss', 0.1)
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
@@ -148,6 +163,7 @@ def test_dnae():
     fprime(mtx)
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_rim():
     l = Rim(2, 3, 1e-4)
     f = l.function(['inpt'], 'loss', mode='FAST_COMPILE')
@@ -158,6 +174,7 @@ def test_rim():
     fprime(np.asarray(np.random.random((10, 2)), dtype=theano.config.floatX))
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_lds():
     l = LinearDynamicalSystem(2, 3)
     l.parameters.data[:] = np.random.random(l.parameters.data.shape)
@@ -171,6 +188,7 @@ def test_lds():
     # fprime(np.random.random((10, 2, 2)))
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_rbm():
     m = RestrictedBoltzmannMachine(2, 3)
     m.parameters.data[:] = np.random.random(m.parameters.data.shape)
@@ -182,6 +200,7 @@ def test_rbm():
             on_unused_input='ignore')
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_lds_values():
     # The following test values were generated with David Barber's LDS
     # implementation coming along with his book 'Bayesian Reasoning and
@@ -288,6 +307,7 @@ def test_lds_values():
     assert roughly(S, S_desired, 1E-4), 'smooooothed covs not correct'
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_lds_shapes():
     raise SkipTest()
     n_inpt = 2
@@ -328,6 +348,7 @@ def test_lds_shapes():
     theano.config.compute_test_value = 'off'
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_srnn():
     l = SupervisedRecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
@@ -342,6 +363,7 @@ def test_srnn():
     fprime(X, Z)
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_dsrnn():
     l = SupervisedRecurrentNetwork(2, [3] * 2, 1, ['sigmoid'] * 2, 'identity', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
@@ -356,6 +378,7 @@ def test_dsrnn():
     fprime(X, Z)
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_usrnn():
     l = UnsupervisedRecurrentNetwork(
         2, 3, 1, 'sigmoid', 'identity', lambda x: abs(x))
@@ -370,6 +393,7 @@ def test_usrnn():
     fprime(X)
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_pooling_rnn():
     l = SupervisedRecurrentNetwork(2, [3], 1, hidden_transfers=['sigmoid'],
                         pooling='mean', loss='ncac')
@@ -387,6 +411,7 @@ def test_pooling_rnn():
     fprime(X, Z)
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_slstmrnn():
     l = SupervisedLstmRecurrentNetwork(
         2, [5], 1, hidden_transfers=['sigmoid'],
@@ -404,6 +429,7 @@ def test_slstmrnn():
     fprime(X, Z)
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_pooling_slstmrnn():
     l = SupervisedLstmRecurrentNetwork(
         2, 3, 1, 'sigmoid', 'identity', 'ncac', 'mean')
@@ -419,6 +445,7 @@ def test_pooling_slstmrnn():
     fprime(X, Z)
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_uslstmrnn():
     l = UnsupervisedLstmRecurrentNetwork(
         2, 5, 1, 'sigmoid', 'identity', lambda X: abs(X))
@@ -434,6 +461,7 @@ def test_uslstmrnn():
     fprime(X)
 
 
+@with_setup(test_values_off, test_values_raise)
 def test_pooling_uslstmrnn():
     l = UnsupervisedLstmRecurrentNetwork(
         2, 3, 1, 'sigmoid', 'identity', lambda X: abs(X), 'mean')
