@@ -30,7 +30,4 @@ def test_pdf_compare_logpdf():
     d = f_density(some_sample, some_mean, some_cov)
     log_d = f_logdensity(some_sample, some_mean, some_cov)
 
-    #print np.log(d), log_d
-    #print  (np.log(d) - log_d).tolist()
-
     assert np.allclose(np.log(d), log_d)
