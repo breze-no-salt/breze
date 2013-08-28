@@ -4,7 +4,7 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.component.distributions import normal
+from breze.component.distributions import mvn
 
 
 def test_pdf_compare_logpdf():
@@ -16,8 +16,8 @@ def test_pdf_compare_logpdf():
     cov = T.matrix()
     cov.tag.test_value = np.random.random((5, 5))
 
-    density = normal.pdf(sample, mean, cov)
-    log_density = normal.logpdf(sample, mean, cov)
+    density = mvn.pdf(sample, mean, cov)
+    log_density = mvn.logpdf(sample, mean, cov)
 
     f_density = theano.function([sample, mean, cov], density)
     f_logdensity = theano.function([sample, mean, cov], log_density)
