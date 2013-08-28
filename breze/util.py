@@ -211,6 +211,22 @@ def opt_from_model(model, fargs, args, opt_klass, opt_kwargs):
     return opt
 
 
+def theano_expr_bfs(expr):
+    """Generator function to walk a Theano expression graph in breadth first."""
+    stack = [expr]
+    while True:
+        if not stack:
+            break
+        expr = stack.pop()
+        stack += expr.owner.inputs if hasattr(expr.owner, 'inputs') else []
+        yield expr
+
+
+def tell_deterministic(expr):
+    """Return True iff no random number generator is in the expression graph."""
+    return all(not hasattr(i, 'rng') for i in theano_expr_bfs(expr))
+
+
 class ParameterSet(object):
     """ParameterSet class.
 
@@ -445,6 +461,11 @@ class Model(object):
             If set to True, a numpy array is always returned, even if the
             computation is done on the GPU and a gnumpy array was more natural.
         """
+        if GPU and not all(tell_deterministic(i) for i in exprs):
+            raise NotImplementedError(
+                'cannot use random variables in Breze for GPU due to Theano '
+                'issue #1467')
+
         variables = self._unify_variables(variables)
         exprs = self._unify_exprs(exprs)
 
