@@ -51,7 +51,7 @@ def test_padzeros():
 def test_minibatches():
     """Test if minibatches are correctly generated if given a size."""
     D = make_test_data()
-    batches = minibatches(D, batchsize=5)
+    batches = minibatches(D, batch_size=5)
     assert batches[0].shape[0] == 5
     assert batches[1].shape[0] == 5
     assert batches[2].shape[0] == 3
