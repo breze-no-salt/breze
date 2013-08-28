@@ -76,7 +76,7 @@ def test_gp_predict_maxrows():
 def test_gp_sample_parameters():
     X = np.arange(-2, 2, .01)[:, np.newaxis]
     idxs = range(X.shape[0])
-    idxs = random.sample(idxs, 200)
+    idxs = random.sample(idxs, 20)
     X = X[idxs]
     Z = np.sin(X)
     Z += np.random.normal(0, 1e-1, X.shape)
