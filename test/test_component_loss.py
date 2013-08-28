@@ -24,6 +24,8 @@ test_Xc = np.array([0, 2], dtype=np.int32)
 
 def test_absolute():
     X, Y = T.matrix(), T.matrix()
+    X.tag.test_value = test_X
+    Y.tag.test_value = test_Y
     dist = absolute(X, Y).sum()
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
@@ -32,6 +34,8 @@ def test_absolute():
 
 def test_absolute_rowwise():
     X, Y = T.matrix(), T.matrix()
+    X.tag.test_value = test_X
+    Y.tag.test_value = test_Y
     dist = absolute(X, Y).sum(axis=1)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
@@ -41,6 +45,8 @@ def test_absolute_rowwise():
 
 def test_absolute_colwise():
     X, Y = T.matrix(), T.matrix()
+    X.tag.test_value = test_X
+    Y.tag.test_value = test_Y
     dist = absolute(X, Y).sum(axis=0)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
@@ -50,6 +56,8 @@ def test_absolute_colwise():
 
 def test_squared():
     X, Y = T.matrix(), T.matrix()
+    X.tag.test_value = test_X
+    Y.tag.test_value = test_Y
     dist = squared(X, Y).sum()
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
@@ -58,6 +66,8 @@ def test_squared():
 
 def test_squared_rowwise():
     X, Y = T.matrix(), T.matrix()
+    X.tag.test_value = test_X
+    Y.tag.test_value = test_Y
     dist = squared(X, Y).sum(axis=1)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
@@ -67,6 +77,8 @@ def test_squared_rowwise():
 
 def test_squared_colwise():
     X, Y = T.matrix(), T.matrix()
+    X.tag.test_value = test_X
+    Y.tag.test_value = test_Y
     dist = squared(X, Y).sum(axis=0)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
@@ -76,6 +88,8 @@ def test_squared_colwise():
 
 def test_neg_cross_entropy():
     X, Y = T.matrix(), T.matrix()
+    X.tag.test_value = test_X > 0.2
+    Y.tag.test_value = test_Y
     dist = nce(X, Y).sum()
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
@@ -85,6 +99,8 @@ def test_neg_cross_entropy():
 
 def test_neg_cross_entropy_rowwise():
     X, Y = T.matrix(), T.matrix()
+    X.tag.test_value = test_X > 0.2
+    Y.tag.test_value = test_Y
     dist = nce(X, Y).sum(axis=1)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
@@ -94,6 +110,8 @@ def test_neg_cross_entropy_rowwise():
 
 def test_neg_cross_entropy_colwise():
     X, Y = T.matrix(), T.matrix()
+    X.tag.test_value = test_X > 0.2
+    Y.tag.test_value = test_Y
     dist = nce(X, Y).sum(axis=0)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
@@ -103,6 +121,8 @@ def test_neg_cross_entropy_colwise():
 
 def test_nominal_neg_cross_entropy():
     Xc, Y = T.ivector(), T.matrix()
+    Xc.tag.test_value = (test_X > 0.2).argmax(axis=1)
+    Y.tag.test_value = test_Y
     dist = nnce(Xc, Y).sum()
     f = theano.function([Xc, Y], dist, mode='FAST_COMPILE')
     res = f(test_Xc, test_Y)
@@ -114,20 +134,16 @@ def test_nominal_neg_cross_entropy():
 
 
 def test_nca():
-    theano.config.compute_test_value = 'off'
     X = T.matrix()
     X.tag.test_value = np.random.random((20, 10))
     Y = T.matrix()
     Y.tag.test_value = np.random.random((20, 1)) > 0.5
     expr = ncac(X, Y)
-    theano.config.compute_test_value = 'off'
 
 
 def test_drlim():
-    theano.config.compute_test_value = 'off'
     X = T.matrix()
     X.tag.test_value = np.random.random((20, 10))
     Y = T.vector()
     Y.tag.test_value = np.random.random((10, 1)) > 0.5
     expr = drlim1(X, Y)
-    theano.config.compute_test_value = 'off'
