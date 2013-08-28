@@ -141,8 +141,8 @@ class TsneMinimizer(Minimizer):
     """Custom Minimizer for TSNE using a learning rate schedule."""
 
     def __init__(self, wrt, fprime, steprate, momentum, min_gain=1E-2,
-                 args=None, logfunc=None):
-        super(TsneMinimizer, self).__init__(wrt, args=args, logfunc=logfunc)
+                 args=None):
+        super(TsneMinimizer, self).__init__(wrt, args=args)
 
         self.fprime = fprime
         self.steprate = steprate
