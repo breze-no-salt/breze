@@ -49,6 +49,8 @@ def assert_ndarray(arr):
 class BrezeWrapperBase(object):
     """Class that helps with wrapping Breze models."""
 
+    mode = None
+
     def _d_loss(self):
         """Return a theano expression for the gradient of the loss wrt the
         flat parameters of the model."""
@@ -154,6 +156,9 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
         """
+        if mode is None:
+            mode = self.mode
+
         d_loss = self._d_loss()
         givens = {} if givens is None else givens
 
@@ -305,13 +310,16 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
         """
+        if mode is None:
+            mode = self.mode
+
         d_loss = self._d_loss()
         givens = {} if givens is None else givens
 
-        f_loss = self.function(['inpt'], 'loss', explicit_pars=True,
+        f_loss = self.function(['inpt'], 'loss', explicit_pars=True, mode=mode,
                                givens=givens, on_unused_input=on_unused_input)
         f_d_loss = self.function(
-            ['inpt'], d_loss, explicit_pars=True, givens=givens,
+            ['inpt'], d_loss, explicit_pars=True, givens=givens, mode=mode,
             on_unused_input=on_unused_input)
         return f_loss, f_d_loss
 
