@@ -160,9 +160,9 @@ class FastDropoutNetwork(VariancePropagationNetwork):
             hidden_to_hiddens,
             self.parameters.hidden_to_out,
             hidden_biases,
-            [0 for _ in hidden_biases],
+            [1 for _ in hidden_biases],
             self.parameters.out_bias,
-            0,
+            1,
             self.hidden_transfers, self.out_transfer, self.loss,
             self.p_dropout_inpt, self.p_dropout_hidden)
 
