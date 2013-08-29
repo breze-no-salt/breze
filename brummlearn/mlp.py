@@ -16,7 +16,7 @@ import theano.tensor as T
 import theano.tensor.shared_randomstreams
 
 from breze.model.neural import MultiLayerPerceptron
-from breze.model import fastdropout
+from breze.model.varprop import FastDropoutNetwork
 from breze.component import corrupt
 from brummlearn.base import SupervisedBrezeWrapperBase
 
@@ -203,7 +203,7 @@ class DropoutMlp(Mlp):
             max_length_columns(W, self.max_length)
 
 
-class FastDropoutNetwork(fastdropout.FastDropoutNetwork,
+class FastDropoutNetwork(FastDropoutNetwork,
                          SupervisedBrezeWrapperBase):
 
     # TODO: dropout rates have to be strictly positive, otherwise there is a
