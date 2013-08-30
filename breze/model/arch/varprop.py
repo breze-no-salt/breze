@@ -5,7 +5,7 @@ import theano.tensor as T
 
 from ..util import lookup
 from ..component.varprop import transfer, loss as loss_
-from ..model.neural import MultiLayerPerceptron
+from ..arch.neural import MultiLayerPerceptron
 
 
 def mean_var_forward(in_mean, in_var, weights, bias, variance_bias_sqrt,

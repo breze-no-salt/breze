@@ -5,7 +5,7 @@ import theano
 import theano.tensor as T
 import numpy as np
 
-from breze.component.loss import absolute, squared, nce, nnce, ncac, drlim1
+from breze.model.component.loss import absolute, squared, nce, nnce, ncac, drlim1
 from tools import roughly
 
 from nose.tools import with_setup

@@ -7,7 +7,7 @@ import theano.tensor.extra_ops
 from theano.tensor.nnet import softmax
 from theano.tensor.shared_randomstreams import RandomStreams
 
-from breze.component.distributions import normal
+from breze.model.component.distributions import normal
 
 
 PI = np.array(np.pi, dtype=theano.config.floatX)

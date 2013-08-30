@@ -5,9 +5,9 @@ import theano
 import theano.tensor as T
 import numpy as np
 
-from breze.component.norm import l1, l2, exp
+from breze.model.component.norm import l1, l2, exp
 
-from tools import roughly 
+from tools import roughly
 
 
 test_arr = np.array([1, -1, 2, 0])

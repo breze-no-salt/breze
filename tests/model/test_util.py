@@ -6,8 +6,8 @@ import theano
 import theano.tensor as T
 import math
 
-import breze.util
-from breze.util import ParameterSet, Model
+import breze.model.util
+from breze.model.util import ParameterSet, Model
 from tools import roughly
 
 
@@ -71,10 +71,10 @@ def test_model_function():
 
 def test_flatten():
     nested = (1, 2, [3, 4, 5, [6], [7], (8), ([9, 10, []]), (), ((([[]]))), []], 11)
-    flattened = breze.util.flatten(nested)
+    flattened = breze.model.util.flatten(nested)
     rev_flattened = flattened[::-1]
-    renested = breze.util.unflatten(nested, flattened)
-    rev_renested = breze.util.unflatten(nested, rev_flattened)
+    renested = breze.model.util.unflatten(nested, flattened)
+    rev_renested = breze.model.util.unflatten(nested, rev_flattened)
     print "nested:              ", nested
     print "flattened:           ", flattened
     print "renested:            ", renested
@@ -94,8 +94,8 @@ def test_theano_function_with_nested_exprs():
     a = [T.scalar('a%d' % i) for i in range(5)]
     b = T.scalar('b')
 
-    f = breze.util.theano_function_with_nested_exprs([a, b],
-                                                     expr_generator(a, b))
+    f = breze.model.util.theano_function_with_nested_exprs(
+            [a, b], expr_generator(a, b))
 
     va = [2 for _ in a]
     vb = 3

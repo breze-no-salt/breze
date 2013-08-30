@@ -4,7 +4,7 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.component.distributions import mvn
+from breze.model.component.distributions import mvn
 
 
 def test_pdf_compare_logpdf():

@@ -5,7 +5,7 @@ import theano
 import theano.tensor as T
 import numpy as np
 
-from breze.component.transfer import (
+from breze.model.component.transfer import (
     sigmoid, tanh, tanhplus, rectifier, softplus,
     logproduct_of_t)
 

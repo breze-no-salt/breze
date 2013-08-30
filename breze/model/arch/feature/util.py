@@ -3,8 +3,8 @@
 
 import numpy as np
 
-from breze.model.neural import MultiLayerPerceptron
-from breze.util import lookup_some_key
+from breze.model.arch.neural import MultiLayerPerceptron
+from breze.model.util import lookup_some_key
 
 
 def feature_func_from_model(model):
@@ -19,7 +19,7 @@ def feature_func_from_model(model):
 def cascade_layers(n_inpt, layer_classes, layer_kwargs):
     """Return a list of layers where the output size and input size of
     consecutive layers match."""
-    layer_in_sizes = [n_inpt] + [i.get('n_feature', i.get('n_hidden')) 
+    layer_in_sizes = [n_inpt] + [i.get('n_feature', i.get('n_hidden'))
                                  for i in layer_kwargs[:-1]]
     zipped = zip(layer_in_sizes, layer_classes, layer_kwargs)
 
@@ -40,7 +40,7 @@ def get_affine_parameters(model):
     possible_bias_names = 'hidden_bias', 'out_bias', 'bias'
 
     weights = lookup_some_key(possible_weight_names, model.parameters)
-    bias = lookup_some_key(possible_bias_names, model.parameters, 
+    bias = lookup_some_key(possible_bias_names, model.parameters,
                            np.zeros(weights.shape[1]))
 
     return weights, bias
@@ -74,7 +74,7 @@ def mlp_from_cascade(layers, loss):
         ['in_to_hidden'] +
         ['hidden_to_hidden_%i' % i for i in range(len(weights) - 2)] +
         ['hidden_to_out'])
-    bias_names = ['hidden_bias_%i' % i 
+    bias_names = ['hidden_bias_%i' % i
                   for i in range(len(biases) - 1)] + ['out_bias']
 
     for wname, bname, w, b in zip(weight_names, bias_names, weights, biases):
