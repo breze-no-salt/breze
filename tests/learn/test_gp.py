@@ -4,7 +4,7 @@ import random
 
 import numpy as np
 
-from brummlearn.gaussianprocess import GaussianProcess
+from breze.learn.gaussianprocess import GaussianProcess
 
 
 def test_gp_fit():

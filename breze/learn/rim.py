@@ -12,8 +12,8 @@ As introduced in
 import numpy as np
 import theano
 
-from breze.model.rim import Rim as _Rim
-from brummlearn.base import (
+from breze.arch.model.rim import Rim as _Rim
+from breze.learn.base import (
     UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin)
 
 

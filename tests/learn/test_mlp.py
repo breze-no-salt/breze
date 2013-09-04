@@ -2,9 +2,9 @@
 
 import numpy as np
 
-from brummlearn.mlp import Mlp, FastDropoutNetwork
+from breze.learn.mlp import Mlp, FastDropoutNetwork
 
-from breze.component.loss import squared
+from breze.arch.component.loss import squared
 
 
 def test_mlp_fit():

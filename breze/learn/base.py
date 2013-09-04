@@ -15,7 +15,7 @@ import theano
 import theano.tensor as T
 
 
-from brummlearn.data import iter_minibatches
+from data import iter_minibatches
 
 GPU = theano.config.device == 'gpu'
 if GPU:

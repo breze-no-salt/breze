@@ -15,10 +15,10 @@ import theano
 import theano.tensor as T
 import theano.tensor.shared_randomstreams
 
-from breze.model.neural import MultiLayerPerceptron
-from breze.model.varprop import FastDropoutNetwork
-from breze.component import corrupt
-from brummlearn.base import SupervisedBrezeWrapperBase
+from breze.arch.model.neural import MultiLayerPerceptron
+from breze.arch.model.varprop import FastDropoutNetwork
+from breze.arch.component import corrupt
+from breze.learn.base import SupervisedBrezeWrapperBase
 
 
 class Mlp(MultiLayerPerceptron, SupervisedBrezeWrapperBase):

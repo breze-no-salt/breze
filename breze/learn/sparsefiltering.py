@@ -13,8 +13,8 @@ As introduced in
 import numpy as np
 import theano
 
-from breze.model.feature import SparseFiltering as _SparseFiltering
-from brummlearn.base import (
+from breze.arch.model.feature import SparseFiltering as _SparseFiltering
+from breze.learn.base import (
     UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin)
 
 
@@ -34,8 +34,8 @@ class SparseFiltering(_SparseFiltering, UnsupervisedBrezeWrapperBase,
             Dimensionality of the hidden feature dimension.
         feature_transfer : string or callable
             Transfer function to use. If a string referring any function found
-            in ``breze.component.transfer`` or a function that given an (n, d)
-            array returns an (n, d) array as theano expressions.
+            in ``breze.arch.component.transfer`` or a function that given an
+            (n, d) array returns an (n, d) array as theano expressions.
         max_iter : int
             Maximum number of optimization iterations to perform.
         verbose : bool

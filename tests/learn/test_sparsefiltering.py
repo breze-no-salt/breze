@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from brummlearn.sparsefiltering import SparseFiltering
+from breze.learn.sparsefiltering import SparseFiltering
 
 
 def test_sparse_filtering_fit():

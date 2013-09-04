@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from brummlearn.tsne import Tsne
+from breze.learn.tsne import Tsne
 
 
 def test_tsne():

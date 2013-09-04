@@ -5,12 +5,12 @@
 
 import itertools
 
-import breze.model.sequential.rnn as rnn
+import breze.arch.model.sequential.rnn as rnn
 import numpy as np
 import theano
 import theano.tensor as T
 
-from brummlearn.base import (
+from breze.learn.base import (
     SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase,
     TransformBrezeWrapperMixin)
 
@@ -33,19 +33,19 @@ class BaseRnn(object):
     hidden_transfer : string or function
         Transfer function to use for the network. This can either (a) be a
         string and reference a transfer function from
-        ``breze.component.transfer`` or a function which takes a theano tensor3
-        and returns a tensor of equal size.
+        ``breze.arch.component.transfer`` or a function which takes a theano
+        tensor3 and returns a tensor of equal size.
 
     out_transfer : string or functions
         Output function to use for the network. This can either (a) be a string
-        and reference a transfer function from ``breze.component.transfer`` or
-        a function which takes a theano tensor3 and returns a tensor of equal
+        and reference a transfer function from ``breze.arch.component.transfer``
+        or a function which takes a theano tensor3 and returns a tensor of equal
         size.
 
     loss : string or function
         Loss which is going to be optimized. This can either be a string and
-        reference a loss function found in ``breze.component.distance`` or a
-        function which takes two theano tensors (one being the output of the
+        reference a loss function found in ``breze.arch.component.distance`` or
+        a function which takes two theano tensors (one being the output of the
         network, the other some target) and returns a theano scalar.
 
     pooling: string

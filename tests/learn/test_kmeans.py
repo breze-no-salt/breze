@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from brummlearn.kmeans import GainShapeKMeans
+from breze.learn.kmeans import GainShapeKMeans
 
 
 def test_gainshapekmeans():

@@ -2,9 +2,7 @@
 
 import numpy as np
 
-from base import roughly
-
-from brummlearn.pca import Pca
+from breze.learn.pca import Pca
 
 
 def test_pca():
@@ -19,7 +17,7 @@ def test_pca():
 
     desired = np.array([[-0.9015], [-0.4327]])
 
-    assert roughly(pca.weights, desired, 1E-3)
+    assert np.allclose(pca.weights, desired, 1e-3)
 
 
 def test_pca_white():
@@ -34,4 +32,4 @@ def test_pca_white():
     w, s = pca.weights, pca.singular_values
 
     X = pca.transform(X)
-    assert roughly(np.cov(X, rowvar=0), np.eye(2), 1E-2), 'covariance not white'
+    assert np.allclose(np.cov(X, rowvar=0), np.eye(2), 1e-2), 'covariance not white'

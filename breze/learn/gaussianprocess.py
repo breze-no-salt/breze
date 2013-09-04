@@ -4,10 +4,10 @@
 import numpy as np
 import theano
 
-from breze.model.gaussianprocess import GaussianProcess as GaussianProcess_
+from breze.arch.model.gaussianprocess import GaussianProcess as GaussianProcess_
 
-from brummlearn.base import SupervisedBrezeWrapperBase
-from brummlearn.sampling import slice_
+from breze.learn.base import SupervisedBrezeWrapperBase
+from breze.learn.sampling import slice_
 
 
 class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
@@ -21,8 +21,8 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
 
     kernel : string or function, optional
         Kernel to use. Can be a string which is then looked up in
-        ``breze.component.kernel``. Can also be a function that has the same
-        interface.
+        ``breze.arch.component.kernel``. Can also be a function that has the
+        same interface.
 
     optimizer : string, or tuple of the form (string, dict), optional
         Arguments for ``climin.util.optimizer`` to construct an optimizer. See

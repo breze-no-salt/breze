@@ -4,19 +4,13 @@ import numpy as np
 import scipy
 import nose.tools
 
-from brummlearn.data import (shuffle, padzeros, minibatches, windowify,
+from breze.learn.data import (shuffle, padzeros, minibatches, windowify,
     interpolate, skip, one_hot)
-
-from base import roughly
 
 
 @nose.tools.nottest
 def make_test_data():
     return scipy.random.random((13, 5))
-
-
-def roughly(a, b):
-    return (abs(a - b) < 1E-8)
 
 
 def test_shuffle():
@@ -111,7 +105,7 @@ def test_interpolate():
                            [ 4.8,  5.8,  6.8],
                            [ 6. ,  7. ,  8. ]])
     x_ = interpolate(x, 2)
-    assert roughly(x_, desired).all(), "result has wrong values"
+    assert np.allclose(x_, desired), "result has wrong values"
 
 
 def test_one_hot():
@@ -120,6 +114,6 @@ def test_one_hot():
     for i, j in enumerate(arr):
         desired[i, j] = 1
 
-    assert roughly(desired, one_hot(arr)).all()
-    assert roughly(desired, one_hot(arr, 4)).all()
+    assert np.allclose(desired, one_hot(arr))
+    assert np.allclose(desired, one_hot(arr, 4))
 

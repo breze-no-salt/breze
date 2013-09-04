@@ -16,8 +16,8 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.model.feature import Rica as _Rica
-from brummlearn.base import (
+from breze.arch.model.feature import Rica as _Rica
+from breze.learn.base import (
     UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin,
     ReconstructBrezeWrapperMixin)
 

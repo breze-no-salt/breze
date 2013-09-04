@@ -1,9 +1,9 @@
 import theano.tensor as T
 
 from .rnn import UnsupervisedRnn
-from breze.model.sequential.rnn import weighted_pooling
-from breze.component.misc import discrete_entropy
-from breze.component import norm
+from breze.arch.model.sequential.rnn import weighted_pooling
+from breze.arch.component.misc import discrete_entropy
+from breze.arch.component import norm
 
 
 def dummy_loss(X):

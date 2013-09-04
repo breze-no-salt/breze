@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from brummlearn.rica import Rica
+from breze.learn.rica import Rica
 
 
 def test_rica_fit():

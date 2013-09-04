@@ -81,12 +81,12 @@ described in the corresponding paragraphs.
 import numpy as np
 import theano
 
-from breze.model.feature import (
+from breze.arch.model.feature import (
     AutoEncoder as _AutoEncoder,
     SparseAutoEncoder as _SparseAutoEncoder,
     ContractiveAutoEncoder as _ContractiveAutoEncoder,
     DenoisingAutoEncoder as _DenoisingAutoEncoder)
-from brummlearn.base import (
+from breze.learn.base import (
     UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin,
     ReconstructBrezeWrapperMixin)
 

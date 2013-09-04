@@ -5,7 +5,7 @@ import itertools
 
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
-from brummlearn.gaussianprocess import GaussianProcess
+from breze.learn.gaussianprocess import GaussianProcess
 
 from .acquisition import expected_improvement
 

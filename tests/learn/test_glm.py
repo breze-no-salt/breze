@@ -4,7 +4,7 @@ import random
 
 import numpy as np
 
-from brummlearn.glm import GeneralizedLinearModel
+from breze.learn.glm import GeneralizedLinearModel
 
 
 def test_glm_fit():

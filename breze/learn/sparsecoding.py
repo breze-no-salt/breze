@@ -19,8 +19,8 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.model.feature import SparseCoding as _SparseCoding
-from brummlearn.base import (
+from breze.arch.model.feature import SparseCoding as _SparseCoding
+from breze.learn.base import (
     UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin)
 
 

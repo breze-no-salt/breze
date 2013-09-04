@@ -14,7 +14,7 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.component.misc import distance_matrix
+from breze.arch.component.misc import distance_matrix
 from climin.base import Minimizer
 
 
@@ -33,12 +33,12 @@ def euc_dist(X, Y, squared=True):
     See http://blog.smola.org/post/969195661/in-praise-of-the-second-binomial-formula
     """
     if X is Y:
-        Xsq = (X**2).sum(axis=1)
+        Xsq = (X ** 2).sum(axis=1)
         Ysq = Xsq[np.newaxis, :]
         Xsq = Xsq[:, np.newaxis]
     else:
-        Xsq = (X**2).sum(axis=1)[:, np.newaxis]
-        Ysq = (Y**2).sum(axis=1)[np.newaxis, :]
+        Xsq = (X ** 2).sum(axis=1)[:, np.newaxis]
+        Ysq = (Y ** 2).sum(axis=1)[np.newaxis, :]
     distances = Xsq + Ysq - 2 * np.dot(X, Y.T)
     if squared:
         return distances

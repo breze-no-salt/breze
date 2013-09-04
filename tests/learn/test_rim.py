@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from brummlearn.rim import Rim
+from breze.learn.rim import Rim
 
 
 def test_rim_fit():

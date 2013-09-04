@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from brummlearn.sparsecoding import SparseCoding
+from breze.learn.sparsecoding import SparseCoding
 
 
 def test_sparse_coding_fit():

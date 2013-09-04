@@ -5,7 +5,7 @@ import itertools
 import numpy as np
 from sklearn.utils import check_random_state
 
-from brummlearn.pca import Zca
+from breze.learn.pca import Zca
 
 
 class GainShapeKMeans(object):
