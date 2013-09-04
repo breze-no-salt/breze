@@ -3,8 +3,8 @@
 
 import numpy as np
 
-from breze.model.arch.neural import MultiLayerPerceptron
-from breze.model.util import lookup_some_key
+from breze.arch.model.neural import MultiLayerPerceptron
+from breze.arch.util import lookup_some_key
 
 
 def feature_func_from_model(model):

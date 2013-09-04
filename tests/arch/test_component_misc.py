@@ -5,7 +5,7 @@ import theano
 import theano.tensor as T
 import numpy as np
 
-from breze.model.component.misc import distance_matrix
+from breze.arch.component.misc import distance_matrix
 from tools import roughly
 
 

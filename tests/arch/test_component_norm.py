@@ -5,7 +5,7 @@ import theano
 import theano.tensor as T
 import numpy as np
 
-from breze.model.component.norm import l1, l2, exp
+from breze.arch.component.norm import l1, l2, exp
 
 from tools import roughly
 

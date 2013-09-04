@@ -15,7 +15,7 @@ import numpy as np
 import theano.tensor as T
 
 import transfer
-from breze.model.component import loss
+from breze.arch.component import loss
 
 
 def unpack_mean_var(arr):

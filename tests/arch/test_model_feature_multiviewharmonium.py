@@ -9,10 +9,10 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.model.arch.feature.multiviewharmonium import MultiViewHarmonium
-from breze.model.util import WarnNaNMode
-from breze.model.component.distribution import BernoulliDistribution
-from breze.model.component.distribution import NormalDistribution
+from breze.arch.model.feature.multiviewharmonium import MultiViewHarmonium
+from breze.arch.util import WarnNaNMode
+from breze.arch.component.distribution import BernoulliDistribution
+from breze.arch.component.distribution import NormalDistribution
 
 def test_mvh():
     theano.config.compute_test_value = 'raise'

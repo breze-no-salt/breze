@@ -5,14 +5,14 @@ import theano
 import theano.tensor as T
 import numpy as np
 
-from breze.model.arch.linear import Linear
-from breze.model.arch.neural import MultiLayerPerceptron, TwoLayerPerceptron
-from breze.model.arch.varprop import VariancePropagationNetwork, FastDropoutNetwork
-from breze.model.arch.feature import (
+from breze.arch.model.linear import Linear
+from breze.arch.model.neural import MultiLayerPerceptron, TwoLayerPerceptron
+from breze.arch.model.varprop import VariancePropagationNetwork, FastDropoutNetwork
+from breze.arch.model.feature import (
     AutoEncoder, ContractiveAutoEncoder, SparseAutoEncoder, SparseFiltering,
     Rica, DenoisingAutoEncoder, RestrictedBoltzmannMachine)
-from breze.model.arch.rim import Rim
-from breze.model.arch.sequential import (
+from breze.arch.model.rim import Rim
+from breze.arch.model.sequential import (
     LinearDynamicalSystem,
     SupervisedRecurrentNetwork, UnsupervisedRecurrentNetwork,
     SupervisedLstmRecurrentNetwork, UnsupervisedLstmRecurrentNetwork)
