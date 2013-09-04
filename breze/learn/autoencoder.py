@@ -78,6 +78,7 @@ described in the corresponding paragraphs.
 .. [UFDLT] http://ufldl.stanford.edu/
 """
 
+import climin.initialize
 import numpy as np
 import theano
 
@@ -395,7 +396,6 @@ class DenoisingAutoEncoder(_DenoisingAutoEncoder, UnsupervisedBrezeWrapperBase,
         self.optimizer = optimizer
         self.f_transform = None
         self.f_reconstruct = None
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape, dtype=theano.config.floatX)
+        climin.initialize.randomize_normal(self.parameters.data)
         self.max_iter = max_iter
         self.verbose = verbose

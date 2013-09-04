@@ -10,7 +10,9 @@ def gaussian_perturb(x, std, rng=None):
     with a standard deviation of `std`."""
     if rng is None:
         rng = T.shared_randomstreams.RandomStreams()
-    return x + rng.normal(size=x.shape, std=std)
+    noise = rng.normal(size=x.shape, std=std)
+    noise = T.cast(noise, theano.config.floatX)
+    return x + noise
 
 
 def mask(x, p, rng=None):

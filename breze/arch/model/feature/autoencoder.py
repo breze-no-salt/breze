@@ -6,7 +6,7 @@ import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
 
 from ...util import ParameterSet, lookup
-from ...component import loss as loss_
+from ...component import loss as loss_, corrupt
 from ..neural import TwoLayerPerceptron
 
 
@@ -89,13 +89,10 @@ class DenoisingAutoEncoder(AutoEncoder):
     def make_exprs(inpt, in_to_hidden, hidden_to_out,
                    hidden_bias, out_bias,
                    hidden_transfer, out_transfer, loss, noise_type, c_noise):
-        srng = RandomStreams()
         if noise_type == 'gauss':
-            rv = srng.normal(size=inpt.shape)
-            corrupted = inpt + c_noise * rv
+            corrupted = corrupt.gaussian_perturb(inpt, c_noise)
         elif noise_type == 'blink':
-            rv = srng.binomial(size=inpt.shape, n=1, p=1 - c_noise)
-            corrupted = inpt * rv
+            corrupted = corrupt.mask(inpt, c_noise)
         else:
             raise ValueError('unknown noise type %s' % noise_type)
 
