@@ -1,7 +1,7 @@
 Slow Feature Analysis
 =====================
 
-.. automodule:: brummlearn.sfa
+.. automodule:: breze.learn.sfa
 
-.. autoclass:: brummlearn.sfa.SlowFeatureAnalysis
+.. autoclass:: breze.learn.sfa.SlowFeatureAnalysis
    :members: __init__,fit,transform

@@ -1,7 +1,7 @@
 K-Means
 =======
 
-.. automodule:: brummlearn.kmeans
+.. automodule:: breze.learn.kmeans
 
-.. autoclass:: brummlearn.kmeans.GainShapeKMeans
+.. autoclass:: breze.learn.kmeans.GainShapeKMeans
    :members: __init__, iter_fit, fit, transform

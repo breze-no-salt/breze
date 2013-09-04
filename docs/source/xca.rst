@@ -1,7 +1,7 @@
 Extreme Component Analysis
 ============================
 
-.. automodule:: brummlearn.xca
+.. automodule:: breze.learn.xca
 
-.. autoclass:: brummlearn.xca.Xca
+.. autoclass:: breze.learn.xca.Xca
    :members: __init__, fit, transform, inverse_transform, reconstruct

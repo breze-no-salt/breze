@@ -1,7 +1,7 @@
 ICA with Reconstruction Cost
 ============================
 
-.. automodule:: brummlearn.rica
+.. automodule:: breze.learn.rica
 
-.. autoclass:: brummlearn.rica.Rica
+.. autoclass:: breze.learn.rica.Rica
    :members: __init__, iter_fit, fit, transform

@@ -1,21 +1,21 @@
 Data manipulation
 =================
 
-.. automodule:: brummlearn.data
+.. automodule:: breze.learn.data
 
-.. autofunction:: brummlearn.data.shuffle
-.. autofunction:: brummlearn.data.padzeros
-.. autofunction:: brummlearn.data.collapse_seq_borders
-.. autofunction:: brummlearn.data.uncollapse_seq_borders
-.. autofunction:: brummlearn.data.skip
-.. autofunction:: brummlearn.data.minibatches
-.. autofunction:: brummlearn.data.iter_minibatches
-.. autofunction:: brummlearn.data.interleave
-.. autofunction:: brummlearn.data.uninterleave
-.. autofunction:: brummlearn.data.interpolate
-.. autofunction:: brummlearn.data.windowify
-.. autofunction:: brummlearn.data.iter_windows
-.. autofunction:: brummlearn.data.split
-.. autofunction:: brummlearn.data.collapse
-.. autofunction:: brummlearn.data.uncollapse
-.. autofunction:: brummlearn.data.consecutify
+.. autofunction:: breze.learn.data.shuffle
+.. autofunction:: breze.learn.data.padzeros
+.. autofunction:: breze.learn.data.collapse_seq_borders
+.. autofunction:: breze.learn.data.uncollapse_seq_borders
+.. autofunction:: breze.learn.data.skip
+.. autofunction:: breze.learn.data.minibatches
+.. autofunction:: breze.learn.data.iter_minibatches
+.. autofunction:: breze.learn.data.interleave
+.. autofunction:: breze.learn.data.uninterleave
+.. autofunction:: breze.learn.data.interpolate
+.. autofunction:: breze.learn.data.windowify
+.. autofunction:: breze.learn.data.iter_windows
+.. autofunction:: breze.learn.data.split
+.. autofunction:: breze.learn.data.collapse
+.. autofunction:: breze.learn.data.uncollapse
+.. autofunction:: breze.learn.data.consecutify

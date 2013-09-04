@@ -1,7 +1,7 @@
 Gaussian Processes
 ==================
 
-.. automodule:: brummlearn.gaussianprocess
+.. automodule:: breze.learn.gaussianprocess
 
-.. autoclass:: brummlearn.gaussianprocess.GaussianProcess
+.. autoclass:: breze.learn.gaussianprocess.GaussianProcess
    :members: __init__, iter_fit, fit, predict, store_dataset, sample_parameters

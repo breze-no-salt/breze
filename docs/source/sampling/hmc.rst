@@ -1,4 +1,4 @@
 Hybrid Monte Carlo
 ==================
 
-.. autofunction:: brummlearn.sampling.hmc.sample
+.. autofunction:: breze.learn.sampling.hmc.sample

@@ -1,16 +1,16 @@
 Recurrent Neural Networks
 =========================
 
-.. automodule:: brummlearn.rnn
+.. automodule:: breze.learn.rnn
 
-.. autoclass:: brummlearn.rnn.SupervisedRnn
+.. autoclass:: breze.learn.rnn.SupervisedRnn
    :members: __init__, iter_fit, fit, predict
 
-.. autoclass:: brummlearn.rnn.UnsupervisedRnn
+.. autoclass:: breze.learn.rnn.UnsupervisedRnn
    :members: __init__, iter_fit, fit, transform
 
-.. autoclass:: brummlearn.rnn.SupervisedLstm
+.. autoclass:: breze.learn.rnn.SupervisedLstm
    :members: __init__, iter_fit, fit, predict
 
-.. autoclass:: brummlearn.rnn.UnsupervisedLstm
+.. autoclass:: breze.learn.rnn.UnsupervisedLstm
    :members: __init__, iter_fit, fit, transform

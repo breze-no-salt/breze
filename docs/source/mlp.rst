@@ -1,7 +1,7 @@
 Multilayer Perceptrons
 ======================
 
-.. automodule:: brummlearn.mlp
+.. automodule:: breze.learn.mlp
 
-.. autoclass:: brummlearn.mlp.Mlp
+.. autoclass:: breze.learn.mlp.Mlp
    :members: __init__, iter_fit, fit, predict

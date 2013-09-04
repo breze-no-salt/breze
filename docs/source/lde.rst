@@ -1,7 +1,7 @@
 Linear Denoiser
 ===============
 
-.. automodule:: brummlearn.lde
+.. automodule:: breze.learn.lde
 
-.. autoclass:: brummlearn.lde.LinearDenoiser
+.. autoclass:: breze.learn.lde.LinearDenoiser
    :members: __init__,fit,transform

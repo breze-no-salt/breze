@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# brummlearn documentation build configuration file, created by
+# breze documentation build configuration file, created by
 # sphinx-quickstart on Thu Apr 26 12:04:40 2012.
 #
 # This file is execfile()d with the current directory set to its containing dir.
@@ -43,8 +43,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'brummlearn'
-copyright = u'2012, brml.de'
+project = u'breze'
+copyright = u'2012-2013, breze developers'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -167,7 +167,7 @@ html_static_path = ['_static']
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'brummlearndoc'
+htmlhelp_basename = 'brezedoc'
 
 
 # -- Options for LaTeX output --------------------------------------------------
@@ -186,7 +186,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-  ('index', 'brummlearn.tex', u'brummlearn Documentation',
+  ('index', 'breze.tex', u'breze Documentation',
    u'brml.de', 'manual'),
 ]
 
@@ -216,7 +216,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'brummlearn', u'brummlearn Documentation',
+    ('index', 'breze', u'breze Documentation',
      [u'brml.de'], 1)
 ]
 
@@ -230,8 +230,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'brummlearn', u'brummlearn Documentation',
-   u'brml.de', 'brummlearn', 'One line description of project.',
+  ('index', 'breze', u'breze Documentation',
+   u'brml.de', 'breze', 'One line description of project.',
    'Miscellaneous'),
 ]
 

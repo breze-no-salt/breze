@@ -1,4 +1,4 @@
 Canonical Correlation Analysis
 ==============================
 
-.. autofunction:: brummlearn.cca.cca
+.. autofunction:: breze.learn.cca.cca

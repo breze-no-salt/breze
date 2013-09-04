@@ -1,7 +1,7 @@
 t-Distributed Stochastic Neighbourhood Embedding
 ===============================================
 
-.. automodule:: brummlearn.tsne
+.. automodule:: breze.learn.tsne
 
-.. autoclass:: brummlearn.tsne.Tsne
+.. autoclass:: breze.learn.tsne.Tsne
    :members: __init__,fit_transform

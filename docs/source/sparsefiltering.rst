@@ -1,7 +1,7 @@
 Sparse Filtering
 ================
 
-.. automodule:: brummlearn.sparsefiltering
+.. automodule:: breze.learn.sparsefiltering
 
-.. autoclass:: brummlearn.sparsefiltering.SparseFiltering
+.. autoclass:: breze.learn.sparsefiltering.SparseFiltering
    :members: __init__, iter_fit, fit, transform

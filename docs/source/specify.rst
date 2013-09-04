@@ -1,8 +1,7 @@
 Specifiying losses, norms, transfer functions etc.
 ==================================================
 
-Many models within brummlearn make use of Breze as its building block.
-To maintain flexibility and conciseness, configuring those models can
+To maintain flexibility and conciseness, configuring models can
 be achieved twofold: either by using a string or by using a function
 that follows the specific API.
 
@@ -12,13 +11,13 @@ Using the builtin loss functions
 Let us start with an example. To instantiate a linear model, we can make
 use of the following notation::
 
-   from brummlearn.glm import Linear
+   from breze.learn.glm import Linear
    model = Linear(5, 1, loss='squared')
 
 In this case, we specify the sum of squares loss as string. The logic behind
 this aims to be straight forward: for losses, a lookup is done in the module
-``breze.components.distance``. Thus, the function
-``breze.component.distance.squared`` is used as a loss. This function follows
+``breze.arch.components.distance``. Thus, the function
+``breze.arch.component.distance.squared`` is used as a loss. This function follows
 a simple protocol. In the case of an supervised model, it is called with the
 target as its first argument and the output of the model as its second argument.
 However, both are required to be Theano variables. In the case of an
@@ -26,9 +25,9 @@ unsupervised model, the output of the model is the only argument passed on to
 the loss.
 
 A list of supervised losses can be found by checking the contents of the
-``breze.components.distance`` module::
+``breze.arch.components.distance`` module::
 
-   >>> from breze.components import distance
+   >>> from breze.arch.components import distance
    >>> dir(distance)
     ['T',
      '__builtins__',
@@ -103,8 +102,8 @@ Using norms and transfer functions
 ----------------------------------
 
 The story is similar when using norms and loss functions. In the former
-case, the module of interest is ``breze.component.norm``. The protocol 
+case, the module of interest is ``breze.arch.component.norm``. The protocol 
 is that a single argument, a Theano variable, is given. The result is
 expected to be a Theano variable of the same shape. This is also
 the case for transfer functions, except that the module in question is
-``breze.component.transfer``.
+``breze.arch.component.transfer``.
