@@ -1,0 +1,5 @@
+numpydoc>=0.4
+numpy>=1.5
+scipy>=0.11.0
+-e git://github.com/climin/climin.git#egg=climin
+Theano>=0.6
