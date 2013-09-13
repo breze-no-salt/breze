@@ -62,6 +62,7 @@ Helpers, convenience functions and tools
 ----------------------------------------
 
 .. toctree::
+   hpsearch
    feature
    data
    utils
