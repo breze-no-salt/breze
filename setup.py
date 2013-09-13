@@ -11,9 +11,9 @@ from setuptools import setup, find_packages
 setup(
     name="breze",
     version="pre-0.1",
-    description="tools for theano",
+    description="tools for machine learning via theano and others",
     license="BSD",
-    keywords="Machine Learning Theano",
+    keywords="Machine Learning, Theano, Deep Learning",
     packages=find_packages(exclude=['examples', 'docs']),
     include_package_data=True,
 )
