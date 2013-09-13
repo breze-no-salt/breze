@@ -16,7 +16,7 @@ Basics
 Models and Algorithms
 ---------------------
 
-Learning representations:
+Learning representations, clustering:
 
 .. toctree::
    pca
@@ -29,6 +29,7 @@ Learning representations:
    sfa
    tsne
    kmeans
+   rim
    :maxdepth: 1
 
 Denoising:
@@ -44,12 +45,6 @@ Supervised Learning
    mlp
    gaussianprocess
    :maxdepth: 1
-
-
-Clustering
-
-.. toctree::
-   rim
 
 
 Sampling
