@@ -44,8 +44,7 @@ def make_sampling_softmax(axis=1, rng=None):
         samples = samples * std + mean
 
         if axis == 1:
-            result = softmax(samples) # XXX
-            result.name = 'susp1'
+            result = softmax(samples)  # XXX
         if axis == 2:
             samples_flat = samples.reshape((samples.shape[0] * samples.shape[1], samples.shape[2]))
             result_flat = softmax(samples_flat)
@@ -79,3 +78,8 @@ def sigmoid(mean, var):
     var_ = T.maximum(epsilon, var_)
 
     return mean_, var_
+
+
+def tanh(mean, var):
+    mean_, var_ = sigmoid(mean, var)
+    return mean_ * 2 - 1, 4 * var_
