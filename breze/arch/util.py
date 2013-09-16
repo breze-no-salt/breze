@@ -184,6 +184,8 @@ def lookup(what, where, default=None):
         res = getattr(where, what, default)
     else:
         res = what
+    if res is None:
+        raise ValueError('could not find %s' % what)
     return res
 
 
