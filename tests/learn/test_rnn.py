@@ -5,6 +5,7 @@ import theano.tensor as T
 from theano.gradient import jacobian
 
 from breze.learn.rnn import (
+    SupervisedFastDropoutRnn,
     SupervisedRnn, UnsupervisedRnn,
     SupervisedLstm, UnsupervisedLstm)
 
@@ -30,6 +31,29 @@ def test_srnn_iter_fit():
 def test_srnn_predict():
     X = np.random.standard_normal((10, 5, 2))
     rnn = SupervisedRnn(2, 10, 3, max_iter=10)
+    rnn.predict(X)
+
+
+def test_fd_srnn_fit():
+    X = np.random.standard_normal((10, 5, 2))
+    Z = np.random.standard_normal((10, 5, 3))
+    rnn = SupervisedFastDropoutRnn(2, 10, 3, hidden_transfer='rectifier', max_iter=10)
+    rnn.fit(X, Z)
+
+
+def test_fd_srnn_iter_fit():
+    X = np.random.standard_normal((10, 5, 2))
+    Z = np.random.standard_normal((10, 5, 3))
+    rnn = SupervisedFastDropoutRnn(2, 10, 3, hidden_transfer='rectifier', max_iter=10)
+    for i, info in enumerate(rnn.iter_fit(X, Z)):
+        if i >= 10:
+            break
+
+
+def test_fd_srnn_predict():
+    X = np.random.standard_normal((10, 5, 2))
+    rnn = SupervisedFastDropoutRnn(2, 10, 3, hidden_transfer='rectifier', max_iter=10)
+    print rnn.exprs
     rnn.predict(X)
 
 

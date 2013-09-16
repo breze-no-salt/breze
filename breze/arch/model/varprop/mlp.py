@@ -3,13 +3,14 @@
 
 import theano.tensor as T
 
-from ..util import lookup
-from ..component.varprop import transfer, loss as loss_
-from ..model.neural import MultiLayerPerceptron
+from ...util import lookup
+from ...component.varprop import transfer, loss as loss_
+from ...model.neural import MultiLayerPerceptron
+from ...model.sequential import rnn
 
 
 def mean_var_forward(in_mean, in_var, weights, bias, variance_bias_sqrt,
-                     transfer, p_dropout):
+                     f, p_dropout):
     out_in_mean = T.dot(in_mean, weights) * p_dropout
     out_in_mean += bias
 
@@ -17,7 +18,7 @@ def mean_var_forward(in_mean, in_var, weights, bias, variance_bias_sqrt,
     out_in_var = (T.dot(in_mean ** 2, weights ** 2) * dropout_var
                   + T.dot(in_var, weights ** 2) * p_dropout)
     out_in_var *= variance_bias_sqrt ** 2
-    out_mean, out_var = transfer(out_in_mean, out_in_var)
+    out_mean, out_var = f(out_in_mean, out_in_var)
     return out_in_mean, out_in_var, out_mean, out_var
 
 
@@ -127,6 +128,52 @@ class VariancePropagationNetwork(MultiLayerPerceptron):
             'loss': loss
         })
 
+        return exprs
+
+
+class SupervisedRecurrentNetwork(rnn.BaseRecurrentNetwork,
+                                 rnn.SimpleRnnComponent):
+
+    def init_exprs(self):
+        inpt = T.tensor3('inpt')
+        pars = self.parameters
+
+        hidden_to_hiddens = [getattr(pars, 'hidden_to_hidden_%i' % i)
+                             for i in range(len(self.n_hiddens) - 1)]
+        hidden_biases = [getattr(pars, 'hidden_bias_%i' % i)
+                         for i in range(len(self.n_hiddens))]
+        recurrents = [getattr(pars, 'recurrent_%i' % i)
+                      for i in range(len(self.n_hiddens))]
+        initial_hiddens = [getattr(pars, 'initial_hidden_%i' % i)
+                           for i in range(len(self.n_hiddens))]
+
+        if self.pooling is None:
+            target = T.tensor3('target')
+        else:
+            target = T.matrix('target')
+
+        self.exprs = self.make_exprs(
+            inpt, target,
+            pars.in_to_hidden, hidden_to_hiddens, pars.hidden_to_out,
+            hidden_biases, initial_hiddens, recurrents, pars.out_bias,
+            self.hidden_transfers, self.out_transfer, self.loss,
+            self.pooling, self.leaky_coeffs)
+
+    @staticmethod
+    def make_exprs(inpt, target, in_to_hidden, hidden_to_hiddens, hidden_to_out,
+                   hidden_biases, initial_hiddens, recurrents, out_bias,
+                   hidden_transfers, out_transfer, loss, pooling, leaky_coeffs):
+        exprs = rnn(inpt, in_to_hidden, hidden_to_hiddens,
+                    hidden_to_out, hidden_biases, initial_hiddens, recurrents,
+                    out_bias, hidden_transfers, out_transfer, pooling,
+                    leaky_coeffs)
+        f_loss = lookup(loss, loss_)
+        sum_axis = 2 if not pooling else 1
+        loss_row_wise = f_loss(target, exprs['output']).sum(axis=sum_axis)
+        loss = loss_row_wise.mean()
+        exprs['target'] = target
+        exprs['loss'] = loss
+        exprs['loss_row_wise'] = loss_row_wise
         return exprs
 
 

@@ -13,6 +13,7 @@ import theano.tensor as T
 from breze.learn.base import (
     SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase,
     TransformBrezeWrapperMixin)
+from breze.arch.model.varprop import rnn as varprop_rnn
 
 
 class BaseRnn(object):
@@ -232,3 +233,8 @@ class UnsupervisedLstm(BaseRnn, rnn.UnsupervisedLstmRecurrentNetwork,
     sklearn like methods.
     """
     transform_expr_name = 'output'
+
+
+class SupervisedFastDropoutRnn(BaseRnn, varprop_rnn.FastDropoutRnn,
+                               SupervisedBrezeWrapperBase):
+    pass
