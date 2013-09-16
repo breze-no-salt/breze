@@ -158,48 +158,48 @@ def stochastic_pooling(inpt, rng=None):
 def rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         hidden_biases, initial_hiddens, recurrents, out_bias, hidden_transfers,
         out_transfer, pooling, leaky_coeffs=None):
-        exprs = {}
+    exprs = {}
 
-        f_hiddens = [lookup(i, transfer) for i in hidden_transfers]
-        f_output = lookup(out_transfer, transfer)
+    f_hiddens = [lookup(i, transfer) for i in hidden_transfers]
+    f_output = lookup(out_transfer, transfer)
 
-        hidden_in = feedforward_layer(inpt, in_to_hidden, hidden_biases[0])
-        hidden_in_rec, hidden_rec = recurrent_layer(
-            hidden_in, recurrents[0], f_hiddens[0], initial_hiddens[0])
-        exprs['hidden_in_0'] = hidden_in_rec
+    hidden_in = feedforward_layer(inpt, in_to_hidden, hidden_biases[0])
+    hidden_in_rec, hidden_rec = recurrent_layer(
+        hidden_in, recurrents[0], f_hiddens[0], initial_hiddens[0])
+    exprs['hidden_in_0'] = hidden_in_rec
+    if leaky_coeffs is not None:
+        hidden_rec = leaky_integration(hidden_rec, leaky_coeffs[0])
+    exprs['hidden_0'] = hidden_rec
+
+    zipped = zip(hidden_to_hiddens, hidden_biases[1:], recurrents[1:],
+                    f_hiddens[1:], initial_hiddens[1:])
+
+    for i, (w, b, r, t, j) in enumerate(zipped):
+        hidden_m1 = hidden_rec
+        hidden_in = feedforward_layer(hidden_m1, w, b)
+        hidden_in_rec, hidden_rec = recurrent_layer(hidden_in, r, t, j)
         if leaky_coeffs is not None:
-            hidden_rec = leaky_integration(hidden_rec, leaky_coeffs[0])
-        exprs['hidden_0'] = hidden_rec
+            hidden_rec = leaky_integration(hidden_rec, leaky_coeffs[i])
+        exprs['hidden_in_%i' % (i + 1)] = hidden_in_rec
+        exprs['hidden_%i' % (i + 1)] = hidden_rec
 
-        zipped = zip(hidden_to_hiddens, hidden_biases[1:], recurrents[1:],
-                     f_hiddens[1:], initial_hiddens[1:])
+    unpooled = feedforward_layer(hidden_rec, hidden_to_out, out_bias)
 
-        for i, (w, b, r, t, j) in enumerate(zipped):
-            hidden_m1 = hidden_rec
-            hidden_in = feedforward_layer(hidden_m1, w, b)
-            hidden_in_rec, hidden_rec = recurrent_layer(hidden_in, r, t, j)
-            if leaky_coeffs is not None:
-                hidden_rec = leaky_integration(hidden_rec, leaky_coeffs[i])
-            exprs['hidden_in_%i' % (i + 1)] = hidden_in_rec
-            exprs['hidden_%i' % (i + 1)] = hidden_rec
+    if pooling is None:
+        output_in = unpooled
+    else:
+        output_in = pooling_layer(unpooled, pooling)
 
-        unpooled = feedforward_layer(hidden_rec, hidden_to_out, out_bias)
+    output = f_output(output_in)
 
-        if pooling is None:
-            output_in = unpooled
-        else:
-            output_in = pooling_layer(unpooled, pooling)
+    exprs.update(
+        {'inpt': inpt,
+            'unpooled': unpooled,
+            'output_in': output_in,
+            'output': output,
+            })
 
-        output = f_output(output_in)
-
-        exprs.update(
-            {'inpt': inpt,
-             'unpooled': unpooled,
-             'output_in': output_in,
-             'output': output,
-             })
-
-        return exprs
+    return exprs
 
 
 def lstm_rnn(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
