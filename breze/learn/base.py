@@ -140,8 +140,8 @@ class BrezeWrapperBase(object):
                 info['best_pars'] = best_pars
 
                 yield info
-            if stop(info):
-                break
+                if stop(info):
+                    break
 
 
 class SupervisedBrezeWrapperBase(BrezeWrapperBase):
