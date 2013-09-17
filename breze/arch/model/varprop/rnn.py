@@ -44,6 +44,7 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
         dropout_var = p_dropout * (1 - p_dropout)
         hov = (T.dot(him_m1 ** 2, weights ** 2) * dropout_var
                + T.dot(hiv_m1, weights ** 2) * p_dropout
+               + T.dot(hiv_m1, weights ** 2) * dropout_var
                + inpt_var)
         return hom, hov
 
