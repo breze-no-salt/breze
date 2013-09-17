@@ -14,6 +14,7 @@ from breze.learn.base import (
     SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase,
     TransformBrezeWrapperMixin)
 from breze.arch.model.varprop import rnn as varprop_rnn
+from breze.arch.component.misc import project_into_l2_ball
 
 
 class BaseRnn(object):
@@ -67,6 +68,10 @@ class BaseRnn(object):
         Number of examples per batch when calculting the loss
         and its derivatives. None means to use all samples every time.
 
+    gradient_clip : float, optional [default: False]
+        If the length of a gradient ever exceeds this value during training,
+        the gradient is renormalized to this value.
+
     max_iter : int
         Maximum number of optimization iterations to perform. Only respected
         during``.fit()``, not ``.iter_fit()``.
@@ -81,6 +86,7 @@ class BaseRnn(object):
                  leaky_coeffs=None,
                  optimizer='rprop',
                  batch_size=None,
+                 gradient_clip=False,
                  max_iter=1000,
                  verbose=False):
         super(BaseRnn, self).__init__(
@@ -88,6 +94,7 @@ class BaseRnn(object):
             loss, pooling, leaky_coeffs)
         self.optimizer = optimizer
         self.batch_size = batch_size
+        self.gradient_clip = gradient_clip
         self.max_iter = max_iter
         self.verbose = verbose
 
@@ -121,6 +128,8 @@ class BaseRnn(object):
            matrix of the loss.
         """
         d_loss = self._d_loss()
+        if self.gradient_clip:
+            d_loss = project_into_l2_ball(d_loss, self.gradient_clip)
 
         args = list(self.data_arguments)
         f_loss = self.function(args, 'loss', explicit_pars=True)
@@ -142,6 +151,7 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
                  leaky_coeffs=None,
                  optimizer='rprop',
                  batch_size=None,
+                 gradient_clip=False,
                  max_iter=1000,
                  verbose=False):
         if pooling is None:
@@ -151,7 +161,7 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
         super(SupervisedRnn, self).__init__(
             n_inpt, n_hidden, n_output, hidden_transfers, out_transfer, loss,
             pooling, leaky_coeffs,
-            optimizer, batch_size, max_iter, verbose)
+            optimizer, batch_size, gradient_clip, max_iter, verbose)
 
     def iter_fit(self, X, Z):
         """Iteratively fit the parameters of the model to the given data with
