@@ -17,7 +17,8 @@ def mean_var_forward(in_mean, in_var, weights, bias, variance_bias_sqrt,
 
     dropout_var = p_dropout * (1 - p_dropout)
     out_in_var = (T.dot(in_mean ** 2, weights ** 2) * dropout_var
-                  + T.dot(in_var, weights ** 2) * p_keep)
+                  + T.dot(in_var, weights ** 2) * p_keep
+                  + T.dot(in_var, weights ** 2) * dropout_var)
     out_in_var *= variance_bias_sqrt ** 2
     out_mean, out_var = f(out_in_mean, out_in_var)
     return out_in_mean, out_in_var, out_mean, out_var
