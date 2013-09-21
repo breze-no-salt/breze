@@ -77,6 +77,12 @@ def sigmoid(mean, var):
     # cases. We catch that here.
     var_ = T.maximum(epsilon, var_)
 
+    # This approximation might yield 0 or 1. This is however bad for subsequent
+    # losses such as the negative cross entropy; also, the sigmoid function will
+    # *nerver* do this. Thus we clip it. The value of 1e-6 has been chosen to
+    # work well on float32.
+    mean_ = T.clip(mean_, 1e-7, 1 - 1e-7)
+
     return mean_, var_
 
 
