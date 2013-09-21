@@ -80,7 +80,7 @@ class BrezeWrapperBase(object):
         kwargs['args'] = args
         return climin.util.optimizer(ident, wrt, **kwargs)
 
-    def powerfit(self, fit_data, eval_data, stop, report):
+    def powerfit(self, fit_data, eval_data, stop, report, eval_train_loss=True):
         """Iteratively fit the model.
 
         This is a convenience function which combines iteratively fitting a
@@ -129,7 +129,10 @@ class BrezeWrapperBase(object):
                 if 'loss' not in info:
                     # Not all optimizers, e.g. ilne and gd, do actually
                     # calculate the loss.
-                    info['loss'] = ma.scalar(f_loss(*fit_data))
+                    if eval_train_loss:
+                        info['loss'] = ma.scalar(f_loss(*fit_data))
+                    else:
+                        info['loss'] = 0.
                 info['val_loss'] = ma.scalar(f_loss(*eval_data))
 
                 if info['val_loss'] < best_loss:
