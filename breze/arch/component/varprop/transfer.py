@@ -4,7 +4,7 @@ import numpy as np
 
 import theano.tensor as T
 import theano.tensor.extra_ops
-from theano.tensor.nnet import softmax
+from theano.tensor.nnet import softmax, sigmoid as d_sigmoid
 from theano.tensor.shared_randomstreams import RandomStreams
 
 from breze.arch.component.distributions import normal
@@ -33,7 +33,7 @@ def rectifier(mean, var):
     return mean_, var_
 
 
-def make_sampling_softmax(axis=1, rng=None):
+def make_sampling_transfer(f, axis=1, rng=None):
     if rng is None:
         rng = RandomStreams()
 
@@ -44,17 +44,18 @@ def make_sampling_softmax(axis=1, rng=None):
         samples = samples * std + mean
 
         if axis == 1:
-            result = softmax(samples)  # XXX
+            result = f(samples)  # XXX
         if axis == 2:
             samples_flat = samples.reshape((samples.shape[0] * samples.shape[1], samples.shape[2]))
-            result_flat = softmax(samples_flat)
+            result_flat = f(samples_flat)
             result = result.reshape(samples.shape)
 
         return result, T.zeros_like(var)
 
     return inner
 
-sampling_softmax = make_sampling_softmax()
+sampling_softmax = make_sampling_transfer(softmax)
+sampling_sigmoid = make_sampling_transfer(d_sigmoid)
 
 
 def sigmoid(mean, var):
