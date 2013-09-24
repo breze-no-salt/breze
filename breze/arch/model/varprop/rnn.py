@@ -223,7 +223,7 @@ class FastDropoutRnn(SupervisedRecurrentNetwork):
                              for i in range(len(self.n_hiddens) - 1)]
         hidden_biases = [getattr(self.parameters, 'hidden_bias_%i' % i)
                          for i in range(len(self.n_hiddens))]
-        hidden_var_biases_sqrt = [T.zeros_like(i) + 1e-8 for i in hidden_biases]
+        hidden_var_biases_sqrt = [1 for i in hidden_biases]
         recurrents = [getattr(pars, 'recurrent_%i' % i)
                       for i in range(len(self.n_hiddens))]
         initial_hiddens = [getattr(pars, 'initial_hidden_%i' % i)
