@@ -41,11 +41,16 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
     def step(inpt_mean, inpt_var, him_m1, hiv_m1):
         hom_m1, hov_m1 = f(him_m1, hiv_m1)
         hom = T.dot(hom_m1, weights) * p_dropout + inpt_mean
+
+        p_keep = 1 - p_dropout
         dropout_var = p_dropout * (1 - p_dropout)
-        hov = (T.dot(him_m1 ** 2, weights ** 2) * dropout_var
-               + T.dot(hiv_m1, weights ** 2) * p_dropout
-               + T.dot(hiv_m1, weights ** 2) * dropout_var
-               + inpt_var)
+
+        element_var = (hov_m1 * dropout_var
+                       + (hom_m1 ** 2) * dropout_var
+                       + hov_m1 * p_keep ** 2)
+
+        hov = T.dot(element_var, weights ** 2) + inpt_var
+
         return hom, hov
 
     initial_hidden_mean = repeat(initial_hidden, in_mean.shape[1], axis=0)
