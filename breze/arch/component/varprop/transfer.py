@@ -4,7 +4,7 @@ import numpy as np
 
 import theano.tensor as T
 import theano.tensor.extra_ops
-from theano.tensor.nnet import softmax, sigmoid as d_sigmoid
+from theano.tensor.nnet import softmax as _softmax, sigmoid as det_sigmoid
 from theano.tensor.shared_randomstreams import RandomStreams
 
 from breze.arch.component.distributions import normal
@@ -13,6 +13,10 @@ from breze.arch.component.distributions import normal
 PI = np.array(np.pi, dtype=theano.config.floatX)
 SQRT_2 = np.array(np.sqrt(2.), dtype=theano.config.floatX)
 epsilon = np.array(1e-4, dtype=theano.config.floatX)
+
+def _sigmoid(x):
+    y = det_sigmoid(x)
+    return T.clip(y, 1e-7, 1 - 1e-7)
 
 
 def identity(mean, var):
@@ -45,17 +49,18 @@ def make_sampling_transfer(f, axis=1, rng=None):
 
         if axis == 1:
             result = f(samples)  # XXX
-        if axis == 2:
+        elif axis == 2:
             samples_flat = samples.reshape((samples.shape[0] * samples.shape[1], samples.shape[2]))
             result_flat = f(samples_flat)
-            result = result.reshape(samples.shape)
+            result = result_flat.reshape(samples.shape)
 
-        return result, T.zeros_like(var)
+        return result, T.zeros_like(var) + 0.1
 
     return inner
 
-sampling_softmax = make_sampling_transfer(softmax)
-sampling_sigmoid = make_sampling_transfer(d_sigmoid)
+
+sampling_softmax = make_sampling_transfer(_softmax)
+sampling_sigmoid = make_sampling_transfer(_sigmoid)
 
 
 def sigmoid(mean, var):
