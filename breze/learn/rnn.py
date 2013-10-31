@@ -72,10 +72,6 @@ class BaseRnn(object):
         If the length of a gradient ever exceeds this value during training,
         the gradient is renormalized to this value.
 
-    truncate_gradient : int, optional [default: -1]
-        Truncate the gradient after so many steps into the past. Passed to
-        ``theano.scan``.
-
     max_iter : int
         Maximum number of optimization iterations to perform. Only respected
         during``.fit()``, not ``.iter_fit()``.
@@ -91,12 +87,11 @@ class BaseRnn(object):
                  optimizer='rprop',
                  batch_size=None,
                  gradient_clip=False,
-                 truncate_gradient=-1,
                  max_iter=1000,
                  verbose=False):
         super(BaseRnn, self).__init__(
             n_inpt, n_hidden, n_output, hidden_transfer, out_transfer,
-            loss, pooling, leaky_coeffs, truncate_gradient)
+            loss, pooling, leaky_coeffs)
         self.optimizer = optimizer
         self.batch_size = batch_size
         self.gradient_clip = gradient_clip
@@ -157,7 +152,6 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
                  optimizer='rprop',
                  batch_size=None,
                  gradient_clip=False,
-                 truncate_gradient=-1,
                  max_iter=1000,
                  verbose=False):
         if pooling is None:
