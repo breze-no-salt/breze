@@ -169,31 +169,6 @@ class SupervisedRnn(BaseRnn, rnn.SupervisedRecurrentNetwork,
             pooling, leaky_coeffs,
             optimizer, batch_size, gradient_clip, max_iter, verbose)
 
-    def iter_fit(self, X, Z):
-        """Iteratively fit the parameters of the model to the given data with
-        the given error function.
-
-        Each iteration of the learning algorithm is an iteration of the returned
-        iterator. The model is in a valid state after each iteration, so that
-        the optimization can be broken any time by the caller.
-
-        This method does `not` respect the max_iter attribute.
-
-        :param X: A (t, n ,d) array where _t_ is the number of time steps,
-            _n_ is the number of data samples and _d_ is the dimensionality of
-            a data sample at a single time step.
-        :param Z: A (t, n, l) array where _t_ and _n_ are defined as in _X_,
-            but _l_ is the dimensionality of the output sequences at a single
-            time step.
-        """
-        f_loss, f_d_loss = self._make_loss_functions()
-
-        args = itertools.repeat(([X, Z], {}))
-        opt = self._make_optimizer(f_loss, f_d_loss, args)
-
-        for i, info in enumerate(opt):
-            yield info
-
 
 class UnsupervisedRnn(BaseRnn, rnn.UnsupervisedRecurrentNetwork,
                       UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
