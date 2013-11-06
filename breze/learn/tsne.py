@@ -19,18 +19,51 @@ from climin.base import Minimizer
 
 
 def zero_diagonal(X):
-    """Given a square matrix `X`, return a theano variable with the diagonal of
-    `X` set to zero."""
+    """Given a square matrix ``X``, return a theano variable with the diagonal
+    of ``X`` set to zero.
+
+    Parameters
+    ----------
+
+    X : theano 2d tensor
+
+    Returns
+    -------
+
+    Y : theano 2d tensor"""
     thisid = T.identity_like(X)
     return (X - thisid * X)
 
 
 def euc_dist(X, Y, squared=True):
-    """
-    Compute distances between
-    rows in X and rows in Y.
+    """Compute Euclidean distances between rows of two 2d arrays.
 
-    See http://blog.smola.org/post/969195661/in-praise-of-the-second-binomial-formula
+
+    Parameters
+    ----------
+
+    X : array_like
+        2D array.
+
+    Y : array_like
+        2D array.
+
+    squared : boolean, optional, [default: True]
+        If True, do not take the square root but return squared Euclidean
+        distance This is more efficient.
+
+
+    Returns
+    -------
+
+    distances : array_like
+        2D array. ``distances[i, j]`` is the distance between ``X[i]`` and
+        ``Y[j]``.
+
+
+    References
+    ----------
+    .. [1] http://blog.smola.org/post/969195661/in-praise-of-the-second-binomial-formula
     """
     if X is Y:
         Xsq = (X ** 2).sum(axis=1)
@@ -48,7 +81,24 @@ def euc_dist(X, Y, squared=True):
 
 def neighbour_probabilities(X, target_pplx):
     """Return a square matrix containing probabilities that points given by `X`
-    in the data are neighbours."""
+    in the data are neighbours.
+
+    Parameters
+    ----------
+
+    X : array_like
+        2D array containing data points in rows of shape ``(n, d)``.
+
+    target_pplx : float
+        Desired perplexity.
+
+    Returns
+    -------
+
+    P : array_like
+        2D array of shape ``(n, n)`` containing probability that point ``i`` is
+        neighbour of point j in ``P[i. j]``.
+    """
     N = X.shape[0]
 
     # Calculate the distances.
@@ -171,6 +221,34 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000,
          verbose=False):
     """Return low dimensional representations for the given data set.
 
+    Parameters
+    ----------
+
+    X : array_like
+        Points in the original space, one per row.
+
+    low_dim : integer
+        Number of embedding dimensions. Typically 2 for 2D plots and 3 for 3D
+        plots.
+
+    perplexity : float, optional [default: 40]
+        Perplexity parameter; roughly the number of neighbours each point should
+        have.
+
+    early_exaggeration : integer, optional [default: 50]
+        Number of iterations where the entries in the probability matrix are
+        multiplied by 4.
+
+    max_iter : integer, optional, [default: 1000]
+        Maximum number of iterations to perform.
+
+
+    Returns
+    -------
+
+    E : array_like
+        Array of the shape ``(n, low_dim)`` representing low dimensional
+        embedding of the data points.
     """
     if early_exaggeration < 0:
         raise ValueError("early_exaggeration has to be non negative")
@@ -221,20 +299,58 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000,
 
 
 class Tsne(object):
+    """TSNE class.
+
+    Attributes
+    ----------
+
+    n_inpt : integer
+        Dimensionality of the input points.
+
+    n_lowdim : integer
+        Dimensionality of the embedding.
+
+    perplexity : float
+        Desired number of neighbours.
+
+    early_exaggeration : integer
+        Number of iterations where the entries in the probability matrix are
+        multiplied by 4.
+
+    max_iter : integer, optional, [default: 1000]
+        Maximum number of iterations to perform.
+
+    verbose : boolean
+        Flag indicating whether information should be printed.
+    """
 
     def __init__(self, n_inpt, n_lowdim, perplexity=40, early_exaggeration=50,
                  max_iter=1000, verbose=False):
         """Create a Tsne object.
 
-        :param n_inpt: Input dimensionality.
-        :param n_lowdim: Desired dimensionality of the representations,
-            typically 2 or 3.
-        :param perplexity: Parameter to indicate how many `neighbours` a point
-            approximately has.
-        :param early_exaggeration: Hyper parameter to tune optimization.
-        :param max_iter: Number of iterations to perform.
-        :param verbose: Flag that indicates whether to print out information during
-            the optimization.
+        Parameters
+        ----------
+
+        n_inpt : integer
+            Input dimensionality.
+
+        n_lowdim : integer
+            Desired dimensionality of the representations, typically 2 or 3.
+
+        perplexity : float
+            Parameter to indicate how many `neighbours` a point approximately
+            has.
+
+        early_exaggeration : integer
+            Number of iterations where the entries in the probability matrix are
+            multiplied by 4.
+
+        max_iter : integer
+            Number of iterations to perform.
+
+        verbose : boolean
+            Flag that indicates whether to print out information during the
+            optimization.
         """
         self.n_inpt = n_inpt
         self.n_lowdim = n_lowdim
@@ -246,11 +362,19 @@ class Tsne(object):
     def fit_transform(self, X):
         """Fit embeddings for `X` and return them.
 
-        :param X: (N, d) shaped array where N is the number of samples and d is
-            the dimensionality.
-        :returns: (N, n_lowdim) shape array with low dimensional
-            representations, where `n_lowdim` has been specified during
-            construction.
+        Parameters
+        ----------
+
+        X : array_like
+            ``(n, d)`` shaped array where ``n`` is the number of samples and
+            ``d`` is the dimensionality.
+
+        Returns
+        -------
+
+        E : array_like
+            ``(n, n_lowdim)`` shape array with low dimensional representations,
+            where ``n_lowdim`` has been specified during construction.
         """
         return tsne(X, self.n_lowdim, self.perplexity, self.early_exaggeration,
                     self.max_iter, self.verbose)
