@@ -349,9 +349,6 @@ class TransformBrezeWrapperMixin(object):
 
         Y : array_like
             Transformation of X under the model.
-
-        :param X: An array representing the inputs.
-        :returns: An array representing the transformed inputs.
         """
         X = cast_array_to_local_type(X)
         if self.f_transform is None:
