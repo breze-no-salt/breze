@@ -3,8 +3,6 @@
 """Module for learning various types of recurrent networks."""
 
 
-import itertools
-
 import breze.arch.model.sequential.rnn as rnn
 import numpy as np
 import theano
