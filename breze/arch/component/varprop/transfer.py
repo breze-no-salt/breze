@@ -19,6 +19,12 @@ def _sigmoid(x):
     return T.clip(y, 1e-7, 1 - 1e-7)
 
 
+def safe_softmax(x):
+    y = _softmax(x)
+    y = T.clip(y, 1e-7, 1 - 1e-7)
+    return y
+
+
 def identity(mean, var):
     return mean, var
 
@@ -59,7 +65,7 @@ def make_sampling_transfer(f, axis=1, rng=None):
     return inner
 
 
-sampling_softmax = make_sampling_transfer(_softmax)
+sampling_softmax = make_sampling_transfer(safe_softmax)
 sampling_sigmoid = make_sampling_transfer(_sigmoid)
 
 
