@@ -11,27 +11,41 @@ from scipy.linalg import lstsq
 
 
 class LinearDenoiser(object):
-    """LinearDenoisers (LDEs) were later also named Marginalized Denoising
+    """Class that represents linear denoisers.
+
+    LinearDenoisers (LDEs) were later also named Marginalized Denoising
     AutoEncoders.
 
-    Introduced in :
+    Introduced in [1]_.
 
-        "Rapid Feature Learning with Stacked Linear Denoisers",
-        Zhixiang Eddie Xu, Kilian Q. Weinberger, Fei Sha (2011)
+    References
+    ----------
+
+    .. [1] Xu, Zhixiang Eddie, Kilian Q. Weinberger, and Fei Sha.
+           "Rapid feature learning with stacked linear denoisers."
+           arXiv preprint arXiv:1105.0972 (2011).
     """
 
     def __init__(self, p_dropout):
         """Create a LinearDenoiser object.
 
-        :param p_dropout: Probability of an input being noisy.
+        Parameters
+        ----------
+
+        p_dropout : float
+            Probability of an input being dropped out.
         """
         self.p_dropout = p_dropout
 
     def fit(self, X):
         """Fit the parameters of the model.
 
-        :param X: An array of shape `(n, d)` where `n` is the number of
-            data points and `d` the input dimensionality."""
+        Parameters
+        ----------
+
+        X : array_like
+            An array of shape ``(n, d)`` where ``n`` is the number of data
+            points and ``d`` the input dimensionality."""
         # Add another feature for the bias.
         X = np.hstack([np.ones((X.shape[0], 1)), X])
         n, d = X.shape
@@ -51,7 +65,17 @@ class LinearDenoiser(object):
     def transform(self, X):
         """Transform data according to the model.
 
-        :param X: An array of shape `(n, d)` where `n` is the number of
-            data points and `d` the input dimensionality.
-        :returns: An array of the same shape as the input."""
+        Parameters
+        ----------
+
+        X : array_like
+            An array of shape ``(n, d)`` where ``n`` is the number of data
+            points and ``d`` the input dimensionality.
+
+        Returns
+        -------
+
+        Y : array_like
+            An array of shape ``(n, d)`` where ``n`` is the number of data
+            points and ``d`` the input dimensionality."""
         return np.dot(X, self.weights) + self.bias
