@@ -2,19 +2,18 @@
 
 """ICA with reconstruction cost.
 
-As introduced in
+As introduced in [rica]_.
 
-    ICA with Reconstruction Cost for Efficient Overcomplete Feature Learning.
-    Quoc V. Le, Alex Karpenko, Jiquan Ngiam and Andrew Y. Ng.
-    In NIPS*2011.
+References
+----------
+
+.. [rica] ICA with Reconstruction Cost for Efficient Overcomplete Feature
+   Learning. Quoc V. Le, Alex Karpenko, Jiquan Ngiam and Andrew Y. Ng. In NIPS
+   2011.
 """
 
-import itertools
-
-import climin
 import numpy as np
 import theano
-import theano.tensor as T
 
 from breze.arch.model.feature import Rica as _Rica
 from breze.learn.base import (
@@ -23,7 +22,60 @@ from breze.learn.base import (
 
 
 class Rica(_Rica, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin,
-    ReconstructBrezeWrapperMixin):
+           ReconstructBrezeWrapperMixin):
+    """Class implementing ICA with reconstruction cost.
+
+    Attributes
+    ----------
+
+    parameters : ParamterSet object
+        Parameters of the model.
+
+    n_inpt : integer
+        Input dimensionality of the data.
+
+    n_feature : integer
+        Dimensionality of the hidden feature dimension.
+
+    hidden_transfer : string or function
+        Transfer function to use for the hidden units. Can be a string
+        referring any function found in ``breze.component.transfer`` or a
+        function that given an ``(n, d)`` array returns an ``(n, d)`` array
+        as theano expressions.
+
+    feature_transfer : string or function
+        Transfer function to use for the features. Can be a string
+        referring any function found in ``breze.component.transfer`` or a
+        function that given an (n, d) array returns an (n, d) array as
+        theano expressions.
+
+    out_transfer : string or function
+        Output transfer function of the linear auto encoder for calculation
+        of the reconstruction cost.
+
+    loss : string or function
+        Loss which is going to be optimized. This can either be a string
+        and reference a loss function found in ``breze.component.loss`` or
+        a function which takes two theano tensors (one being the output of
+        the network, the other some target) and returns a theano scalar.
+
+    c_ica : float, optional, [default: 0.5]
+        Weight of the ICA cost, cost of linear reconstruction is 1.
+
+    optimizer : string or pair
+        Can be either a string or a pair. In any case,
+        ``climin.util.optimizer`` is used to construct an optimizer. In the
+        case of a string, the string is used as an identifier for the
+        optimizer which is then instantiated with default arguments. If a
+        pair, expected to be ``(identifier, kwargs)`` for more fine control
+        of the optimizer.
+
+    max_iter : integer
+        Maximum number of optimization iterations to perform.
+
+    verbose : boolean
+        Flag indicating whether to print out information during fitting.
+    """
 
     def __init__(self, n_inpt, n_feature, hidden_transfer='identity',
                  feature_transfer='softabs', out_transfer='identity',
@@ -31,34 +83,50 @@ class Rica(_Rica, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin,
                  max_iter=1000, verbose=False):
         """Create a Rica object.
 
-        :param n_inpt: Input dimensionality of the data.
-        :param n_feature: Dimensionality of the hidden feature dimension.
-        :param hidden_transfer: Transfer function to use for the hidden units.
-            Can be a string referring any function found in
-            ``breze.component.transfer`` or a function that given an (n, d)
-            array returns an (n, d) array as theano expressions.
-        :param feature_transfer: Transfer function to use for the features.
-            Can be a string referring any function found in
-            ``breze.component.transfer`` or a function that given an (n, d)
-            array returns an (n, d) array as theano expressions.
-        :param out_transfer: Output transfer function of the linear auto encoder
-            for calculation of the reconstruction cost.
-        :param loss: Loss which is going to be optimized. This can either be a
-            string and reference a loss function found in
-            ``breze.component.distance`` or a function which takes two theano
-            tensors (one being the output of the network, the other some target)
-            and returns a theano scalar.
-        :param c_ica: Weight of the ICA cost, cost of linear reconstruction is
-            1.
-        :param optimizer: Can be either a string or a pair. In any case,
-            climin.util.optimizer is used to construct an optimizer. In the case
-            of a string, the string is used as an identifier for the optimizer
-            which is then instantiated with default arguments. If a pair,
-            expected to be (`identifier`, `kwargs`) for more fine control of the
-            optimizer.
-        :param max_iter: Maximum number of optimization iterations to perform.
-        :param verbose: Flag indicating whether to print out information during
-            fitting.
+        n_inpt : integer
+            Input dimensionality of the data.
+
+        n_feature : integer
+            Dimensionality of the hidden feature dimension.
+
+        hidden_transfer : string or function
+            Transfer function to use for the hidden units. Can be a string
+            referring any function found in ``breze.component.transfer`` or a
+            function that given an ``(n, d)`` array returns an ``(n, d)`` array
+            as theano expressions.
+
+        feature_transfer : string or function
+            Transfer function to use for the features. Can be a string
+            referring any function found in ``breze.component.transfer`` or a
+            function that given an (n, d) array returns an (n, d) array as
+            theano expressions.
+
+        out_transfer : string or function
+            Output transfer function of the linear auto encoder for calculation
+            of the reconstruction cost.
+
+        loss : string or function
+            Loss which is going to be optimized. This can either be a string
+            and reference a loss function found in ``breze.component.loss`` or
+            a function which takes two theano tensors (one being the output of
+            the network, the other some target) and returns a theano scalar.
+
+        c_ica : float, optional, [default: 0.5]
+            Weight of the ICA cost, cost of linear reconstruction is 1.
+
+        optimizer : string or pair
+            Can be either a string or a pair. In any case,
+            ``climin.util.optimizer`` is used to construct an optimizer. In the
+            case of a string, the string is used as an identifier for the
+            optimizer which is then instantiated with default arguments. If a
+            pair, expected to be ``(identifier, kwargs)`` for more fine control
+            of the optimizer.
+
+        max_iter : integer
+            Maximum number of optimization iterations to perform.
+
+        verbose : boolean
+            Flag indicating whether to print out information during fitting.
         """
         super(Rica, self).__init__(
             n_inpt, n_feature, hidden_transfer, feature_transfer,
