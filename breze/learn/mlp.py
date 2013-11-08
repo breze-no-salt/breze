@@ -116,11 +116,29 @@ class DropoutMlp(Mlp):
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
                  p_dropout_inpt=.2, p_dropout_hidden=.5,
-                 max_length=15,
+                 max_length=None,
                  optimizer=None,
                  batch_size=-1,
                  max_iter=1000, verbose=False):
+        """Create a DropoutMlp object.
 
+
+        Parameters
+        ----------
+
+        Same parameters as an ``Mlp`` object.
+
+        p_dropout_inpt : float
+            Probability that an input unit is ommitted during a pass.
+
+        p_dropout_hidden : float
+            Probability that an input unit is ommitted during a pass.
+
+        max_length : float or None
+            Maximum squared length of a weight vector into a unit. After each
+            update, the weight vectors will projected to be shorter.
+            If None, no projection is performed.
+        """
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hidden = p_dropout_hidden
         self.max_length = max_length
@@ -196,15 +214,16 @@ class DropoutMlp(Mlp):
 
         for i, info in enumerate(opt):
             yield info
-            W = self.parameters['in_to_hidden']
-            max_length_columns(W, self.max_length)
-
-            n_layers = len(self.n_hiddens)
-            for i in range(n_layers - 1):
-                W = self.parameters['hidden_to_hidden_%i' % i]
+            if self.max_length is not None:
+                W = self.parameters['in_to_hidden']
                 max_length_columns(W, self.max_length)
-            W = self.parameters['hidden_to_out']
-            max_length_columns(W, self.max_length)
+
+                n_layers = len(self.n_hiddens)
+                for i in range(n_layers - 1):
+                    W = self.parameters['hidden_to_hidden_%i' % i]
+                    max_length_columns(W, self.max_length)
+                W = self.parameters['hidden_to_out']
+                max_length_columns(W, self.max_length)
 
 
 class FastDropoutNetwork(FastDropoutNetwork,
@@ -222,18 +241,36 @@ class FastDropoutNetwork(FastDropoutNetwork,
                  inpt_var=1e-8,
                  var_bias_offset=0.0,
                  max_iter=1000, verbose=False):
+        """Create a FastDropoutMlp object.
+
+
+        Parameters
+        ----------
+
+        Same parameters as an ``Mlp`` object.
+
+        p_dropout_inpt : float
+            Probability that an input unit is ommitted during a pass.
+
+        p_dropout_hidden : float
+            Probability that an input unit is ommitted during a pass.
+
+        max_length : float or None
+            Maximum squared length of a weight vector into a unit. After each
+            update, the weight vectors will projected to be shorter.
+            If None, no projection is performed.
+        """
+        if not (0 < p_dropout_inpt < 1) and not (0 < p_dropout_hidden < 1):
+            raise ValueError('dropout rates have to be in (0, 1)')
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hidden = p_dropout_hidden
         self.max_length = max_length
         self.inpt_var = inpt_var
-        self.var_bias_offset = var_bias_offset
-
         super(FastDropoutNetwork, self).__init__(
             n_inpt, n_hiddens, n_output, hidden_transfers, out_transfer,
             loss)
         self.optimizer = optimizer
         self.batch_size = batch_size
-
         self.max_iter = max_iter
         self.verbose = verbose
 
@@ -242,14 +279,36 @@ class FastDropoutNetwork(FastDropoutNetwork,
             self.parameters.data.shape)
 
     def iter_fit(self, X, Z):
+        """Iteratively fit the parameters of the model to the given data with
+        the given error function.
+
+        Each iteration of the learning algorithm is an iteration of the returned
+        iterator. The model is in a valid state after each iteration, so that
+        the optimization can be broken any time by the caller.
+
+        This method does `not` respect the max_iter attribute.
+
+        Parameters
+        ----------
+
+        X : array_like
+            Input data. 2D array of the shape ``(n ,d)`` where ``n`` is the
+            number of data samples and ``d`` is the dimensionality of a single
+            data sample.
+        Z : array_like
+            Target data. 2D array of the shape ``(n, l)`` array where ``n`` is
+            defined as in ``X``, but ``l`` is the dimensionality of a single
+            output.
+        """
         for info in super(FastDropoutNetwork, self).iter_fit(X, Z):
             yield info
-            W = self.parameters['in_to_hidden']
-            max_length_columns(W, self.max_length)
-
-            n_layers = len(self.n_hiddens)
-            for i in range(n_layers - 1):
-                W = self.parameters['hidden_to_hidden_%i' % i]
+            if self.max_length is not None:
+                W = self.parameters['in_to_hidden']
                 max_length_columns(W, self.max_length)
-            W = self.parameters['hidden_to_out']
-            max_length_columns(W, self.max_length)
+
+                n_layers = len(self.n_hiddens)
+                for i in range(n_layers - 1):
+                    W = self.parameters['hidden_to_hidden_%i' % i]
+                    max_length_columns(W, self.max_length)
+                W = self.parameters['hidden_to_out']
+                max_length_columns(W, self.max_length)
