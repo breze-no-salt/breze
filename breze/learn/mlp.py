@@ -112,6 +112,33 @@ def dropout_optimizer_conf(
 
 
 class DropoutMlp(Mlp):
+    """Class representing an MLP that is trained with dropout [D]_.
+
+    The gist of this method is that hidden units and input units are "zerod out"
+    with a certain probability.
+
+    References
+    ----------
+    .. [D] Hinton, Geoffrey E., et al.
+           "Improving neural networks by preventing co-adaptation of feature
+           detectors." arXiv preprint arXiv:1207.0580 (2012).
+
+
+    Attributes
+    ----------
+
+    Same attributes as an ``Mlp`` object.
+
+    p_dropout_inpt : float
+        Probability that an input unit is ommitted during a pass.
+
+    p_dropout_hidden : float
+        Probability that an input unit is ommitted during a pass.
+
+    max_length : float
+        Maximum squared length of a weight vector into a unit. After each
+        update, the weight vectors will projected to be shorter.
+    """
 
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
@@ -120,7 +147,24 @@ class DropoutMlp(Mlp):
                  optimizer=None,
                  batch_size=-1,
                  max_iter=1000, verbose=False):
+        """Create a DropoutMlp object.
 
+
+        Parameters
+        ----------
+
+        Same attributes as an ``Mlp`` object.
+
+        p_dropout_inpt : float
+            Probability that an input unit is ommitted during a pass.
+
+        p_dropout_hidden : float
+            Probability that an input unit is ommitted during a pass.
+
+        max_length : float
+            Maximum squared length of a weight vector into a unit. After each
+            update, the weight vectors will projected to be shorter.
+        """
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hidden = p_dropout_hidden
         self.max_length = max_length
@@ -134,9 +178,10 @@ class DropoutMlp(Mlp):
             max_iter=max_iter, verbose=verbose)
 
         self.parameters.data[:] = np.random.normal(
-            0, 0.01, self.parameters.data.shape
-            ).astype(theano.config.floatX)
+            0, 0.01, self.parameters.data.shape).astype(theano.config.floatX)
 
+    # This function is overwritten by injecting the dropout noise into the loss
+    # functions of the base class.
     def _make_loss_functions(self, mode=None):
         """Return pair (f_loss, f_d_loss) of functions.
 
@@ -209,9 +254,38 @@ class DropoutMlp(Mlp):
 
 class FastDropoutNetwork(FastDropoutNetwork,
                          SupervisedBrezeWrapperBase):
+    """Class representing an MLP that is trained with fast dropout [FD]_.
 
-    # TODO: dropout rates have to be strictly positive, otherwise there is a
-    # non positive variance.
+    This method employs a smooth approximation of dropout training.
+
+
+    References
+    ----------
+    .. [FD] Wang, Sida, and Christopher Manning.
+            "Fast dropout training."
+            Proceedings of the 30th International Conference on Machine
+            Learning (ICML-13). 2013.
+
+
+    Attributes
+    ----------
+
+    Same attributes as an ``Mlp`` object.
+
+    p_dropout_inpt : float
+        Probability that an input unit is ommitted during a pass.
+
+    p_dropout_hidden : float
+        Probability that an input unit is ommitted during a pass.
+
+    max_length : float
+        Maximum squared length of a weight vector into a unit. After each
+        update, the weight vectors will projected to be shorter.
+
+    inpt_var : float
+        Assumed variance of the inputs. "quasi zero" per default.
+    """
+
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
                  optimizer='lbfgs',
@@ -220,13 +294,15 @@ class FastDropoutNetwork(FastDropoutNetwork,
                  p_dropout_hidden=.5,
                  max_length=15,
                  inpt_var=1e-8,
-                 var_bias_offset=0.0,
                  max_iter=1000, verbose=False):
+
+        if not (0 < p_dropout_inpt < 1) and not (0 < p_dropout_hidden < 1):
+            raise ValueError('dropout rates have to be in (0, 1)')
+
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hidden = p_dropout_hidden
         self.max_length = max_length
         self.inpt_var = inpt_var
-        self.var_bias_offset = var_bias_offset
 
         super(FastDropoutNetwork, self).__init__(
             n_inpt, n_hiddens, n_output, hidden_transfers, out_transfer,
