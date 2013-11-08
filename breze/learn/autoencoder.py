@@ -94,8 +94,29 @@ from breze.learn.base import (
 
 class AutoEncoder(_AutoEncoder, UnsupervisedBrezeWrapperBase,
                   TransformBrezeWrapperMixin, ReconstructBrezeWrapperMixin):
-    """The basic Auto Encoder. What is written in the module
-    documentation applies to this class."""
+    """Auto Encoder class.
+
+    Intended as a base class for all other auto encoders.
+
+    Attributes
+    ----------
+
+    batch_size : integer
+        Numer of samples to look at at each gradient update.
+
+    tied_weights : boolean
+        Indicates whether the decoding matrix is the transpose of the encoding
+        matrix.
+
+    exprs : dictionary
+        Dictionary containing the different symbolic variables of the model.
+
+    feature_transfer : string or function
+        Transfer function being used.
+
+    n_features : integer
+        Number of features/hidden units to detect.
+    """
 
     transform_expr_name = 'hidden'
 
@@ -105,31 +126,51 @@ class AutoEncoder(_AutoEncoder, UnsupervisedBrezeWrapperBase,
                  optimizer='lbfgs', max_iter=1000, verbose=False):
         """Create an AutoEncoder object.
 
-        :param n_inpt: Input dimensionality of the data.
-        :param n_hidden: Dimensionality of the hidden feature dimension.
-        :param hidden_transfer: Transfer function to use for the hidden units.
-            Can be a string referring any function found in
-            ``breze.component.transfer`` or a function that given an (n, d)
-            array returns an (n, d) array as theano expressions.
-        :param out_transfer: Output transfer function of the linear auto encoder
-            for calculation of the reconstruction cost.
-        :param loss: Loss which is going to be optimized. This can either be a
-            string and reference a loss function found in
-            ``breze.component.distance`` or a function which takes two theano
-            tensors (one being the output of the network, the other some target)
-            and returns a theano scalar.
-        :param tied_weights: Flag indicating whether to use tied weights.
-        :param batch_size: Number of examples per batch when calculing the loss
-            and its derivatives. None means to use all samples every time.
-        :param optimizer: Can be either a string or a pair. In any case,
-            climin.util.optimizer is used to construct an optimizer. In the case
-            of a string, the string is used as an identifier for the optimizer
-            which is then instantiated with default arguments. If a pair,
-            expected to be (`identifier`, `kwargs`) for more fine control of the
-            optimizer.
-        :param max_iter: Maximum number of optimization iterations to perform.
-        :param verbose: Flag indicating whether to print out information during
-            fitting.
+        Paramters
+        ---------
+
+        n_inpt : integer
+            Input dimensionality of the data.
+
+        n_hidden : integer
+            Dimensionality of the hidden feature dimension.
+
+        hidden_transfer : string or function
+            Transfer function to use for the hidden units. Can be a string
+            referring any function found in ``breze.component.transfer`` or a
+            function that given an (n, d) array returns an (n, d) array as
+            theano expressions.
+
+        out_transfer : string or function
+            Output transfer function of the linear auto encoder for calculation
+            of the reconstruction cost.
+
+        loss : string or function
+            Loss which is going to be optimized. This can either be a string
+            and reference a loss function found in ``breze.component.loss`` or
+            a function which takes two theano tensors (one being the target the
+            other the output of the network) and returns a theano scalar.
+
+        tied_weights : boolean, optional [default: True]
+            Flag indicating whether to use tied weights.
+
+        batch_size : integer
+            Number of examples per batch when calculing the loss and its
+            derivatives. None means to use all samples every time.
+
+        optimizer: string or pair
+            Can be either a string or a pair. In any case,
+            ``climin.util.optimizer`` is used to construct an optimizer. In the
+            case of a string, the string is used as an identifier for the
+            optimizer which is then instantiated with default arguments. If a
+            pair, expected to be (`identifier`, `kwargs`) for more fine control
+            of the optimizer.
+
+        max_iter : integer
+            Maximum number of optimization iterations to perform.
+
+        verbose : boolean
+            Flag indicating whether to print out information during fitting.
         """
         super(AutoEncoder, self).__init__(
             n_inpt, n_hidden, hidden_transfer, out_transfer, loss, tied_weights)
@@ -184,6 +225,27 @@ class SparseAutoEncoder(_SparseAutoEncoder, UnsupervisedBrezeWrapperBase,
     by ``reconstruct_loss``.
 
     .. [UFDLT] http://ufldl.stanford.edu/
+
+
+    Attributes
+    ----------
+
+    Same attributes as ``AutoEncoder`` objects.
+
+    c_sparsity : float
+        Coefficient weighing the sparsity cost in comparison to the
+        reconstruction cost.
+
+    sparsity_loss : float
+        Sparsity part of the loss which is going to be optimized. This can
+        either be a string and reference a loss function found in
+        ``breze.component.loss`` or a function which takes two theano tensors
+        (one being the output of the network, the other some target) and
+        returns a theano scalar.
+
+    sparsity_target : float
+        Subtract this value from each hidden unit before applying the sparsity
+        loss.
     """
 
     transform_expr_name = 'hidden'
@@ -196,40 +258,25 @@ class SparseAutoEncoder(_SparseAutoEncoder, UnsupervisedBrezeWrapperBase,
                  optimizer='lbfgs', max_iter=1000, verbose=False):
         """Create a SparseAutoEncoder object.
 
-        :param n_inpt: Input dimensionality of the data.
-        :param n_hidden: Dimensionality of the hidden feature dimension.
-        :param hidden_transfer: Transfer function to use for the hidden units.
-            Can be a string referring any function found in
-            ``breze.component.transfer`` or a function that given an (n, d)
-            array returns an (n, d) array as theano expressions.
-        :param out_transfer: Output transfer function of the linear auto encoder
-            for calculation of the reconstruction cost.
-        :param reconstruct_loss: Reconstruction part of the loss which is
-            going to be optimized. This can either be a string and reference a
-            loss function found in ``breze.component.distance`` or a function
-            which takes two theano tensors (one being the output of the network,
-            the other some target) and returns a theano scalar.
-        :param c_sparsity: Coefficient weighing the sparsity cost in comparison
-            to the reconstruction cost.
-        :param sparsity_loss: Sparsity part of the loss which is
-            going to be optimized. This can either be a string and reference a
-            loss function found in ``breze.component.distance`` or a function
-            which takes two theano tensors (one being the output of the network,
-            the other some target) and returns a theano scalar.
-        :param sparsity_target: Subtract this value from each hidden unit before
-            applying the sparsity loss.
-        :param tied_weights: Flag indicating whether to use tied weights.
-        :param batch_size: Number of examples per batch when calculing the loss
-            and its derivatives. None means to use all samples every time.
-        :param optimizer: Can be either a string or a pair. In any case,
-            climin.util.optimizer is used to construct an optimizer. In the case
-            of a string, the string is used as an identifier for the optimizer
-            which is then instantiated with default arguments. If a pair,
-            expected to be (`identifier`, `kwargs`) for more fine control of the
-            optimizer.
-        :param max_iter: Maximum number of optimization iterations to perform.
-        :param verbose: Flag indicating whether to print out information during
-            fitting.
+        Parameters
+        ----------
+
+        All parameters from the ``AutoEncoder`` apply as well.
+
+        c_sparsity : float
+            Coefficient weighing the sparsity cost in comparison to the
+            reconstruction cost.
+
+        sparsity_loss : float
+            Sparsity part of the loss which is going to be optimized. This can
+            either be a string and reference a loss function found in
+            ``breze.component.distance`` or a function which takes two theano
+            tensors (one being the output of the network, the other some
+            target) and returns a theano scalar.
+
+        sparsity_target : float
+            Subtract this value from each hidden unit before applying the
+            sparsity loss.
         """
         super(SparseAutoEncoder, self).__init__(
             n_inpt, n_hidden, hidden_transfer, out_transfer,
@@ -270,6 +317,15 @@ class ContractiveAutoEncoder(_ContractiveAutoEncoder,
 
     .. [CAE] Contractive auto-encoders: Explicit invariance during
        feature extraction, Rifai et al (2011)
+
+    Attributes
+    ----------
+
+    All attributes of ``AutoEncoder`` objects apply as well.
+
+    c_jacobian : float
+        Coefficient weighing the Jacobian cost in comparison to the
+        reconstruction cost.
     """
 
     transform_expr_name = 'hidden'
@@ -280,33 +336,14 @@ class ContractiveAutoEncoder(_ContractiveAutoEncoder,
                  optimizer='lbfgs', max_iter=1000, verbose=False):
         """Create a ContractiveAutoEncoder object.
 
-        :param n_inpt: Input dimensionality of the data.
-        :param n_hidden: Dimensionality of the hidden feature dimension.
-        :param hidden_transfer: Transfer function to use for the hidden units.
-            Can be a string referring any function found in
-            ``breze.component.transfer`` or a function that given an (n, d)
-            array returns an (n, d) array as theano expressions.
-        :param out_transfer: Output transfer function of the linear auto encoder
-            for calculation of the reconstruction cost.
-        :param reconstruct_loss: Reconstruction part of the loss which is
-            going to be optimized. This can either be a string and reference a
-            loss function found in ``breze.component.distance`` or a function
-            which takes two theano tensors (one being the output of the network,
-            the other some target) and returns a theano scalar.
-        :param c_jacobian: Coefficient weighing the Jacobian cost in comparison
-            to the reconstruction cost.
-        :param tied_weights: Flag indicating whether to use tied weights.
-        :param batch_size: Number of examples per batch when calculing the loss
-            and its derivatives. None means to use all samples every time.
-        :param optimizer: Can be either a string or a pair. In any case,
-            climin.util.optimizer is used to construct an optimizer. In the case
-            of a string, the string is used as an identifier for the optimizer
-            which is then instantiated with default arguments. If a pair,
-            expected to be (`identifier`, `kwargs`) for more fine control of the
-            optimizer.
-        :param max_iter: Maximum number of optimization iterations to perform.
-        :param verbose: Flag indicating whether to print out information during
-            fitting.
+        Parameters
+        ----------
+
+        All parameters from the ``AutoEncoder`` class apply as well.
+
+        c_jacobian : float
+            Coefficient weighing the Jacobian cost in comparison to the
+            reconstruction cost.
         """
         super(ContractiveAutoEncoder, self).__init__(
             n_inpt, n_hidden, hidden_transfer, out_transfer,
@@ -347,6 +384,19 @@ class DenoisingAutoEncoder(_DenoisingAutoEncoder, UnsupervisedBrezeWrapperBase,
 
     .. [DAE] Extracting and Composing Robust Features with Denoising
        Autoencoders, Vincent et al (2008).
+    Attributes
+    ----------
+
+    All attributes of ``AutoEncoder`` objects apply as well.
+
+    noise_type : {'blink', 'gauss'}
+        Specifies the type of noise used, either 'gauss' or 'blink'. The former
+        adds Gaussian noise, the latter sets inputs random to zero.
+
+    c_noise : float
+        Standard deviation of the noise in case of Gaussian noise, "set to
+        zero" probability in case of blink noise.
+
     """
     transform_expr_name = 'hidden'
 
@@ -357,36 +407,19 @@ class DenoisingAutoEncoder(_DenoisingAutoEncoder, UnsupervisedBrezeWrapperBase,
                  optimizer='lbfgs', max_iter=1000, verbose=False):
         """Create a DenoisingAutoEncoder object.
 
-        :param n_inpt: Input dimensionality of the data.
-        :param n_hidden: Dimensionality of the hidden feature dimension.
-        :param hidden_transfer: Transfer function to use for the hidden units.
-            Can be a string referring any function found in
-            ``breze.component.transfer`` or a function that given an (n, d)
-            array returns an (n, d) array as theano expressions.
-        :param out_transfer: Output transfer function of the linear auto encoder
-            for calculation of the reconstruction cost.
-        :param reconstruct_loss: Reconstruction part of the loss which is
-            going to be optimized. This can either be a string and reference a
-            loss function found in ``breze.component.distance`` or a function
-            which takes two theano tensors (one being the output of the network,
-            the other some target) and returns a theano scalar.
-        :param noise_type: Specifies the type of noise used, either 'gauss' or
+        Parameters
+        ----------
+
+        All parameters from the ``AutoEncoder`` class apply as well.
+
+        noise_type : {'blink', 'gauss'}
+            Specifies the type of noise used, either 'gauss' or
             'blink'. The former adds Gaussian noise, the latter sets inputs
             random to zero.
-        :param c_noise: Standard deviation of the noise in case of Gaussian
+
+        c_noise : float
+            Standard deviation of the noise in case of Gaussian
             noise, "set to zero" probability in case of blink noise.
-        :param tied_weights: Flag indicating whether to use tied weights.
-        :param batch_size: Number of examples per batch when calculing the loss
-            and its derivatives. None means to use all samples every time.
-        :param optimizer: Can be either a string or a pair. In any case,
-            climin.util.optimizer is used to construct an optimizer. In the case
-            of a string, the string is used as an identifier for the optimizer
-            which is then instantiated with default arguments. If a pair,
-            expected to be (`identifier`, `kwargs`) for more fine control of the
-            optimizer.
-        :param max_iter: Maximum number of optimization iterations to perform.
-        :param verbose: Flag indicating whether to print out information during
-            fitting.
         """
         super(DenoisingAutoEncoder, self).__init__(
             n_inpt, n_hidden, hidden_transfer, out_transfer,
