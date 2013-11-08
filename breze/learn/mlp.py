@@ -167,7 +167,6 @@ class DropoutMlp(Mlp):
                                  mode=mode)
         return f_loss, f_d_loss
 
-    # TODO: wrong docstring
     def iter_fit(self, X, Z):
         """Iteratively fit the parameters of the model to the given data with
         the given error function.
@@ -178,12 +177,17 @@ class DropoutMlp(Mlp):
 
         This method does `not` respect the max_iter attribute.
 
-        :param X: A (t, n ,d) array where _t_ is the number of time steps,
-            _n_ is the number of data samples and _d_ is the dimensionality of
-            a data sample at a single time step.
-        :param Z: A (t, n, l) array where _t_ and _n_ are defined as in _X_,
-            but _l_ is the dimensionality of the output sequences at a single
-            time step.
+        Parameters
+        ----------
+
+        X : array_like
+            Input data. 2D array of the shape ``(n ,d)`` where ``n`` is the
+            number of data samples and ``d`` is the dimensionality of a single
+            data sample.
+        Z : array_like
+            Target data. 2D array of the shape ``(n, l)`` array where ``n`` is
+            defined as in ``X``, but ``l`` is the dimensionality of a single
+            output.
         """
         f_loss, f_d_loss = self._make_loss_functions()
 
