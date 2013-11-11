@@ -60,6 +60,7 @@ Helpers, convenience functions and tools
    feature
    data
    utils
+   display
    :maxdepth: 1
 
 
