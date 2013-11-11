@@ -36,7 +36,7 @@ class GeneralizedLinearModel(Linear, SupervisedBrezeWrapperBase):
             ``breze.arch.component.loss`` or a function taking a theano 2D
             tensor and returning a Theano scalar.
 
-        optimizer : string or pair
+        optimizer : string or pair, optional [default: 'lbfgs']
             Can be either a string or a pair. In any case,
             ``climin.util.optimizer`` is used to construct an optimizer. In the
             case of a string, the string is used as an identifier for the
