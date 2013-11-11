@@ -126,8 +126,8 @@ class AutoEncoder(_AutoEncoder, UnsupervisedBrezeWrapperBase,
                  optimizer='lbfgs', max_iter=1000, verbose=False):
         """Create an AutoEncoder object.
 
-        Paramters
-        ---------
+        Parameters
+        ----------
 
         n_inpt : integer
             Input dimensionality of the data.
