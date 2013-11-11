@@ -17,6 +17,7 @@ import theano.tensor.shared_randomstreams
 
 from breze.arch.model.neural import MultiLayerPerceptron
 from breze.arch.model.varprop import FastDropoutNetwork
+from breze.arch.model.awn import AdaptiveWeightNoiseNetwork
 from breze.arch.component import corrupt
 from breze.learn.base import SupervisedBrezeWrapperBase
 
@@ -112,6 +113,33 @@ def dropout_optimizer_conf(
 
 
 class DropoutMlp(Mlp):
+    """Class representing an MLP that is trained with dropout [D]_.
+
+    The gist of this method is that hidden units and input units are "zerod out"
+    with a certain probability.
+
+    References
+    ----------
+    .. [D] Hinton, Geoffrey E., et al.
+           "Improving neural networks by preventing co-adaptation of feature
+           detectors." arXiv preprint arXiv:1207.0580 (2012).
+
+
+    Attributes
+    ----------
+
+    Same attributes as an ``Mlp`` object.
+
+    p_dropout_inpt : float
+        Probability that an input unit is ommitted during a pass.
+
+    p_dropout_hidden : float
+        Probability that an input unit is ommitted during a pass.
+
+    max_length : float
+        Maximum squared length of a weight vector into a unit. After each
+        update, the weight vectors will projected to be shorter.
+    """
 
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
@@ -120,7 +148,24 @@ class DropoutMlp(Mlp):
                  optimizer=None,
                  batch_size=-1,
                  max_iter=1000, verbose=False):
+        """Create a DropoutMlp object.
 
+
+        Parameters
+        ----------
+
+        Same attributes as an ``Mlp`` object.
+
+        p_dropout_inpt : float
+            Probability that an input unit is ommitted during a pass.
+
+        p_dropout_hidden : float
+            Probability that an input unit is ommitted during a pass.
+
+        max_length : float
+            Maximum squared length of a weight vector into a unit. After each
+            update, the weight vectors will projected to be shorter.
+        """
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hidden = p_dropout_hidden
         self.max_length = max_length
@@ -134,9 +179,10 @@ class DropoutMlp(Mlp):
             max_iter=max_iter, verbose=verbose)
 
         self.parameters.data[:] = np.random.normal(
-            0, 0.01, self.parameters.data.shape
-            ).astype(theano.config.floatX)
+            0, 0.01, self.parameters.data.shape).astype(theano.config.floatX)
 
+    # This function is overwritten by injecting the dropout noise into the loss
+    # functions of the base class.
     def _make_loss_functions(self, mode=None):
         """Return pair (f_loss, f_d_loss) of functions.
 
@@ -167,7 +213,6 @@ class DropoutMlp(Mlp):
                                  mode=mode)
         return f_loss, f_d_loss
 
-    # TODO: wrong docstring
     def iter_fit(self, X, Z):
         """Iteratively fit the parameters of the model to the given data with
         the given error function.
@@ -178,12 +223,17 @@ class DropoutMlp(Mlp):
 
         This method does `not` respect the max_iter attribute.
 
-        :param X: A (t, n ,d) array where _t_ is the number of time steps,
-            _n_ is the number of data samples and _d_ is the dimensionality of
-            a data sample at a single time step.
-        :param Z: A (t, n, l) array where _t_ and _n_ are defined as in _X_,
-            but _l_ is the dimensionality of the output sequences at a single
-            time step.
+        Parameters
+        ----------
+
+        X : array_like
+            Input data. 2D array of the shape ``(n ,d)`` where ``n`` is the
+            number of data samples and ``d`` is the dimensionality of a single
+            data sample.
+        Z : array_like
+            Target data. 2D array of the shape ``(n, l)`` array where ``n`` is
+            defined as in ``X``, but ``l`` is the dimensionality of a single
+            output.
         """
         f_loss, f_d_loss = self._make_loss_functions()
 
@@ -205,9 +255,38 @@ class DropoutMlp(Mlp):
 
 class FastDropoutNetwork(FastDropoutNetwork,
                          SupervisedBrezeWrapperBase):
+    """Class representing an MLP that is trained with fast dropout [FD]_.
 
-    # TODO: dropout rates have to be strictly positive, otherwise there is a
-    # non positive variance.
+    This method employs a smooth approximation of dropout training.
+
+
+    References
+    ----------
+    .. [FD] Wang, Sida, and Christopher Manning.
+            "Fast dropout training."
+            Proceedings of the 30th International Conference on Machine
+            Learning (ICML-13). 2013.
+
+
+    Attributes
+    ----------
+
+    Same attributes as an ``Mlp`` object.
+
+    p_dropout_inpt : float
+        Probability that an input unit is ommitted during a pass.
+
+    p_dropout_hidden : float
+        Probability that an input unit is ommitted during a pass.
+
+    max_length : float
+        Maximum squared length of a weight vector into a unit. After each
+        update, the weight vectors will projected to be shorter.
+
+    inpt_var : float
+        Assumed variance of the inputs. "quasi zero" per default.
+    """
+
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
                  optimizer='lbfgs',
@@ -216,13 +295,15 @@ class FastDropoutNetwork(FastDropoutNetwork,
                  p_dropout_hidden=.5,
                  max_length=15,
                  inpt_var=1e-8,
-                 var_bias_offset=0.0,
                  max_iter=1000, verbose=False):
+
+        if not (0 < p_dropout_inpt < 1) and not (0 < p_dropout_hidden < 1):
+            raise ValueError('dropout rates have to be in (0, 1)')
+
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hidden = p_dropout_hidden
         self.max_length = max_length
         self.inpt_var = inpt_var
-        self.var_bias_offset = var_bias_offset
 
         super(FastDropoutNetwork, self).__init__(
             n_inpt, n_hiddens, n_output, hidden_transfers, out_transfer,
@@ -249,3 +330,30 @@ class FastDropoutNetwork(FastDropoutNetwork,
                 max_length_columns(W, self.max_length)
             W = self.parameters['hidden_to_out']
             max_length_columns(W, self.max_length)
+
+
+class AwnNetwork(AdaptiveWeightNoiseNetwork,
+                 SupervisedBrezeWrapperBase):
+
+    def __init__(self, n_inpt, n_hiddens, n_output,
+                 hidden_transfers, out_transfer,
+                 prediction_loss, complexity_loss='gaussian',
+                 optimizer='lbfgs',
+                 batch_size=None,
+                 inpt_var=1e-8,
+                 max_iter=1000, verbose=False):
+        self.inpt_var = inpt_var
+
+        super(AwnNetwork, self).__init__(
+            n_inpt, n_hiddens, n_output, hidden_transfers, out_transfer,
+            prediction_loss, complexity_loss)
+        self.optimizer = optimizer
+        self.batch_size = batch_size
+
+        self.max_iter = max_iter
+        self.verbose = verbose
+
+        self.f_predict = None
+        self.parameters.data[:] = np.random.standard_normal(
+            self.parameters.data.shape)
+

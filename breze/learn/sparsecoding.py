@@ -31,25 +31,66 @@ class SparseCoding(_SparseCoding, UnsupervisedBrezeWrapperBase,
     The sparse coding loss is relaxed by using a soft version of the
     non-differentiable l1 norm: :math:`\sqrt{h^2 + \epsilon}`. This
     is then optimized with unconstrained optimization methods.
+
+    Attributes
+    ----------
+
+    n_features : integer
+        Amount of features to extract.
+
+    c_sparsity : float
+        Coefficient for the sparsity loss.
+
+    optimizer : string or pair, optional [default: 'lbfgs']
+        Can be either a string or a pair. In any case,
+        ``climin.util.optimizer`` is used to construct an optimizer. In the
+        case of a string, the string is used as an identifier for the
+        optimizer which is then instantiated with default arguments. If a
+        pair, expected to be (`identifier`, `kwargs`) for more fine control
+        of the optimizer. This optimizer is used for finding codes.
+
+    batch_size : integer
+        Number of examples per batch when calculing the loss and its
+        derivatives. None means to use all samples every time.
+
+    max_iter : integer
+        Maximum number of optimization iterations to perform. This refers
+        to the amount of alternations between solving the least squares
+        problem for the weight matrix and finding codes.
+
+    parameters : ParameterSet object
+        Contains the parameters of the model.
     """
 
     def __init__(self, n_inpt, n_feature, c_sparsity=5.,
                  optimizer='lbfgs', batch_size=None, max_iter=1000):
         """Create a SparseCoding object.
 
-        :param n_features: Amount of features to extract.
-        :param c_sparsity: Coefficient for the sparsity loss.
-        :param optimizer: Can be either a string or a pair. In any case,
-            climin.util.optimizer is used to construct an optimizer. In the case
-            of a string, the string is used as an identifier for the optimizer
-            which is then instantiated with default arguments. If a pair,
-            expected to be (`identifier`, `kwargs`) for more fine control of the
-            optimizer. This optimizer is used for finding codes.
-        :param batch_size: Number of examples per batch when calculing the loss
-            and its derivatives. None means to use all samples every time.
-        :param max_iter: Maximum number of optimization iterations to perform.
-            This refers to the amount of alternations between solving the least
-            squares problem for the weight matrix and finding codes.
+        Parameters
+        ----------
+
+        n_features : integer
+            Amount of features to extract.
+
+        c_sparsity : float
+            Coefficient for the sparsity loss.
+
+        optimizer : string or pair, optional [default: 'lbfgs']
+            Can be either a string or a pair. In any case,
+            ``climin.util.optimizer`` is used to construct an optimizer. In the
+            case of a string, the string is used as an identifier for the
+            optimizer which is then instantiated with default arguments. If a
+            pair, expected to be (`identifier`, `kwargs`) for more fine control
+            of the optimizer. This optimizer is used for finding codes.
+
+        batch_size : integer
+            Number of examples per batch when calculing the loss and its
+            derivatives. None means to use all samples every time.
+
+        max_iter : integer
+            Maximum number of optimization iterations to perform. This refers
+            to the amount of alternations between solving the least squares
+            problem for the weight matrix and finding codes.
         """
         super(SparseCoding, self).__init__(n_inpt, n_feature, c_sparsity)
         self.n_feature = n_feature
@@ -81,8 +122,12 @@ class SparseCoding(_SparseCoding, UnsupervisedBrezeWrapperBase,
     def fit(self, X):
         """Fit the parameters of the model.
 
-        :param X: An array of shape `(n, d)` where `n` is the number of
-            data points and `d` the input dimensionality."""
+        Parameters
+        ----------
+
+        X : array_like
+            An array of shape `(n, d)` where `n` is the number of data points
+            and `d` the input dimensionality."""
         for i, _ in enumerate(self.iter_fit(X)):
             if i == self.max_iter:
                 break
@@ -109,10 +154,19 @@ class SparseCoding(_SparseCoding, UnsupervisedBrezeWrapperBase,
     def transform(self, X):
         """Transform data according to the model.
 
-        :param X: An array of shape `(n, d)` where `n` is the number of
-            data points and `d` the input dimensionality.
-        :returns: An array of shape `(n, f)` where `n` is the number of samples
-            and `f` is the number of features."""
+        Parameters
+        ----------
+
+        X : array_like
+            An array of shape `(n, d)` where `n` is the number of data points
+            and `d` the input dimensionality.
+
+        Returns
+        -------
+
+        F : array_like
+            An array of shape `(n, f)` where `n` is the number of samples and
+            `f` is the number of features."""
         self._make_loss_functions()
 
         # This trick for initializing the features is due to the UFLDL tutorial
@@ -134,18 +188,36 @@ class SparseCoding(_SparseCoding, UnsupervisedBrezeWrapperBase,
         """Perform an inverse transformation of transformed data according to
         the model.
 
-        :param F: An array of shape `(n, f)` where `n` is the number
-            of data points and `f` the dimensionality if the feature space.
-        :returns: An array of shape `(n, d)` where `n` is the number of samples
-            and `d` is the dimensionality of the input space."""
+        Parameters
+        ----------
+
+        F : array_like
+            An array of shape `(n, d)` where `n` is the number of data points
+            and `d` the dimensionality if the feature space.
+
+        Returns
+        -------
+
+        X : array_like
+            An array of shape `(n, c)` where `n` is the number of samples and
+            `c` is the dimensionality of the input space."""
         return np.dot(F, self.parameters['feature_to_in'])
 
     def reconstruct(self, X):
         """Reconstruct the data according to the model.
 
-        :param X: An array of shape `(n, d)` where `n` is the number of
-            data points and `d` the input dimensionality.
-        :returns: An array of shape `(n, d)` where `n` is the number of samples
-            and `d` is the dimensionality of the input space."""
+        Paramters
+        ---------
+
+        X : array_like
+            An array of shape `(n, d)` where `n` is the number of data points
+            and `d` the input dimensionality.
+
+        Returns
+        -------
+
+        Y : array_like
+            An array of shape `(n, d)` where `n` is the number of samples and
+            `d` is the dimensionality of the input space."""
         F = self.transform(X)
         return self.inverse_transform(F)

@@ -22,12 +22,23 @@ class Xca(object):
     The central idea is that if `n` principle and `m` minor components are
     chosen, a gap of size `D - m - n` dimensions is formed in the list of
     singular values. The exact location of this gap is found by chosing the one
-    which minimizes a likelihood combining PCA and MCA."""
+    which minimizes a likelihood combining PCA and MCA.
+
+    Attributes
+    ----------
+
+    n_components : integer
+        Amount of components kept.
+    """
 
     def __init__(self, n_components, whiten=False):
         """Create an Xca object.
 
-        :param n_components: Amount of components to keep.
+        Parameters
+        ----------
+
+        n_components : integer
+            Amount of components to keep.
         """
         self.n_components = n_components
 
@@ -37,8 +48,12 @@ class Xca(object):
         The data should be centered (that is, its mean subtracted rowwise)
         before using this method.
 
-        :param X: An array of shape `(n, d)` where `n` is the number of
-            data points and `d` the input dimensionality."""
+        Parameters
+        ----------
+
+        X : array_like
+            An array of shape `(n, d)` where `n` is the number of data points
+            and `d` the input dimensionality."""
         n_components = self.n_components
         cov = np.cov(X, rowvar=0)
         w, s, v = scipy.linalg.svd(cov, full_matrices=False)
@@ -47,7 +62,7 @@ class Xca(object):
 
         # Find the best gap variable. We will denote the gap variable by k
         # and try all possible positionings.
-        eigs = s**2
+        eigs = s ** 2
         sum_eigs = eigs.sum()
         log_eigs = np.log(eigs)
         best_loss, best_k = float('inf'), 0
@@ -70,28 +85,55 @@ class Xca(object):
     def transform(self, X):
         """Transform data according to the model.
 
-        :param X: An array of shape `(n, d)` where `n` is the number of
-            data points and `d` the input dimensionality.
-        :returns: An array of shape `(n, c)` where `n` is the number of samples
-            and `c` is the number of components kept."""
+        Parameters
+        ----------
+
+        X : array_like
+            An array of shape `(n, d)` where `n` is the number of data points
+            and `d` the input dimensionality.
+
+        Returns
+        -------
+
+        F : array_like
+            An array of shape `(n, c)` where `n` is the number of samples and
+            `c` is the number of components kept."""
         return np.dot(X, self.weights)
 
     def inverse_transform(self, F):
         """Perform an inverse transformation of transformed data according to
         the model.
 
-        :param F: An array of shape `(n, d)` where `n` is the number
-            of data points and `d` the dimensionality if the feature space.
-        :returns: An array of shape `(n, c)` where `n` is the number of samples
-            and `c` is the dimensionality of the input space."""
+        Parameters
+        ----------
+
+        F : array_like
+            An array of shape `(n, d)` where `n` is the number of data points
+            and `d` the dimensionality if the feature space.
+
+        Returns
+        -------
+
+        X : array_like
+            An array of shape `(n, c)` where `n` is the number of samples and
+            `c` is the dimensionality of the input space."""
         return np.dot(F, self.weights.T)
 
     def reconstruct(self, X):
         """Reconstruct the data according to the model.
 
-        :param X: An array of shape `(n, d)` where `n` is the number of
-            data points and `d` the input dimensionality.
-        :returns: An array of shape `(n, d)` where `n` is the number of samples
-            and `d` is the dimensionality of the input space."""
+        Paramters
+        ---------
+
+        X : array_like
+            An array of shape `(n, d)` where `n` is the number of data points
+            and `d` the input dimensionality.
+
+        Returns
+        -------
+
+        Y : array_like
+            An array of shape `(n, d)` where `n` is the number of samples and
+            `d` is the dimensionality of the input space."""
         F = self.transform(X)
         return self.inverse_transform(F)
