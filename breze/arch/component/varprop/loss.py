@@ -8,6 +8,9 @@ The losses in this module assume two inputs: a target and a prediction.
 Additionally, if the target has a dimensionality of D, the prediction is
 assumed to have a dimensionality of 2D. The first D element constitute to the
 mean while the latter to the variance.
+
+Additionally, all losses from ``breze.arch.component.loss`` are also available;
+here, we just ignore the variance part of the input to the loss.
 """
 
 import numpy as np
@@ -91,6 +94,7 @@ def make_expected_squared_hinge(margin):
 expected_squared_hinge_1 = make_expected_squared_hinge(1)
 
 
+# TODO document
 def diag_gaussian_nll(target, prediction):
     mean, var = unpack_mean_var(prediction)
     residuals = target - mean

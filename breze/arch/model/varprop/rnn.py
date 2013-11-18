@@ -9,9 +9,9 @@ single Theano tensor. This tensor then has the shape of ``(t, n, d)``, where
  - ``n`` is the number of samples and
  - ``d`` is the dimensionality of each sample.
 
-We call these ``sequence tensor''. Sometimes, it makes sense to flatten out the
+We call these "sequence tensor". Sometimes, it makes sense to flatten out the
 time dimension to apply better optimized linear algebra, such as a dot product.
-In that case, we will talk of a ``flat sequence tensor''.
+In that case, we will talk of a "flat sequence tensor".
 """
 
 
@@ -229,7 +229,7 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         Represents the mean of the input sequences as a sequence tensor.
 
     inpt_var : Theano variable
-        Representes the varaince of the input sequences as a sequence tensor
+        Representes the variance of the input sequences as a sequence tensor
         Can a be a scalar as well. (E.g. 1e-8 if no variance is desired at
         this point.)
 

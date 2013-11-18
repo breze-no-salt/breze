@@ -63,6 +63,13 @@ Helpers, convenience functions and tools
    :maxdepth: 1
 
 
+Implementation Notes
+--------------------
+
+.. toctree::
+   varprop
+
+
 Indices and tables
 ==================
 

@@ -1,10 +1,21 @@
 # -*- coding: utf-8 -*-
 
+"""Module that contains transfer functions for variance propagation, working on
+Theano variables.
+
+Each transfer function has the signature::
+
+    m2, s2 = f(m1, s1)
+
+where ``f`` is the transfer function, ``m1`` and ``s2`` are the pre-synaptic
+mean and variance respectively; ``m2`` and ``s2`` are the post-synaptic means.
+"""
+
 import numpy as np
 
 import theano.tensor as T
 import theano.tensor.extra_ops
-from theano.tensor.nnet import softmax as _softmax, sigmoid as det_sigmoid
+from theano.tensor.nnet import softmax as _softmax, sigmoid as _sigmoid
 from theano.tensor.shared_randomstreams import RandomStreams
 
 from breze.arch.component.distributions import normal
@@ -14,22 +25,67 @@ PI = np.array(np.pi, dtype=theano.config.floatX)
 SQRT_2 = np.array(np.sqrt(2.), dtype=theano.config.floatX)
 epsilon = np.array(1e-4, dtype=theano.config.floatX)
 
-def _sigmoid(x):
-    y = det_sigmoid(x)
+
+def safe_sigmoid(x):
+    """Return the sigmoid with result truly between 0 and 1."""
+    y = _sigmoid(x)
     return T.clip(y, 1e-7, 1 - 1e-7)
 
 
 def safe_softmax(x):
+    """Return the softmax with result truly between 0 and 1."""
     y = _softmax(x)
     y = T.clip(y, 1e-7, 1 - 1e-7)
     return y
 
 
 def identity(mean, var):
+    """Return the mean and variance unchanged.
+
+    Parameters
+    ----------
+
+    mean : Theano variable
+        Theano variable of the shape ``s``.
+
+    var : Theano variable
+        Theano variable of the shape ``s``.
+
+    Returns
+    -------
+
+    mean_ : Theano variable
+        Theano variable of the shape ``r``.
+
+    var_ : Theano variable
+        Theano variable of the shape ``r``.
+    """
     return mean, var
 
 
 def rectifier(mean, var):
+    """Return the mean and variance of a Gaussian distributed random variable,
+    described by its mean and variacne, after passing it through a rectified
+    linear unit.
+
+    Parameters
+    ----------
+
+    mean : Theano variable
+        Theano variable of the shape ``s``.
+
+    var : Theano variable
+        Theano variable of the shape ``s``.
+
+    Returns
+    -------
+
+    mean_ : Theano variable
+        Theano variable of the shape ``r``.
+
+    var_ : Theano variable
+        Theano variable of the shape ``r``.
+    """
     std = T.sqrt(var)
     ratio = mean / (std + epsilon)
 
@@ -66,10 +122,32 @@ def make_sampling_transfer(f, axis=1, rng=None):
 
 
 sampling_softmax = make_sampling_transfer(safe_softmax)
-sampling_sigmoid = make_sampling_transfer(_sigmoid)
+sampling_sigmoid = make_sampling_transfer(safe_sigmoid)
 
 
 def sigmoid(mean, var):
+    """Return the mean and variance of a Gaussian distributed random variable,
+    described by its mean and variacne, after passing it through a logistic
+    sigmoid.
+
+    Parameters
+    ----------
+
+    mean : Theano variable
+        Theano variable of the shape ``s``.
+
+    var : Theano variable
+        Theano variable of the shape ``s``.
+
+    Returns
+    -------
+
+    mean_ : Theano variable
+        Theano variable of the shape ``r``.
+
+    var_ : Theano variable
+        Theano variable of the shape ``r``.
+    """
     mean_arg = mean / T.sqrt(1 + PI * var / 8)
     mean_ = T.nnet.sigmoid(mean_arg)
 
@@ -99,5 +177,33 @@ def sigmoid(mean, var):
 
 
 def tanh(mean, var):
+    """Return the mean and variance of a Gaussian distributed random variable,
+    described by its mean and variacne, after passing it through a tangent
+    hyperbolicus.
+
+    Note
+    ----
+
+    Implementation is done by a rescaling, shifting and appllying ``sigmoid``.
+
+
+    Parameters
+    ----------
+
+    mean : Theano variable
+        Theano variable of the shape ``s``.
+
+    var : Theano variable
+        Theano variable of the shape ``s``.
+
+    Returns
+    -------
+
+    mean_ : Theano variable
+        Theano variable of the shape ``r``.
+
+    var_ : Theano variable
+        Theano variable of the shape ``r``.
+    """
     mean_, var_ = sigmoid(mean, var)
     return mean_ * 2 - 1, 4 * var_
