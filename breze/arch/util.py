@@ -214,11 +214,17 @@ def opt_from_model(model, fargs, args, opt_klass, opt_kwargs):
 def theano_expr_bfs(expr):
     """Generator function to walk a Theano expression graph in breadth first."""
     stack = [expr]
+    marked = set(stack)
     while True:
         if not stack:
             break
         expr = stack.pop()
-        stack += expr.owner.inputs if hasattr(expr.owner, 'inputs') else []
+        candidates = expr.owner.inputs if hasattr(expr.owner, 'inputs') else []
+        candidates = [i for i in candidates if i not in marked]
+
+        stack += candidates
+        marked |= set(candidates)
+
         yield expr
 
 
@@ -461,13 +467,21 @@ class Model(object):
             If set to True, a numpy array is always returned, even if the
             computation is done on the GPU and a gnumpy array was more natural.
         """
-        if GPU and not all(tell_deterministic(i) for i in exprs):
-            raise NotImplementedError(
-                'cannot use random variables in Breze for GPU due to Theano '
-                'issue #1467')
-
         variables = self._unify_variables(variables)
         exprs = self._unify_exprs(exprs)
+
+        if GPU:
+            back_out = False
+            if isinstance(exprs, list):
+                if not all(tell_deterministic(i) for i in exprs):
+                    back_out = True
+            else:
+                if not tell_deterministic(exprs):
+                    back_out = True
+            if back_out:
+                raise NotImplementedError(
+                    'cannot use random variables in Breze for GPU due to Theano '
+                    'issue #1467')
 
         # We need to clone instead of using the givens parameter of
         # theano.function, because otherwise we might get an theano error
