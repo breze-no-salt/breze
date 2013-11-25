@@ -23,7 +23,7 @@ from breze.arch.component.distributions import normal
 
 PI = np.array(np.pi, dtype=theano.config.floatX)
 SQRT_2 = np.array(np.sqrt(2.), dtype=theano.config.floatX)
-epsilon = np.array(1e-4, dtype=theano.config.floatX)
+epsilon = np.array(0, dtype=theano.config.floatX)
 
 
 def safe_sigmoid(x):
@@ -148,8 +148,7 @@ def sigmoid(mean, var):
     var_ : Theano variable
         Theano variable of the shape ``r``.
     """
-    mean_arg = mean / T.sqrt(1 + PI * var / 8)
-    mean_ = T.nnet.sigmoid(mean_arg)
+    make_mean = lambda m, s2: T.nnet.sigmoid(m / (T.sqrt(1 + PI * s2 / 8)))
 
     a = 4 - 2 * SQRT_2
     b = -np.log(SQRT_2 - 1)
@@ -158,14 +157,17 @@ def sigmoid(mean, var):
     a = T.cast(a, theano.config.floatX)
     b = T.cast(b, theano.config.floatX)
 
-    var_arg_1 = (
-        a *
-        (mean - b) / T.sqrt(1 + PI / (8 * a ** 2 * var + epsilon)))
+    mean_ = make_mean(mean, var)
+    var_ = make_mean(a * (mean - b), a ** 2 * var) - mean_ ** 2
 
-    var_ = T.nnet.sigmoid(var_arg_1) - mean_ ** 2
+    #var_arg_1 = (
+    #    a *
+    #    (mean - b) / T.sqrt(1 + PI / (8 * a ** 2 * var + epsilon)))
+
+    #var_ = T.nnet.sigmoid(var_arg_1) - mean_ ** 2
     # It seems as if this aproximation yields non positive variances in corner
     # cases. We catch that here.
-    var_ = T.maximum(epsilon, var_)
+    #var_ = T.maximum(epsilon, var_)
 
     # This approximation might yield 0 or 1. This is however bad for subsequent
     # losses such as the negative cross entropy; also, the sigmoid function will

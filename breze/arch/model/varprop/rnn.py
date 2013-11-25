@@ -337,7 +337,7 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
 
     output_in_mean, output_in_var, output_mean, output_var = forward_layer(
         hmo_rec, hvo_rec, hidden_to_out,
-        out_bias, T.zeros_like(out_bias) + 1e-8,
+        out_bias, T.ones_like(out_bias),
         f_output, p_dropouts[-1])
 
     exprs.update({

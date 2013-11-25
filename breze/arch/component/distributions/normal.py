@@ -4,7 +4,7 @@ import theano.tensor as T
 
 
 PI = np.array(np.pi, dtype=theano.config.floatX)
-epsilon = np.array(1e-4, dtype=theano.config.floatX)
+epsilon = np.array(1e-32, dtype=theano.config.floatX)
 
 def pdf(x, location=0, scale=1):
     location = T.cast(location, theano.config.floatX)
