@@ -6,9 +6,36 @@ import matplotlib.pyplot as plt
 colors = 'kcmrbyg' * 5
 
 
-def scatterplot(X, C=None, symb='o', alpha=1, figsize=(16, 9)):
+def scatterplot_matrix(X, C=None, symb='o', alpha=1, fig=None):
+    """Return a figure containig a scatter plot matrix.
+
+    This is a useful tool for inspecting multi dimensional data. Each dimension
+    will be plotted against each dimension as a scatter plot, arranged into a
+    matrix. The diagonal will contain histograms.
+
+
+    Parameters
+    ----------
+
+    X : array_like
+        2D array containing the points to plot.
+
+    C : array_like
+        Class labels (optional). Each row of ``X`` with the same value in ``C``
+        will be given the same color in the plots.
+
+    symb : string
+        Symbol to use for plotting. Will be forwarded to ``pylab.plot``.
+
+    alpha : float
+        Between 0 and 1. Transparency of the points, where 1 means fully
+        opaque.
+
+    fig : matplotlib.pyplot.Figure or None
+        Figure to plot into. If None, will be created itself.
+    """
     N = X.shape[1]
-    fig = plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize) if fig is None else fig
     n_colors = len(set(C)) if C is not None else 0
 
     for i in range(N):
