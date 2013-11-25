@@ -1,4 +1,4 @@
 .idea/*
 docs/build/*
 cover/*
-
+*.pyc
