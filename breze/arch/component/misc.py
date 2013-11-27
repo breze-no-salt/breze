@@ -38,7 +38,7 @@ def project_into_l2_ball(x, radius):
         x = T.shape_padleft(x)
 
     lengths = T.sqrt((x ** 2).sum(axis=1)).dimshuffle(0, 'x')
-    x = T.switch(lengths > radius, x / lengths * radius, x)
+    x = T.switch(lengths > T.sqrt(radius), x / lengths * radius, x)
 
     if not batch:
         x = x[0]
