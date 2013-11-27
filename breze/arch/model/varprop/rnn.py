@@ -306,7 +306,7 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
 
     hmi_rec, hvi_rec, hmo_rec, hvo_rec = recurrent_layer(
         hmi, hvi, recurrents[0], f_hiddens[0], initial_hiddens[0],
-        p_dropouts[0])
+        p_dropouts[1])
 
     exprs.update({
         'hidden_in_mean_0': hmi_rec,
