@@ -198,9 +198,7 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
 
         return hom, hov
 
-    initial_hidden_mean = repeat(initial_hidden, in_mean.shape[1], axis=0)
-    initial_hidden_mean = initial_hidden_mean.reshape(
-        (in_mean.shape[1], in_mean.shape[2]))
+    initial_hidden_mean = repeat(initial_hidden.dimshuffle('x', 0), in_mean.shape[1], axis=0)
 
     initial_hidden_var = T.zeros_like(initial_hidden_mean) + 1e-8
 
