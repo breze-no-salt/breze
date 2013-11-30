@@ -23,7 +23,7 @@ def mean_var_forward(in_mean, in_var, weights, bias, variance_bias_sqrt,
 
     out_in_var = T.dot(element_var, weights ** 2)
 
-    #out_in_var *= variance_bias_sqrt ** 2
+    out_in_var *= variance_bias_sqrt ** 2
     out_mean, out_var = f(out_in_mean, out_in_var)
     return out_in_mean, out_in_var, out_mean, out_var
 
