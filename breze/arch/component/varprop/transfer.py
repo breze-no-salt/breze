@@ -23,7 +23,7 @@ from breze.arch.component.distributions import normal
 
 PI = np.array(np.pi, dtype=theano.config.floatX)
 SQRT_2 = np.array(np.sqrt(2.), dtype=theano.config.floatX)
-epsilon = np.array(0, dtype=theano.config.floatX)
+epsilon = np.array(1e-4, dtype=theano.config.floatX)
 
 
 def safe_sigmoid(x):
@@ -95,7 +95,12 @@ def rectifier(mean, var):
     B = (mean ** 2 + std ** 2) * normal.cdf(ratio)
     exp_of_squared = A + B
 
-    var_ = exp_of_squared - mean_ ** 2
+    mean_ = T.clip(mean_, 1e-8, 100)
+
+    var_ = T.maximum(exp_of_squared - mean_ ** 2, 0.2)
+    var_ = T.clip(var_, 1e-8, 100)
+
+
     return mean_, var_
 
 
