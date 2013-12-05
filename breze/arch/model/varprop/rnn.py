@@ -269,6 +269,10 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
     p_dropouts : List of scalars
         Each element in this list represents the probability to drop out an
         individual unit in the corresponding layer.
+        The list should contain N+1 items, where N is the number of hidden
+        layers. If N+2 items are contained, the last element is used to
+        drop out units from hidden to out, while the one before is used to drop
+        out units from hidden to hidden.
 
     Returns
     -------
@@ -335,7 +339,7 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
 
     output_in_mean, output_in_var, output_mean, output_var = forward_layer(
         hmo_rec, hvo_rec, hidden_to_out,
-        out_bias, 1,
+        out_bias, hidden_var_biases_sqrt[-1],
         f_output, p_dropouts[-1])
 
     exprs.update({
@@ -356,7 +360,9 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer='identity', loss='squared',
                  pooling=None, leaky_coeffs=None,
-                 p_dropout_inpt=.2, p_dropout_hidden=.5):
+                 p_dropout_inpt=.2, p_dropout_hidden=.5,
+                 p_dropout_hidden_to_out=None,
+                 use_varprop_at=None):
         self.n_inpt = n_inpt
         self.n_output = n_output
 
@@ -374,6 +380,14 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
 
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hidden = p_dropout_hidden
+        if p_dropout_hidden_to_out is None:
+            self.p_dropout_hidden_to_out = p_dropout_hidden
+        else:
+            self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
+
+        if use_varprop_at is None:
+            use_varprop_at = [True] * len(n_hiddens)
+        self.use_varprop_at = use_varprop_at
 
         super(SupervisedRecurrentNetwork, self).__init__(
             n_inpt, n_hiddens, n_output,
@@ -389,8 +403,9 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
                              for i in range(len(self.n_hiddens) - 1)]
         hidden_biases = [getattr(pars, 'hidden_bias_%i' % i)
                          for i in range(len(self.n_hiddens))]
-        # TODO: make real variance biases
-        hidden_var_biases_sqrt = [T.zeros_like(i) + 1e-8 for i in hidden_biases]
+        hidden_var_biases_sqrt = [1 if i else 1e-16 for i in self.use_varprop_at]
+        for i, j in enumerate(self.no_varprop_at):
+            hidden_var_biases_sqrt
         recurrents = [getattr(pars, 'recurrent_%i' % i)
                       for i in range(len(self.n_hiddens))]
         initial_hiddens = [getattr(pars, 'initial_hidden_%i' % i)
@@ -444,11 +459,16 @@ class FastDropoutRnn(SupervisedRecurrentNetwork):
                              for i in range(len(self.n_hiddens) - 1)]
         hidden_biases = [getattr(self.parameters, 'hidden_bias_%i' % i)
                          for i in range(len(self.n_hiddens))]
-        hidden_var_biases_sqrt = [1 for i in hidden_biases]
+        hidden_var_biases_sqrt = [1 if i else 1e-16
+                                  for i in self.use_varprop_at]
         recurrents = [getattr(pars, 'recurrent_%i' % i)
                       for i in range(len(self.n_hiddens))]
         initial_hiddens = [getattr(pars, 'initial_hidden_%i' % i)
                            for i in range(len(self.n_hiddens))]
+
+        p_dropouts = ([self.p_dropout_inpt]
+                      + [self.p_dropout_hidden] * len(recurrents)
+                      + [self.p_dropout_hidden_to_out])
 
         self.exprs = self.make_exprs(
             inpt_mean, inpt_var, target,
@@ -457,7 +477,8 @@ class FastDropoutRnn(SupervisedRecurrentNetwork):
             hidden_var_biases_sqrt,
             initial_hiddens, recurrents, pars.out_bias,
             self.hidden_transfers, self.out_transfer, self.loss,
-            self.pooling, self.leaky_coeffs,
-            [self.p_dropout_inpt] + [self.p_dropout_hidden] * len(recurrents))
+            self.pooling, self.leaky_coeffs, p_dropouts)
+
+
 
         self.exprs['inpt'] = inpt_mean

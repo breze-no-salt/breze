@@ -97,7 +97,7 @@ def rectifier(mean, var):
 
     mean_ = T.clip(mean_, 1e-8, 100)
 
-    var_ = T.maximum(exp_of_squared - mean_ ** 2, 0.2)
+    var_ = exp_of_squared - mean_ ** 2 + 0.05
     var_ = T.clip(var_, 1e-8, 100)
 
 
