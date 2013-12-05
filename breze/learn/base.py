@@ -121,9 +121,6 @@ class BrezeWrapperBase(object):
         best_pars = None
         best_loss = float('inf')
 
-        fit_data = [cast_array_to_local_type(i) for i in fit_data]
-        eval_data = [cast_array_to_local_type(i) for i in eval_data]
-
         for info in self.iter_fit(*fit_data):
             if report(info):
                 if 'loss' not in info:
@@ -175,14 +172,17 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         return f_loss, f_d_loss
 
     def _make_args(self, X, Z):
-        X, Z = cast_array_to_local_type(X), cast_array_to_local_type(Z)
         batch_size = getattr(self, 'batch_size', None)
         if batch_size is None:
+            X, Z = cast_array_to_local_type(X), cast_array_to_local_type(Z)
             data = itertools.repeat([X, Z])
         elif batch_size < 1:
             raise ValueError('need strictly positive batch size')
         else:
             data = iter_minibatches([X, Z], self.batch_size, self.sample_dim)
+            data = ((cast_array_to_local_type(x), cast_array_to_local_type(z))
+                    for x, z in data)
+
         args = ((i, {}) for i in data)
         return args
 
