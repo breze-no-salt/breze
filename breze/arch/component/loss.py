@@ -87,8 +87,19 @@ def nnce(target, prediction):
         up to one and be strictly positive for this measure to make sense.
     :returns: An array of shape `(n, 1)` as `target` containing the log
         probability that that example is classified correctly."""
-    loss_vector = -(T.log(prediction)[T.arange(target.shape[0]), target])
-    # To be compatible with the API, we make this a (n, 1) matrix.
+    if prediction.ndim == 3:
+        prediction_flat = prediction.reshape((-1, prediction.shape[2]))
+        target_flat = target.flatten()
+    else:
+        prediction_flat = prediction
+        target_flat = target
+
+    loss_vector = -(T.log(prediction_flat)[
+        T.arange(prediction_flat.shape[0]),
+        target_flat])
+    if prediction.ndim == 3:
+        loss_vector = loss_vector.reshape(
+            (prediction.shape[0], prediction.shape[1]))
     return T.shape_padright(loss_vector)
 
 
