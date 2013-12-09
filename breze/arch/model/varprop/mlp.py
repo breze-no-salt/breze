@@ -28,6 +28,20 @@ def mean_var_forward(in_mean, in_var, weights, bias, variance_bias_sqrt,
     return out_in_mean, out_in_var, out_mean, out_var
 
 
+def int_mean_var_forward(in_mean, in_var, weights, bias, variance_bias_sqrt,
+                         f, p_dropout):
+    p_keep = 1 - p_dropout
+    dropout_var = p_dropout * (1 - p_dropout)
+
+    out_in_mean = p_keep * weights[in_mean] + bias
+    out_in_var = dropout_var * weights[in_mean] ** 2# + p_keep * in_var[in_mean]
+
+    #out_in_var *= variance_bias_sqrt ** 2
+    out_mean, out_var = f(out_in_mean, out_in_var)
+    return out_in_mean, out_in_var, out_mean, out_var
+
+
+
 class VariancePropagationNetwork(MultiLayerPerceptron):
 
     def init_exprs(self):

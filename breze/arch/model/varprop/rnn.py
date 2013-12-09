@@ -134,6 +134,77 @@ def forward_layer(in_mean, in_var, weights, mean_bias, var_bias_sqrt,
     return omi, ovi, omo, ovo
 
 
+def int_forward_layer(in_mean, in_var, weights, mean_bias, var_bias_sqrt,
+                      f, p_dropout):
+    """Return a theano variable representing a simple (i.e. non-recurrent
+    forward layer where the input is symbolic, e.g. has one of K possible
+    values.
+    Parameters
+    ----------
+
+    in_mean : Theano variable
+        Sequence tensor of shape ``(t, n)`` and type int. Represents which of
+        the ``d`` input dimensionalities is set to 1, all other are zero.
+
+    in_var : Theano variable
+        Sequence tensor. Represents the variance of the input to the layer.
+        Either (a) same shape as the mean or (b) scalar.
+
+    weights : Theano variable
+        Theano matrix of shape ``(d, h)``. Represents the weights by which the
+        input is right multiplied with.
+
+    mean_bias : Theano variable
+        Theano vector of size ``h``. Bias for the activation of the output of
+        the layer.
+
+    var_bias_sqrt : Theano variable
+        Theano vector of size ``h`` or scalar. Bias for the variance of the
+        output, which is multiplied by the square of this number.
+
+    f : function
+        Function that takes a theano variable and returns a theano variable of
+        the same shape. Meant as transfer function of the layer.
+
+    p_dropout : Theano variable
+        Scalar representing the probability that unit is dropped out.
+
+
+    Returns
+    -------
+
+    omi : Theano variable
+        Mean of the output before the activation of ``f``.
+
+    ovi : Theano variable
+        Variance of the output before the activation of ``f``.
+
+    omo : Theano variable
+        Mean of the output after the activation of ``f``.
+
+    ovo : Theano variable
+        Variance of the output after the activation of ``f``.
+    """
+    in_mean_flat = in_mean.flatten()
+    in_var_flat = in_var.flatten()
+
+    omi_flat, ovi_flat, omo_flat, ovo_flat = mlp.int_mean_var_forward(
+        in_mean_flat, in_var_flat, weights, mean_bias, var_bias_sqrt,
+        f, p_dropout)
+
+    omi = omi_flat.reshape((in_mean.shape[0], in_mean.shape[1], -1))
+    ovi = ovi_flat.reshape((in_mean.shape[0], in_mean.shape[1], -1))
+    omo = omo_flat.reshape((in_mean.shape[0], in_mean.shape[1], -1))
+    ovo = ovo_flat.reshape((in_mean.shape[0], in_mean.shape[1], -1))
+
+    omi = T.cast(omi, 'float32')
+    ovi = T.cast(ovi, 'float32')
+    omo = T.cast(omo, 'float32')
+    ovo = T.cast(ovo, 'float32')
+
+    return omi, ovi, omo, ovo
+
+
 def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
                     p_dropout):
     """Return a theano variable representing a recurrent layer.
@@ -301,7 +372,9 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
     f_hiddens = [lookup(i, transfer) for i in hidden_transfers]
     f_output = lookup(out_transfer, transfer)
 
-    hmi, hvi, hmo, hvo = forward_layer(
+    # HOTFIX
+    #hmi, hvi, hmo, hvo = forward_layer(
+    hmi, hvi, hmo, hvo = int_forward_layer(
         inpt_mean, inpt_var, in_to_hidden,
         hidden_biases[0], hidden_var_biases_sqrt[0],
         f_hiddens[0], p_dropouts[0])
@@ -450,8 +523,9 @@ class FastDropoutRnn(SupervisedRecurrentNetwork):
     inpt_var = 0
 
     def init_exprs(self):
-        inpt_mean = T.tensor3('inpt_mean')
-        inpt_var = T.ones_like(inpt_mean) * self.inpt_var
+        # HOTFIX for penn
+        inpt_mean = T.imatrix('inpt_mean')
+        inpt_var = T.ones_like(T.repeat(inpt_mean, self.n_inpt)) * self.inpt_var
         target = T.imatrix('target')
         pars = self.parameters
 
