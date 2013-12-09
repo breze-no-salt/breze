@@ -20,7 +20,6 @@ to pass. Here are some abstrations.
 """
 
 
-import numpy as np
 import theano.tensor as T
 
 from misc import distance_matrix
@@ -87,20 +86,34 @@ def nnce(target, prediction):
         up to one and be strictly positive for this measure to make sense.
     :returns: An array of shape `(n, 1)` as `target` containing the log
         probability that that example is classified correctly."""
-    if prediction.ndim == 3:
-        prediction_flat = prediction.reshape((-1, prediction.shape[2]))
-        target_flat = target.flatten()
-    else:
-        prediction_flat = prediction
-        target_flat = target
 
-    loss_vector = -(T.log(prediction_flat)[
-        T.arange(prediction_flat.shape[0]),
-        target_flat])
+    # The following code might seem more complicated as necessary. Yet,
+    # at the time of writing the gradient of AdvancedIncSubtensor does not run
+    # on the GPU, which is why we reduce it to using AdvancedSubtensor.
+
     if prediction.ndim == 3:
-        loss_vector = loss_vector.reshape(
-            (prediction.shape[0], prediction.shape[1]))
-    return T.shape_padright(loss_vector)
+        # We are looking at a 3D problem (e.g. via recurrent nets) and this
+        # make it a 2D problem.
+        target_flat = target.flatten()
+        prediction_flat = prediction.flatten()
+    elif prediction.ndim == 2:
+        target_flat = target
+        prediction_flat = prediction.flatten()
+    else:
+        raise ValueError('only 2 or 3 dims supported for nnce')
+
+    target_flat += T.arange(target_flat.shape[0]) * prediction.shape[-1]
+    loss = -T.log(prediction_flat)[target_flat]
+
+    # In both forks below, a trailing 1 is added to the shape because that
+    # is what the caller expects. (As it is e.g. with the squared error.)
+    if prediction.ndim == 3:
+        # Convert back from 2D to 3D.
+        loss = loss.reshape((prediction.shape[0], prediction.shape[1], 1))
+    elif prediction.ndim == 2:
+        loss = loss.reshape((prediction.shape[0], 1))
+
+    return loss
 
 
 def nces(target, prediction):
