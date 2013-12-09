@@ -67,7 +67,10 @@ def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
     flat_exprs = flatten(exprs)
 
     flat_function = theano.function(
-        flat_variables, flat_exprs, *args, **kwargs)
+        flat_variables, flat_exprs,
+        # HOTFIX
+        allow_input_downcast=True,
+        *args, **kwargs)
 
     def wrapper(*fargs):
         flat_fargs = flatten(fargs)

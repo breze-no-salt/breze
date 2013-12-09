@@ -452,7 +452,7 @@ class FastDropoutRnn(SupervisedRecurrentNetwork):
     def init_exprs(self):
         inpt_mean = T.tensor3('inpt_mean')
         inpt_var = T.ones_like(inpt_mean) * self.inpt_var
-        target = T.tensor3('target')
+        target = T.imatrix('target')
         pars = self.parameters
 
         hidden_to_hiddens = [getattr(self.parameters, 'hidden_to_hidden_%i' % i)
