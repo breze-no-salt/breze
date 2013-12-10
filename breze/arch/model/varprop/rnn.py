@@ -382,8 +382,10 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
         self.out_transfer = out_transfer
         self.loss = loss
 
-        self.p_dropout_inpt = p_dropout_inpt
-        self.p_dropout_hidden = p_dropout_hidden
+        if not hasattr(self, 'p_dropout_inpt'):
+            self.p_dropout_inpt = p_dropout_inpt
+        if not hasattr(self, 'p_dropout_hidden'):
+            self.p_dropout_hidden = p_dropout_hidden
         if p_dropout_hidden_to_out is None:
             self.p_dropout_hidden_to_out = p_dropout_hidden
         else:
@@ -407,7 +409,7 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
                              for i in range(len(self.n_hiddens) - 1)]
         hidden_biases = [getattr(pars, 'hidden_bias_%i' % i)
                          for i in range(len(self.n_hiddens))]
-        hidden_var_biases_sqrt = [1 if i else 1e-16 for i in self.use_varprop_at]
+        hidden_var_biases_sqrt = [1 if i else 0 for i in self.use_varprop_at]
         for i, j in enumerate(self.no_varprop_at):
             hidden_var_biases_sqrt
         recurrents = [getattr(pars, 'recurrent_%i' % i)
