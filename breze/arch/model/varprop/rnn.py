@@ -183,8 +183,7 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
         Theano sequence tensor representing the varianceof the hidden
         activations after the application of ``f``.
     """
-    def step(inpt_mean, inpt_var, him_m1, hiv_m1):
-        hom_m1, hov_m1 = f(him_m1, hiv_m1)
+    def step(inpt_mean, inpt_var, him_m1, hiv_m1, hom_m1, hov_m1):
         hom = T.dot(hom_m1, weights) * p_dropout + inpt_mean
 
         p_keep = 1 - p_dropout
@@ -196,7 +195,9 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
 
         hov = T.dot(element_var, weights ** 2) + inpt_var
 
-        return hom, hov
+        fhom, fhov = f(hom, hov)
+
+        return hom, hov, fhom, fhov
 
     initial_hidden_mean = repeat(initial_hidden, in_mean.shape[1], axis=0)
     initial_hidden_mean = initial_hidden_mean.reshape(
@@ -204,13 +205,16 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
 
     initial_hidden_var = T.zeros_like(initial_hidden_mean) + 1e-8
 
-    (hidden_in_mean_rec, hidden_in_var_rec), _ = theano.scan(
+    (hidden_in_mean_rec, hidden_in_var_rec, hidden_mean_rec, hidden_var_rec), _ = theano.scan(
         step,
         sequences=[in_mean, in_var],
-        outputs_info=[initial_hidden_mean, initial_hidden_var])
+        outputs_info=[T.zeros_like(initial_hidden_mean),
+                      T.zeros_like(initial_hidden_var),
+                      initial_hidden_mean,
+                      initial_hidden_var])
 
-    hidden_mean_rec, hidden_var_rec = f(
-        hidden_in_mean_rec, hidden_in_var_rec)
+    #hidden_mean_rec, hidden_var_rec = f(
+    #    hidden_in_mean_rec, hidden_in_var_rec)
 
     return (hidden_in_mean_rec, hidden_in_var_rec,
             hidden_mean_rec, hidden_var_rec)
