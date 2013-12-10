@@ -235,15 +235,15 @@ class SupervisedFastDropoutRnn(BaseRnn, varprop_rnn.FastDropoutRnn,
                  use_varprop_at=None,
                  max_iter=1000,
                  verbose=False):
-        self.p_dropout_inpt = p_dropout_inpt
-        self.p_dropout_hidden = p_dropout_hidden
-
         # TODO: this is code duplication from breze/arch/model/varprop/rnn.py
         # Should be done more elegantly.
         if p_dropout_hidden_to_out is None:
             self.p_dropout_hidden_to_out = p_dropout_hidden
         else:
             self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
+
+        self.p_dropout_inpt = p_dropout_inpt
+        self.p_dropout_hidden = p_dropout_hidden
 
         if use_varprop_at is None:
             use_varprop_at = [True] * len(n_hidden)

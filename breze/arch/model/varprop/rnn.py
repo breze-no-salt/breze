@@ -254,8 +254,7 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
         Theano sequence tensor representing the varianceof the hidden
         activations after the application of ``f``.
     """
-    def step(inpt_mean, inpt_var, him_m1, hiv_m1):
-        hom_m1, hov_m1 = f(him_m1, hiv_m1)
+    def step(inpt_mean, inpt_var, him_m1, hiv_m1, hom_m1, hov_m1):
         hom = T.dot(hom_m1, weights) * p_dropout + inpt_mean
 
         p_keep = 1 - p_dropout
@@ -267,19 +266,24 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
 
         hov = T.dot(element_var, weights ** 2) + inpt_var
 
-        return hom, hov
+        fhom, fhov = f(hom, hov)
+
+        return hom, hov, fhom, fhov
 
     initial_hidden_mean = repeat(initial_hidden.dimshuffle('x', 0), in_mean.shape[1], axis=0)
 
     initial_hidden_var = T.zeros_like(initial_hidden_mean) + 1e-8
 
-    (hidden_in_mean_rec, hidden_in_var_rec), _ = theano.scan(
+    (hidden_in_mean_rec, hidden_in_var_rec, hidden_mean_rec, hidden_var_rec), _ = theano.scan(
         step,
         sequences=[in_mean, in_var],
-        outputs_info=[initial_hidden_mean, initial_hidden_var])
+        outputs_info=[T.zeros_like(initial_hidden_mean),
+                      T.zeros_like(initial_hidden_var),
+                      initial_hidden_mean,
+                      initial_hidden_var])
 
-    hidden_mean_rec, hidden_var_rec = f(
-        hidden_in_mean_rec, hidden_in_var_rec)
+    #hidden_mean_rec, hidden_var_rec = f(
+    #    hidden_in_mean_rec, hidden_in_var_rec)
 
     return (hidden_in_mean_rec, hidden_in_var_rec,
             hidden_mean_rec, hidden_var_rec)
@@ -451,8 +455,10 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
         self.out_transfer = out_transfer
         self.loss = loss
 
-        self.p_dropout_inpt = p_dropout_inpt
-        self.p_dropout_hidden = p_dropout_hidden
+        if not hasattr(self, 'p_dropout_inpt'):
+            self.p_dropout_inpt = p_dropout_inpt
+        if not hasattr(self, 'p_dropout_hidden'):
+            self.p_dropout_hidden = p_dropout_hidden
         if p_dropout_hidden_to_out is None:
             self.p_dropout_hidden_to_out = p_dropout_hidden
         else:
@@ -476,7 +482,7 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
                              for i in range(len(self.n_hiddens) - 1)]
         hidden_biases = [getattr(pars, 'hidden_bias_%i' % i)
                          for i in range(len(self.n_hiddens))]
-        hidden_var_biases_sqrt = [1 if i else 1e-16 for i in self.use_varprop_at]
+        hidden_var_biases_sqrt = [1 if i else 0 for i in self.use_varprop_at]
         for i, j in enumerate(self.no_varprop_at):
             hidden_var_biases_sqrt
         recurrents = [getattr(pars, 'recurrent_%i' % i)
