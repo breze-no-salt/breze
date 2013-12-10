@@ -101,8 +101,14 @@ def nnce(target, prediction):
         prediction_flat = prediction.flatten()
     else:
         raise ValueError('only 2 or 3 dims supported for nnce')
+    target_flat.name = 'target_flat'
+    prediction_flat.name = 'prediction_flat'
 
     target_flat += T.arange(target_flat.shape[0]) * prediction.shape[-1]
+
+    # This cast needs to be explicit, because in the case of the GPU, the
+    # targets will always be floats.
+    target_flat = T.cast(target_flat, 'int32')
     loss = -T.log(prediction_flat)[target_flat]
 
     # In both forks below, a trailing 1 is added to the shape because that

@@ -192,10 +192,10 @@ def int_forward_layer(in_mean, in_var, weights, mean_bias, var_bias_sqrt,
         in_mean_flat, in_var_flat, weights, mean_bias, var_bias_sqrt,
         f, p_dropout)
 
-    omi = omi_flat.reshape((in_mean.shape[0], in_mean.shape[1], -1))
-    ovi = ovi_flat.reshape((in_mean.shape[0], in_mean.shape[1], -1))
-    omo = omo_flat.reshape((in_mean.shape[0], in_mean.shape[1], -1))
-    ovo = ovo_flat.reshape((in_mean.shape[0], in_mean.shape[1], -1))
+    omi = omi_flat.reshape((in_mean.shape[0], in_mean.shape[1], weights.shape[1]))
+    ovi = ovi_flat.reshape((in_mean.shape[0], in_mean.shape[1], weights.shape[1]))
+    omo = omo_flat.reshape((in_mean.shape[0], in_mean.shape[1], weights.shape[1]))
+    ovo = ovo_flat.reshape((in_mean.shape[0], in_mean.shape[1], weights.shape[1]))
 
     omi = T.cast(omi, 'float32')
     ovi = T.cast(ovi, 'float32')
@@ -524,9 +524,12 @@ class FastDropoutRnn(SupervisedRecurrentNetwork):
 
     def init_exprs(self):
         # HOTFIX for penn
-        inpt_mean = T.imatrix('inpt_mean')
+        inpt_mean = T.matrix('inpt_mean')
         inpt_var = T.ones_like(T.repeat(inpt_mean, self.n_inpt)) * self.inpt_var
-        target = T.imatrix('target')
+        inpt_var.name = 'inpt_var'
+
+        target = T.matrix('target')
+
         pars = self.parameters
 
         hidden_to_hiddens = [getattr(self.parameters, 'hidden_to_hidden_%i' % i)
@@ -552,7 +555,5 @@ class FastDropoutRnn(SupervisedRecurrentNetwork):
             initial_hiddens, recurrents, pars.out_bias,
             self.hidden_transfers, self.out_transfer, self.loss,
             self.pooling, self.leaky_coeffs, p_dropouts)
-
-
 
         self.exprs['inpt'] = inpt_mean

@@ -30,11 +30,17 @@ def mean_var_forward(in_mean, in_var, weights, bias, variance_bias_sqrt,
 
 def int_mean_var_forward(in_mean, in_var, weights, bias, variance_bias_sqrt,
                          f, p_dropout):
+    in_mean = T.cast(in_mean, 'uint32')
     p_keep = 1 - p_dropout
     dropout_var = p_dropout * (1 - p_dropout)
 
-    out_in_mean = p_keep * weights[in_mean] + bias
+    k_weight = weights[in_mean]
+    k_weight.name = 'k_weight'
+
+    out_in_mean = p_keep * k_weight + bias
+    out_in_mean.name = 'out_in_mean'
     out_in_var = dropout_var * weights[in_mean] ** 2# + p_keep * in_var[in_mean]
+    out_in_var.name = 'out_in_var'
 
     #out_in_var *= variance_bias_sqrt ** 2
     out_mean, out_var = f(out_in_mean, out_in_var)

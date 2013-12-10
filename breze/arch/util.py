@@ -80,7 +80,7 @@ def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
 
     # Expose this to the outside so that fields of theano can be accessed, eg
     # for debug or graph information.
-    wrapper.flat_function = flat_function
+    wrapper.theano_func = flat_function
 
     return wrapper
 
@@ -133,9 +133,12 @@ def cpu_expr_to_gpu(expr, unsafe=False):
     If unsafe is set to True, subsequent function calls evaluating the
     expression might return arrays pointing at the same memory region.
     """
-    expr = T.cast(expr, 'float32')
-    return theano.Out(theano.sandbox.cuda.basic_ops.gpu_from_host(expr),
+    expr_ = T.cast(expr, 'float32')
+    expr_ = theano.Out(theano.sandbox.cuda.basic_ops.gpu_from_host(expr),
                       borrow=unsafe)
+
+    expr_.name = expr.name
+    return expr_
 
 
 def cpu_expr_to_gpu_nested(inpts, unsafe=False):
@@ -177,6 +180,7 @@ def gnumpy_func_wrap(f):
             if not isinstance(res, (float, np.ndarray)):
                 res = gput.cudandarray_to_garray(res)
         return res
+    inner.theano_func = f.theano_func
     return inner
 
 
@@ -521,13 +525,15 @@ class Model(object):
             variables, exprs, givens=givens, mode=mode,
             on_unused_input=on_unused_input, updates=updates)
 
-        if GPU:
-            f = gnumpy_func_wrap(f)
-
         if not explicit_pars:
             def f_implicit_pars(*args, **kwargs):
                 return f(self.parameters.data, *args, **kwargs)
+            f_implicit_pars.theano_func = f.theano_func
             return f_implicit_pars
+
+        if GPU:
+            f = gnumpy_func_wrap(f)
+
         else:
             return f
 
