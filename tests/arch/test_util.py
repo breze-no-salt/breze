@@ -8,7 +8,6 @@ import math
 
 import breze.arch.util
 from breze.arch.util import ParameterSet, Model
-from tools import roughly
 
 
 def test_parameter_set_init():
@@ -42,6 +41,7 @@ def test_model_function():
     pars = ParameterSet(weights=(2, 3))
     inpt = T.matrix()
     output = T.dot(inpt, pars.weights)
+    pars.data[...] = np.random.standard_normal(pars.data.shape)
 
     model = Model()
     model.exprs = {'inpt': inpt, 'output': output}
@@ -51,8 +51,12 @@ def test_model_function():
     fx = model.function(['inpt'], 'output', explicit_pars=True)
 
     np.random.seed(1010)
-    test_inpt = np.random.random((10, 2))
-    correct = roughly(f(test_inpt), fx(pars.data, test_inpt))
+    test_inpt = np.random.random((10, 2)).astype(theano.config.floatX)
+    r1 = f(test_inpt)
+    r2 = fx(pars.data, test_inpt)
+    print r1
+    print r2
+    correct = np.allclose(r1, r2)
 
     assert correct, 'implicit pars and explicit pars have different output'
 
@@ -61,12 +65,12 @@ def test_model_function():
     f3 = model.function([inpt], [output])
     f4 = model.function(['inpt'], [output])
 
-    assert roughly(f1(test_inpt), f2(test_inpt)), "f1 and f2 don't agree"
-    assert roughly(f1(test_inpt), f3(test_inpt)), "f1 and f3 don't agree"
-    assert roughly(f1(test_inpt), f4(test_inpt)), "f1 and f4 don't agree"
-    assert roughly(f2(test_inpt), f3(test_inpt)), "f2 and f3 don't agree"
-    assert roughly(f2(test_inpt), f4(test_inpt)), "f2 and f4 don't agree"
-    assert roughly(f3(test_inpt), f4(test_inpt)), "f3 and f4 don't agree"
+    assert np.allclose(f1(test_inpt), f2(test_inpt)), "f1 and f2 don't agree"
+    assert np.allclose(f1(test_inpt), f3(test_inpt)), "f1 and f3 don't agree"
+    assert np.allclose(f1(test_inpt), f4(test_inpt)), "f1 and f4 don't agree"
+    assert np.allclose(f2(test_inpt), f3(test_inpt)), "f2 and f3 don't agree"
+    assert np.allclose(f2(test_inpt), f4(test_inpt)), "f2 and f4 don't agree"
+    assert np.allclose(f3(test_inpt), f4(test_inpt)), "f3 and f4 don't agree"
 
 
 def test_flatten():
@@ -107,7 +111,7 @@ def test_theano_function_with_nested_exprs():
     print "resb: ", resb
 
     for i in range(len(va)):
-        assert roughly(resa[i], math.pow(va[i], i))
-    assert roughly(resb, math.exp(vb))
+        assert np.allclose(resa[i], math.pow(va[i], i))
+    assert np.allclose(resb, math.exp(vb))
 
 

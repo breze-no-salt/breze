@@ -34,17 +34,23 @@ def test_mvh():
     mvh = MultiViewHarmonium(vis_dist, phid_dist, shid_dist,
                              n_vis_nodes, n_phid_nodes, n_shid_nodes,
                              batch_size, n_gs_learn)
-    mvh.parameters.data[:] = np.random.normal(0, 1E-2, mvh.parameters.data.shape)
+    mvh.parameters.data[:] = np.random.normal(
+        0, 1E-2, mvh.parameters.data.shape).astype(theano.config.floatX)
 
     # setup debug values
     for view in range(mvh.exprs.n_views):
         mvh.x_vis[view].tag.test_value = \
-            np.random.random((mvh.exprs.n_vis_nodes[view], mvh.exprs.n_samples))
-        mvh.x_phid[view].tag.test_value = \
-            np.random.random((mvh.exprs.n_phid_nodes[view], mvh.exprs.n_samples))
-    mvh.x_shid.tag.test_value = \
-        np.random.random((mvh.exprs.n_shid_nodes, mvh.exprs.n_samples))
+            np.random.random(
+                (mvh.exprs.n_vis_nodes[view], mvh.exprs.n_samples)
+            ).astype(theano.config.floatX)
 
+        mvh.x_phid[view].tag.test_value = \
+            np.random.random((mvh.exprs.n_phid_nodes[view], mvh.exprs.n_samples)
+                             ).astype(theano.config.floatX)
+    mvh.x_shid.tag.test_value = \
+        np.random.random(
+            (mvh.exprs.n_shid_nodes, mvh.exprs.n_samples)
+        ).astype(theano.config.floatX)
     # construct functions
     f_fac_phid = mvh.function(mvh.x_vis,
                               mvh.exprs.fac_phid(mvh.x_vis))
@@ -67,7 +73,7 @@ def test_mvh():
         mvh.x_vis, mvh.exprs.cd_learning_update(mvh.x_vis))
 
     # test functions
-    x_vis = [np.random.random((nodes, batch_size)) for nodes in n_vis_nodes]
+    x_vis = [np.random.random((nodes, batch_size)).astype(theano.config.floatX) for nodes in n_vis_nodes]
 
     bias_vis_step, bias_phid_step, bias_shid_step, \
         weights_priv_step, weights_shrd_step = f_cd_learn(x_vis)

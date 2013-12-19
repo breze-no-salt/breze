@@ -105,12 +105,12 @@ def neighbour_probabilities(X, target_pplx):
     dists = euc_dist(X, X)
 
     # Parametrize in the log domain for positive standard deviations.
-    precisions = np.ones(X.shape[0])
+    precisions = np.ones(X.shape[0]).astype(theano.config.floatX)
 
     # Do a binary search for good logstds leading to the desired perplexities.
-    minimums = np.empty(X.shape[0])
+    minimums = np.empty(X.shape[0]).astype(theano.config.floatX)
     minimums[...] = -np.inf
-    maximums = np.empty(X.shape[0])
+    maximums = np.empty(X.shape[0]).astype(theano.config.floatX)
     maximums[...] = np.inf
 
     target_entropy = np.log(target_pplx)
@@ -200,8 +200,8 @@ class TsneMinimizer(Minimizer):
         self.min_gain = min_gain
 
     def __iter__(self):
-        step_m1 = np.zeros(self.wrt.shape[0])
-        gain = np.ones(self.wrt.shape[0])
+        step_m1 = np.zeros(self.wrt.shape[0]).astype(theano.config.floatX)
+        gain = np.ones(self.wrt.shape[0]).astype(theano.config.floatX)
 
         for i, (args, kwargs) in enumerate(self.args):
             gradient = self.fprime(self.wrt, *args, **kwargs)
@@ -256,7 +256,8 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000,
         raise ValueError("max_iter has to be non negative")
 
     # Define embeddings shared variable and initialize randomly.
-    embeddings_flat = theano.shared(np.random.normal(0, 1, X.shape[0] * low_dim))
+    embeddings_flat = theano.shared(
+        np.random.normal(0, 1, X.shape[0] * low_dim).astype(theano.config.floatX))
     embeddings = embeddings_flat.reshape((X.shape[0], low_dim))
     embeddings_data = embeddings_flat.get_value(
         borrow=True, return_internal_type=True)

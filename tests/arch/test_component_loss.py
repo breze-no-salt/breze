@@ -6,7 +6,6 @@ import theano.tensor as T
 import numpy as np
 
 from breze.arch.component.loss import absolute, squared, nce, nnce, ncac, drlim1
-from tools import roughly
 
 from nose.tools import with_setup
 
@@ -34,7 +33,8 @@ def test_absolute():
     dist = absolute(X, Y).sum()
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
-    assert res == 0.21, 'absolute loss not working'
+    print res
+    assert np.allclose(res, 0.21), 'absolute loss not working'
 
 
 @with_setup(test_values_raise, test_values_off)
@@ -45,7 +45,7 @@ def test_absolute_rowwise():
     dist = absolute(X, Y).sum(axis=1)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
-    correct = roughly(res, [0.06, 0.15])
+    correct = np.allclose(res, [0.06, 0.15])
     assert correct, 'absolute loss rowwise not working'
 
 
@@ -57,7 +57,7 @@ def test_absolute_colwise():
     dist = absolute(X, Y).sum(axis=0)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
-    correct = roughly(res, [0.06, 0.08, 0.07])
+    correct = np.allclose(res, [0.06, 0.08, 0.07])
     assert correct, 'absolute loss colwise not working'
 
 
@@ -69,7 +69,7 @@ def test_squared():
     dist = squared(X, Y).sum()
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
-    assert roughly(res, 0.0097), 'squared loss not working'
+    assert np.allclose(res, 0.0097), 'squared loss not working'
 
 
 @with_setup(test_values_raise, test_values_off)
@@ -80,7 +80,7 @@ def test_squared_rowwise():
     dist = squared(X, Y).sum(axis=1)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
-    correct = roughly(res, [0.0014, 0.0083])
+    correct = np.allclose(res, [0.0014, 0.0083])
     assert correct, 'squared loss rowwise not working'
 
 
@@ -92,7 +92,7 @@ def test_squared_colwise():
     dist = squared(X, Y).sum(axis=0)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
-    correct = roughly(res, [0.0018, 0.005, 0.0029])
+    correct = np.allclose(res, [0.0018, 0.005, 0.0029])
     assert correct, 'squared loss colwise not working'
 
 
@@ -104,7 +104,7 @@ def test_neg_cross_entropy():
     dist = nce(X, Y).sum()
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
-    correct = roughly(res, 1.6063716678910529)
+    correct = np.allclose(res, 1.6063716678910529)
     assert correct, 'nce loss not working'
 
 
@@ -116,7 +116,7 @@ def test_neg_cross_entropy_rowwise():
     dist = nce(X, Y).sum(axis=1)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
-    correct = roughly(res, [0.85798192, 0.74838975])
+    correct = np.allclose(res, [0.85798192, 0.74838975])
     assert correct, 'nce loss rowwise not working'
 
 
@@ -128,7 +128,7 @@ def test_neg_cross_entropy_colwise():
     dist = nce(X, Y).sum(axis=0)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
-    correct = roughly(res, [[0.49795728, 0.48932523, 0.61908916]])
+    correct = np.allclose(res, [[0.49795728, 0.48932523, 0.61908916]])
     assert correct, 'nce loss colwise not working'
 
 
@@ -141,7 +141,7 @@ def test_nominal_neg_cross_entropy():
     f = theano.function([Xc, Y], dist, mode='FAST_COMPILE')
     res = f(test_Xc, test_Y)
     desired = -np.log(test_Y)[np.arange(test_Xc.shape[0]), test_Xc].sum()
-    correct = roughly(res, desired)
+    correct = np.allclose(res, desired)
     print res
     print desired
     assert correct, 'nnce loss not working'
@@ -150,16 +150,16 @@ def test_nominal_neg_cross_entropy():
 @with_setup(test_values_raise, test_values_off)
 def test_nca():
     X = T.matrix()
-    X.tag.test_value = np.random.random((20, 10))
+    X.tag.test_value = np.random.random((20, 10)).astype(theano.config.floatX)
     Y = T.matrix()
-    Y.tag.test_value = np.random.random((20, 1)) > 0.5
+    Y.tag.test_value = np.random.random((20, 1)).astype(theano.config.floatX) > 0.5
     expr = ncac(X, Y)
 
 
 @with_setup(test_values_raise, test_values_off)
 def test_drlim():
     X = T.matrix()
-    X.tag.test_value = np.random.random((20, 10))
+    X.tag.test_value = np.random.random((20, 10)).astype(theano.config.floatX)
     Y = T.matrix()
-    Y.tag.test_value = np.random.random((10, 1)) > 0.5
+    Y.tag.test_value = np.random.random((10, 1)).astype(theano.config.floatX) > 0.5
     expr = drlim1(Y, X)

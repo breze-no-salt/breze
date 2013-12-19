@@ -180,8 +180,9 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         X = (X - self.mean_x) / self.std_x
 
         if var:
-            Y = np.empty((X.shape[0], 1))
-            Y_var = np.empty((X.shape[0], 1))
+            Y = np.empty((X.shape[0], 1)).astype(theano.config.floatX)
+            Y_var = np.empty((X.shape[0], 1)).astype(theano.config.floatX)
+
             for start, stop in steps:
                 this_x = X[start:stop]
                 m, s = self.f_predict_var(this_x)
@@ -189,10 +190,9 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
                 Y_var[start:stop] = s
             Y = (Y * self.std_z) + self.mean_z
             Y_var = Y_var * self.std_z
-
             return Y, Y_var
         else:
-            Y = np.empty((X.shape[0], 1))
+            Y = np.empty((X.shape[0], 1)).astype(theano.config.floatX)
             for start, stop in steps:
                 this_x = X[start:stop]
                 Y[start:stop] = self.f_predict(this_x)
