@@ -376,9 +376,13 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
     f_hiddens = [lookup(i, transfer) for i in hidden_transfers]
     f_output = lookup(out_transfer, transfer)
 
-    # HOTFIX
-    #hmi, hvi, hmo, hvo = forward_layer(
-    hmi, hvi, hmo, hvo = int_forward_layer(
+    if inpt_var.ndim == 0:
+        # Scalar
+        inpt_var = T.ones_like(inpt_mean) * inpt_var
+
+    hmi, hvi, hmo, hvo = forward_layer(
+    # Uncomment for faster one of k
+    #hmi, hvi, hmo, hvo = int_forward_layer(
         inpt_mean, inpt_var, in_to_hidden,
         hidden_biases[0], hidden_var_biases_sqrt[0],
         f_hiddens[0], p_dropouts[0])
@@ -455,14 +459,19 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
         self.out_transfer = out_transfer
         self.loss = loss
 
+        # FIXME: This is a quite dirty workaround for screwing up multiple
+        # inheritance. Basically, all bases except one should be MixIns with
+        # something like a init_pars() method instead of __init__.
         if not hasattr(self, 'p_dropout_inpt'):
             self.p_dropout_inpt = p_dropout_inpt
         if not hasattr(self, 'p_dropout_hidden'):
             self.p_dropout_hidden = p_dropout_hidden
         if p_dropout_hidden_to_out is None:
-            self.p_dropout_hidden_to_out = p_dropout_hidden
+            if not hasattr(self, 'p_dropout_hidden_to_out'):
+                self.p_dropout_hidden_to_out = p_dropout_hidden
         else:
-            self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
+            if not hasattr(self, 'p_dropout_hidden_to_out'):
+                self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
 
         if use_varprop_at is None:
             use_varprop_at = [True] * len(n_hiddens)
@@ -530,11 +539,17 @@ class FastDropoutRnn(SupervisedRecurrentNetwork):
 
     def init_exprs(self):
         # HOTFIX for penn
-        inpt_mean = T.matrix('inpt_mean')
-        inpt_var = T.ones_like(T.repeat(inpt_mean, self.n_inpt)) * self.inpt_var
+        #inpt_mean = T.matrix('inpt_mean')
+        #inpt_var = T.ones_like(T.repeat(inpt_mean, self.n_inpt)) * self.inpt_var
+        #inpt_var.name = 'inpt_var'
+        #target = T.matrix('target')
+        # / HOTFIX for penn
+
+        inpt_mean = T.tensor3('inpt_mean')
+        inpt_var = T.ones_like(inpt_mean) * self.inpt_var
         inpt_var.name = 'inpt_var'
 
-        target = T.matrix('target')
+        target = T.tensor3('target')
 
         pars = self.parameters
 
