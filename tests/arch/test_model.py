@@ -7,7 +7,7 @@ import numpy as np
 
 from breze.arch.model.linear import Linear
 from breze.arch.model.neural import MultiLayerPerceptron, TwoLayerPerceptron
-from breze.arch.model.varprop import VariancePropagationNetwork, FastDropoutNetwork
+from breze.arch.model.varprop import rnn as vprnn, mlp as vpmlp
 from breze.arch.model.feature import (
     AutoEncoder, ContractiveAutoEncoder, SparseAutoEncoder, SparseFiltering,
     Rica, DenoisingAutoEncoder, RestrictedBoltzmannMachine)
@@ -71,7 +71,9 @@ def test_mlp2():
 
 @with_setup(test_values_off, test_values_raise)
 def test_vpn():
-    l = VariancePropagationNetwork(2, [10, 12], 4, ['rectifier', 'sigmoid'], 'identity', 'expected_hinge_1')
+    l = vpmlp.VariancePropagationNetwork(
+        2, [10, 12], 4, ['rectifier', 'sigmoid'], 'identity',
+        'expected_hinge_1')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt', 'target'], grad, mode='FAST_COMPILE')
@@ -82,7 +84,8 @@ def test_vpn():
 
 @with_setup(test_values_off, test_values_raise)
 def test_fdn():
-    l = FastDropoutNetwork(2, [10, 12], 4, ['rectifier', 'sigmoid'], 'identity', 'squared')
+    l = vpmlp.FastDropoutNetwork(
+        2, [10, 12], 4, ['rectifier', 'sigmoid'], 'identity', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     grad = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt', 'target'], grad, mode='FAST_COMPILE')
@@ -275,7 +278,7 @@ def test_lds_values():
         [-6.4070, -5.0747, 6.2577],
     ]
 
-    assert roughly(f, f_desired, 1E-4), 'filtered means not correct'
+    assert roughly(f, f_desired, 1E-8), 'filtered means not correct'
     assert roughly(F, F_desired, 1E-4), 'filtered covs not correct'
     assert roughly(ll, [-38.3636], 1E-4), 'log likelihood calculated wrong: %f' % ll
 
@@ -395,10 +398,11 @@ def test_usrnn():
 
 @with_setup(test_values_off, test_values_raise)
 def test_pooling_rnn():
-    l = SupervisedRecurrentNetwork(2, [3], 1, hidden_transfers=['sigmoid'],
-                        pooling='mean', loss='ncac')
+    l = SupervisedRecurrentNetwork(
+        2, [3], 1, hidden_transfers=['sigmoid'], pooling='mean', loss='ncac')
 
-    l = SupervisedRecurrentNetwork(2, 3, 1, 'sigmoid', 'identity', 'ncac', 'mean')
+    l = SupervisedRecurrentNetwork(
+        2, 3, 1, 'sigmoid', 'identity', 'ncac', 'mean')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
     d_loss_wrt_pars = T.grad(l.exprs['loss'], l.parameters.flat)
     fprime = l.function(['inpt', 'target'], d_loss_wrt_pars,
@@ -475,3 +479,77 @@ def test_pooling_uslstmrnn():
 
     f(X)
     fprime(X)
+
+
+@with_setup(test_values_off, test_values_raise)
+def test_varprop_rnn():
+    m = vprnn.SupervisedRecurrentNetwork(
+        2, [3],  1, ['sigmoid'], 'identity', 'squared')
+
+    f = m.function(['inpt_mean', 'inpt_var', 'target'], 'loss',
+                   mode='FAST_COMPILE')
+    d_loss_wrt_pars = T.grad(m.exprs['loss'], m.parameters.flat)
+    fprime = m.function(['inpt_mean', 'inpt_var', 'target'], d_loss_wrt_pars,
+                        mode='FAST_COMPILE')
+
+    X = np.random.random((10, 30, 2)).astype(theano.config.floatX)
+    Z = np.random.random((10, 30, 1)).astype(theano.config.floatX)
+
+    f(X, X, Z)
+    fprime(X, X, Z)
+
+
+@with_setup(test_values_off, test_values_raise)
+def test_varprop_rnn_hotk():
+    m = vprnn.SupervisedRecurrentNetwork(
+        2, [3],  1, ['sigmoid'], 'identity', 'squared',
+        hotk_inpt=True)
+
+    f = m.function(['inpt_mean', 'inpt_var', 'target'], 'loss',
+                   mode='FAST_COMPILE')
+    d_loss_wrt_pars = T.grad(m.exprs['loss'], m.parameters.flat)
+    fprime = m.function(['inpt_mean', 'inpt_var', 'target'], d_loss_wrt_pars,
+                        mode='FAST_COMPILE')
+
+    X = np.random.random((10, 30, 1)).astype('uint32')
+    Z = np.random.random((10, 30, 1)).astype(theano.config.floatX)
+
+    f(X, X, Z)
+    fprime(X, X, Z)
+
+
+@with_setup(test_values_off, test_values_raise)
+def test_fd_rnn():
+    m = vprnn.FastDropoutRnn(
+        2, [3],  1, ['sigmoid'], 'identity', 'squared')
+
+    f = m.function(['inpt_mean', 'inpt_var', 'target'], 'loss',
+                   mode='FAST_COMPILE')
+    d_loss_wrt_pars = T.grad(m.exprs['loss'], m.parameters.flat)
+    fprime = m.function(['inpt_mean', 'inpt_var', 'target'], d_loss_wrt_pars,
+                        mode='FAST_COMPILE')
+
+    X = np.random.random((10, 30, 2)).astype(theano.config.floatX)
+    Z = np.random.random((10, 30, 1)).astype(theano.config.floatX)
+
+    f(X, X, Z)
+    fprime(X, X, Z)
+
+
+@with_setup(test_values_off, test_values_raise)
+def test_fd_rnn_hotk():
+    m = vprnn.FastDropoutRnn(
+        2, [3],  1, ['sigmoid'], 'identity', 'squared',
+        hotk_inpt=True)
+
+    f = m.function(['inpt_mean', 'inpt_var', 'target'], 'loss',
+                   mode='FAST_COMPILE')
+    d_loss_wrt_pars = T.grad(m.exprs['loss'], m.parameters.flat)
+    fprime = m.function(['inpt_mean', 'inpt_var', 'target'], d_loss_wrt_pars,
+                        mode='FAST_COMPILE')
+
+    X = np.random.random((10, 30, 1)).astype('uint32')
+    Z = np.random.random((10, 30, 1)).astype(theano.config.floatX)
+
+    f(X, X, Z)
+    fprime(X, X, Z)

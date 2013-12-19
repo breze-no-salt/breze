@@ -291,7 +291,7 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
 
 def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         hidden_biases, hidden_var_biases_sqrt, initial_hiddens, recurrents,
-        out_bias, hidden_transfers, out_transfer, p_dropouts):
+        out_bias, hidden_transfers, out_transfer, p_dropouts, hotk_inpt):
     """Return a dictionary containing Theano expressions for various components
     of a recurrent network with variance propagation.
 
@@ -376,16 +376,20 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
     f_hiddens = [lookup(i, transfer) for i in hidden_transfers]
     f_output = lookup(out_transfer, transfer)
 
-    if inpt_var.ndim == 0:
+    if inpt_var.ndim != 3:
         # Scalar
         inpt_var = T.ones_like(inpt_mean) * inpt_var
 
-    hmi, hvi, hmo, hvo = forward_layer(
-    # Uncomment for faster one of k
-    #hmi, hvi, hmo, hvo = int_forward_layer(
-        inpt_mean, inpt_var, in_to_hidden,
-        hidden_biases[0], hidden_var_biases_sqrt[0],
-        f_hiddens[0], p_dropouts[0])
+    if hotk_inpt:
+        hmi, hvi, hmo, hvo = int_forward_layer(
+            inpt_mean, inpt_var, in_to_hidden,
+            hidden_biases[0], hidden_var_biases_sqrt[0],
+            f_hiddens[0], p_dropouts[0])
+    else:
+        hmi, hvi, hmo, hvo = forward_layer(
+            inpt_mean, inpt_var, in_to_hidden,
+            hidden_biases[0], hidden_var_biases_sqrt[0],
+            f_hiddens[0], p_dropouts[0])
 
     hmi_rec, hvi_rec, hmo_rec, hvo_rec = recurrent_layer(
         hmi, hvi, recurrents[0], f_hiddens[0], initial_hiddens[0],
@@ -443,7 +447,8 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
                  pooling=None, leaky_coeffs=None,
                  p_dropout_inpt=.2, p_dropout_hidden=.5,
                  p_dropout_hidden_to_out=None,
-                 use_varprop_at=None):
+                 use_varprop_at=None,
+                 hotk_inpt=False):
         self.n_inpt = n_inpt
         self.n_output = n_output
 
@@ -466,6 +471,9 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
             self.p_dropout_inpt = p_dropout_inpt
         if not hasattr(self, 'p_dropout_hidden'):
             self.p_dropout_hidden = p_dropout_hidden
+        if not hasattr(self, 'hotk_inpt'):
+            self.hotk_inpt = hotk_inpt
+
         if p_dropout_hidden_to_out is None:
             if not hasattr(self, 'p_dropout_hidden_to_out'):
                 self.p_dropout_hidden_to_out = p_dropout_hidden
@@ -492,8 +500,6 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
         hidden_biases = [getattr(pars, 'hidden_bias_%i' % i)
                          for i in range(len(self.n_hiddens))]
         hidden_var_biases_sqrt = [1 if i else 0 for i in self.use_varprop_at]
-        for i, j in enumerate(self.no_varprop_at):
-            hidden_var_biases_sqrt
         recurrents = [getattr(pars, 'recurrent_%i' % i)
                       for i in range(len(self.n_hiddens))]
         initial_hiddens = [getattr(pars, 'initial_hidden_%i' % i)
@@ -506,23 +512,26 @@ class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
             initial_hiddens, recurrents, pars.out_bias,
             self.hidden_transfers, self.out_transfer, self.loss,
             self.pooling, self.leaky_coeffs,
-            [self.p_dropout_inpt] + [self.p_dropout_hidden] * len(recurrents))
+            [self.p_dropout_inpt] + [self.p_dropout_hidden] * len(recurrents),
+            self.hotk_inpt)
 
     @staticmethod
     def make_exprs(inpt_mean, inpt_var, target, in_to_hidden, hidden_to_hiddens, hidden_to_out,
                    hidden_biases, hidden_var_biases_sqrt,
                    initial_hiddens, recurrents, out_bias,
                    hidden_transfers, out_transfer, loss, pooling, leaky_coeffs,
-                   p_dropouts):
+                   p_dropouts, hotk_inpt):
         if pooling is not None:
             raise NotImplementedError("I don't know about pooling yet.")
         if leaky_coeffs is not None:
             raise NotImplementedError("I don't know about leaky coefficiens "
                                       "yet.")
+
         exprs = rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens,
                     hidden_to_out, hidden_biases, hidden_var_biases_sqrt,
                     initial_hiddens, recurrents,
-                    out_bias, hidden_transfers, out_transfer, p_dropouts)
+                    out_bias, hidden_transfers, out_transfer, p_dropouts,
+                    hotk_inpt)
         f_loss = lookup(loss, loss_)
         sum_axis = 2
         loss_row_wise = f_loss(target, exprs['output']).sum(axis=sum_axis)
@@ -575,6 +584,7 @@ class FastDropoutRnn(SupervisedRecurrentNetwork):
             hidden_var_biases_sqrt,
             initial_hiddens, recurrents, pars.out_bias,
             self.hidden_transfers, self.out_transfer, self.loss,
-            self.pooling, self.leaky_coeffs, p_dropouts)
+            self.pooling, self.leaky_coeffs, p_dropouts,
+            self.hotk_inpt)
 
         self.exprs['inpt'] = inpt_mean

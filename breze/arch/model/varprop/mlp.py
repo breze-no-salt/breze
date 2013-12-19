@@ -30,6 +30,9 @@ def mean_var_forward(in_mean, in_var, weights, bias, variance_bias_sqrt,
 
 def int_mean_var_forward(in_mean, in_var, weights, bias, variance_bias_sqrt,
                          f, p_dropout):
+    # TODO: document
+    # in_mean: (N,), integers -- indexes the input matrix
+    # in_var: (N,), floats -- represents the variance of the input
     in_mean = T.cast(in_mean, 'uint32')
     p_keep = 1 - p_dropout
     dropout_var = p_dropout * (1 - p_dropout)
@@ -39,10 +42,11 @@ def int_mean_var_forward(in_mean, in_var, weights, bias, variance_bias_sqrt,
 
     out_in_mean = p_keep * k_weight + bias
     out_in_mean.name = 'out_in_mean'
-    out_in_var = dropout_var * weights[in_mean] ** 2# + p_keep * in_var[in_mean]
+    out_in_var = (dropout_var * weights[in_mean] ** 2
+                  + p_keep * in_var.dimshuffle(0, 'x'))
     out_in_var.name = 'out_in_var'
 
-    #out_in_var *= variance_bias_sqrt ** 2
+    out_in_var *= variance_bias_sqrt ** 2
     out_mean, out_var = f(out_in_mean, out_in_var)
     return out_in_mean, out_in_var, out_mean, out_var
 
