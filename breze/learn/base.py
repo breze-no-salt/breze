@@ -6,6 +6,7 @@ learning algorithms."""
 
 import itertools
 import warnings
+import signal
 
 import climin
 import climin.util
@@ -115,6 +116,9 @@ class BrezeWrapperBase(object):
             return True if the iterator should yield a value.
         :returns: An iterator over info dictionaries.
         """
+        self.CTRL_C_FLAG = False
+        signal.signal(signal.SIGINT, self._ctrl_c_handler)
+
         loss_key = 'true_loss' if 'true_loss' in self.exprs else 'loss'
         f_loss = self.function(self.data_arguments, loss_key)
 
@@ -140,8 +144,12 @@ class BrezeWrapperBase(object):
                 info['best_pars'] = best_pars
 
                 yield info
-                if stop(info):
+
+                if stop(info) or self.CTRL_C_FLAG:
                     break
+
+    def _ctrl_c_handler(self, signal, frame):
+        self.CTRL_C_FLAG = True
 
 
 class SupervisedBrezeWrapperBase(BrezeWrapperBase):
