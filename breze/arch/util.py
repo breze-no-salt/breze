@@ -196,6 +196,22 @@ def lookup(what, where, default=None):
     return res
 
 
+def get_named_variables(dct, name=True, overwrite=False, prefix=''):
+    """Return a dictionary with all the items from ``dct`` with only Theano
+    variables/expressions.
+
+    If ``name`` is set to True, the variables will be named accordingly, however
+    not be overwritten unless ``overwrite`` is True as well.
+    """
+    exprs = [(k, v) for k, v in dct.items()
+             if isinstance(v, theano.tensor.basic.TensorVariable)]
+    if name:
+        for k, v in exprs:
+            if not hasattr(v, 'name') or overwrite:
+                v.name = '%s%s' % (prefix, k)
+    return dict(exprs)
+
+
 def lookup_some_key(what, where, default=None):
     """Given a list of keys ``what``, return the first of those to which there
     is an item in ``where``.
