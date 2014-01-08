@@ -402,8 +402,8 @@ class Model(object):
 
     def __init__(self):
         self.updates = collections.defaultdict(dict)
-        self.init_pars()
-        self.init_exprs()
+        self._init_pars()
+        self._init_exprs()
 
         # This is a dictionary which is supposed to hold substitions of
         # variables from .exprs for the use with the GPU.

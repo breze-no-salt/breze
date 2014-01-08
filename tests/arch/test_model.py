@@ -24,17 +24,6 @@ from tools import test_values_off, test_values_raise
 
 
 @with_setup(test_values_off, test_values_raise)
-def test_linear():
-    l = Linear(2, 3, 'softabs', 'squared')
-    f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
-    grad = T.grad(l.exprs['loss'], l.parameters.flat)
-    fprime = l.function(['inpt', 'target'], grad, mode='FAST_COMPILE')
-
-    f(np.random.random((10, 2)), np.random.random((10, 3)))
-    fprime(np.random.random((10, 2)), np.random.random((10, 3)))
-
-
-@with_setup(test_values_off, test_values_raise)
 def test_2lp():
     l = TwoLayerPerceptron(2, 10, 3, 'tanh', 'softabs', 'squared')
     f = l.function(['inpt', 'target'], 'loss', mode='FAST_COMPILE')
