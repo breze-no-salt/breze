@@ -203,7 +203,7 @@ def get_named_variables(dct, name=True, overwrite=False, prefix=''):
     If ``name`` is set to True, the variables will be named accordingly, however
     not be overwritten unless ``overwrite`` is True as well.
     """
-    exprs = [(k, v) for k, v in dct.items()
+    exprs = [('%s%s' % (prefix, k), v) for k, v in dct.items()
              if isinstance(v, theano.tensor.basic.TensorVariable)]
     if name:
         for k, v in exprs:
