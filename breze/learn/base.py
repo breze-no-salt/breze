@@ -15,7 +15,6 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-
 from data import iter_minibatches
 
 GPU = theano.config.device == 'gpu'
