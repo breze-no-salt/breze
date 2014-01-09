@@ -295,6 +295,7 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
 
     data_arguments = 'inpt',
     sample_dim = 0,
+    f_score = None
 
     def iter_fit(self, X):
         """Iteratively fit the parameters of the model to the given data.
@@ -363,6 +364,33 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
             ['inpt'], d_loss, explicit_pars=True, givens=givens, mode=mode,
             on_unused_input=on_unused_input)
         return f_loss, f_d_loss
+
+    def _make_score_function(self):
+        """Return a function to predict targets from input sequences."""
+        key = 'true_loss' if 'true_loss' in self.exprs else 'loss'
+        return self.function(['inpt'], key)
+
+    def score(self, X):
+        """Return the score of the model given the input and targets.
+
+        Parameters
+        ----------
+
+        X : array_like
+            Input to the model.
+
+        Returns
+        -------
+
+        l : scalar
+            Score of the model.
+        """
+        X = cast_array_to_local_type(X)
+        if self.f_score is None:
+            self.f_score = self._make_score_function()
+        l = self.f_score(X)
+
+        return l
 
 
 class TransformBrezeWrapperMixin(object):
