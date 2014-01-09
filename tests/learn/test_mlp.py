@@ -4,6 +4,7 @@ import numpy as np
 
 from breze.learn.mlp import Mlp
 from breze.learn.mlp import DropoutMlp
+from breze.learn.cnn import Cnn
 #from breze.learn.mlp import FastDropoutNetwork
 #from breze.learn.mlp import AwnNetwork
 
@@ -55,6 +56,58 @@ def test_dmlp_predict():
     mlp = DropoutMlp(2, [10], 1, ['tanh'], 'identity', 'squared', max_iter=10,
                      p_dropout_inpt=.2, p_dropout_hiddens=[0.5])
     mlp.predict(X)
+
+
+def test_cnn_iter_fit():
+    X = np.random.standard_normal((10, 2 * 100 * 50))
+    Z = np.random.random((10, 1)) > 0.5
+
+    m = Cnn(100 * 50, [10, 15], [20, 12], 1,
+            ['sigmoid', 'sigmoid'], ['rectifier', 'rectifier'],
+            'sigmoid',
+            'nce', 100, 50, 2,
+            optimizer=('rmsprop', {'steprate': 1e-4, 'decay': 0.9}),
+            batch_size=2,
+            max_iter=10,
+            pool_size=(2, 2),
+            filter_shapes=[(4, 4), (3, 3)],
+            )
+    for i, info in enumerate(m.iter_fit(X, Z)):
+        if i >= 10:
+            break
+
+
+def test_cnn_fit():
+    X = np.random.standard_normal((10, 2 * 100 * 50))
+    Z = np.random.random((10, 1 )) > 0.5
+
+    m = Cnn(100 * 50, [10, 15], [20, 12], 1,
+            ['sigmoid', 'sigmoid'], ['rectifier', 'rectifier'],
+            'sigmoid',
+            'nce', 100, 50, 2,
+            optimizer=('rmsprop', {'steprate': 1e-4, 'decay': 0.9}),
+            batch_size=2,
+            max_iter=10,
+            pool_size=(2, 2),
+            filter_shapes=[(4, 4), (3, 3)],
+            )
+    m.fit(X, Z)
+
+def test_cnn_predict():
+    X = np.random.standard_normal((10, 2 * 100 * 50))
+    Z = np.random.random((10, 1)) > 0.5
+
+    m = Cnn(100 * 50, [10, 15], [20, 12], 1,
+            ['sigmoid', 'sigmoid'], ['rectifier', 'rectifier'],
+            'sigmoid',
+            'nce', 100, 50, 2,
+            optimizer=('rmsprop', {'steprate': 1e-4, 'decay': 0.9}),
+            batch_size=2,
+            max_iter=10,
+            pool_size=(2, 2),
+            filter_shapes=[(4, 4), (3, 3)],
+            )
+    m.predict(X)
 
 
 def test_fd_fit():

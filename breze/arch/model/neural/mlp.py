@@ -3,8 +3,8 @@
 
 import theano.tensor as T
 
-from ..util import ParameterSet, Model, lookup
-from ..component import transfer, loss as loss_, layer, corrupt
+from ...util import ParameterSet, Model, lookup
+from ...component import transfer, loss as loss_, layer, corrupt
 
 
 def parameters(n_inpt, n_hiddens, n_output):
