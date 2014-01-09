@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 
 
-import theano.tensor as T
-
-from ...util import ParameterSet, Model, lookup
-from ...component import transfer, loss as loss_, layer, corrupt
+from ...util import lookup
+from ...component import loss as loss_, layer, corrupt
 
 
 def parameters(n_inpt, n_hiddens, n_output):
@@ -27,6 +25,7 @@ def exprs(inpt, target, in_to_hidden, hidden_to_hiddens, hidden_to_out,
           hidden_transfers, out_transfer,
           loss=None,
           p_dropout_inpt=False, p_dropout_hiddens=False,
+          prefix=''
           ):
 
     if not len(hidden_to_hiddens) + 1 == len(hidden_biases) == len(hidden_transfers):
@@ -71,5 +70,7 @@ def exprs(inpt, target, in_to_hidden, hidden_to_hiddens, hidden_to_out,
 
         exprs['loss_rowwise'] = loss_rowwise
         exprs['loss'] = loss
+
+    exprs = dict(('%s%s' % (prefix, k), v) for k, v in exprs.items())
 
     return exprs
