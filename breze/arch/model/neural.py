@@ -4,161 +4,72 @@
 import theano.tensor as T
 
 from ..util import ParameterSet, Model, lookup
-from ..component import transfer, loss as loss_
+from ..component import transfer, loss as loss_, layer, corrupt
 
 
-class TwoLayerPerceptron(Model):
+def parameters(n_inpt, n_hiddens, n_output):
+    spec = dict(in_to_hidden=(n_inpt, n_hiddens[0]),
+                hidden_to_out=(n_hiddens[-1], n_output),
+                hidden_bias_0=n_hiddens[0],
+                out_bias=n_output)
 
-    def __init__(self, n_inpt, n_hidden, n_output,
-                 hidden_transfer, out_transfer, loss):
-        self.n_inpt = n_inpt
-        self.n_hidden = n_hidden
-        self.n_output = n_output
+    zipped = zip(n_hiddens[:-1], n_hiddens[1:])
+    spec['hidden_bias_0'] = n_hiddens[0]
+    for i, (inlayer, outlayer) in enumerate(zipped):
+        spec['hidden_to_hidden_%i' % i] = (inlayer, outlayer)
+        spec['hidden_bias_%i' % (i + 1)] = outlayer
 
-        self.hidden_transfer = hidden_transfer
-        self.out_transfer = out_transfer
-        self.loss = loss
+    return spec
 
-        super(TwoLayerPerceptron, self).__init__()
 
-    def init_pars(self):
-        parspec = self.get_parameter_spec(
-            self.n_inpt, self.n_hidden, self.n_output)
-        self.parameters = ParameterSet(**parspec)
+def exprs(inpt, target, in_to_hidden, hidden_to_hiddens, hidden_to_out,
+          hidden_biases, out_bias,
+          hidden_transfers, out_transfer,
+          loss=None,
+          p_dropout_inpt=False, p_dropout_hiddens=False,
+          ):
 
-    def init_exprs(self):
-        self.exprs = self.make_exprs(
-            T.matrix('inpt'), T.matrix('target'),
-            self.parameters.in_to_hidden, self.parameters.hidden_to_out,
-            self.parameters.hidden_bias, self.parameters.out_bias,
-            self.hidden_transfer, self.out_transfer, self.loss)
+    if not len(hidden_to_hiddens) + 1 == len(hidden_biases) == len(hidden_transfers):
+        print (hidden_to_hiddens)
+        print (hidden_biases)
+        print (hidden_transfers)
+        raise ValueError('n_hiddens and hidden_transfers and hidden_biases '
+                         'have to be of the same length')
 
-    @staticmethod
-    def get_parameter_spec(n_inpt, n_hidden, n_output):
-        return dict(in_to_hidden=(n_inpt, n_hidden),
-                    hidden_to_out=(n_hidden, n_output),
-                    hidden_bias=n_hidden,
-                    out_bias=n_output)
+    weights = [in_to_hidden] + hidden_to_hiddens + [hidden_to_out]
+    biases = hidden_biases + [out_bias]
+    transfers = hidden_transfers + [out_transfer]
 
-    @staticmethod
-    def make_exprs(inpt, target, in_to_hidden, hidden_to_out,
-                   hidden_bias, out_bias,
-                   hidden_transfer, output_transfer, loss):
+    if not p_dropout_inpt:
+        p_dropout_inpt = 0
+    if not p_dropout_hiddens:
+        p_dropout_hiddens = [0] * len(hidden_biases)
 
-        f_hidden = lookup(hidden_transfer, transfer)
-        f_output = lookup(output_transfer, transfer)
+    # We append a 0 because dropout makes no sense at the end.
+    p_dropouts = p_dropout_hiddens + [0]
+
+    exprs = {}
+    last_output = inpt
+    if p_dropout_inpt:
+        last_output = corrupt.mask(last_output, p_dropout_inpt)
+
+    for i, (w, b, t, d) in enumerate(zip(weights, biases, transfers, p_dropouts)):
+        exprs.update(layer.simple(last_output, w, b, t, d, 'layer-%i-' % i))
+        last_output = exprs['layer-%i-output' % i]
+
+    # Tidy up a little; we do not want the last layer to be in the exprs dict
+    # twice.
+    exprs['output'] = exprs['layer-%i-output' % i]
+    exprs['output_in'] = exprs['layer-%i-output_in' % i]
+    del exprs['layer-%i-output' % i]
+    del exprs['layer-%i-output_in' % i]
+
+    if loss is not None:
         f_loss = lookup(loss, loss_)
-
-        hidden_in = T.dot(inpt, in_to_hidden) + hidden_bias
-        hidden = f_hidden(hidden_in)
-
-        output_in = T.dot(hidden, hidden_to_out) + out_bias
-        output = f_output(output_in)
-
-        loss_rowwise = f_loss(target, output).sum(axis=1)
+        loss_rowwise = f_loss(target, last_output).sum(axis=1)
         loss = loss_rowwise.mean()
 
-        return {
-            'inpt': inpt,
-            'target': target,
-            'hidden_in': hidden_in,
-            'hidden': hidden,
-            'output_in': output_in,
-            'output': output,
-            'loss_rowwise': loss_rowwise,
-            'loss': loss
-        }
+        exprs['loss_rowwise'] = loss_rowwise
+        exprs['loss'] = loss
 
-
-class MultiLayerPerceptron(Model):
-
-    def __init__(self, n_inpt, n_hiddens, n_output,
-                 hidden_transfers, out_transfer, loss):
-        if len(n_hiddens) != len(hidden_transfers):
-            raise ValueError('n_hiddens and hidden_transfers have to be of the'
-                             'same length')
-        self.n_inpt = n_inpt
-        self.n_hiddens = n_hiddens
-        self.n_output = n_output
-
-        self.hidden_transfers = hidden_transfers
-        self.out_transfer = out_transfer
-        self.loss = loss
-
-        super(MultiLayerPerceptron, self).__init__()
-
-    def init_pars(self):
-        parspec = self.get_parameter_spec(
-            self.n_inpt, self.n_hiddens, self.n_output)
-        self.parameters = ParameterSet(**parspec)
-
-    def init_exprs(self):
-        hidden_to_hiddens = [getattr(self.parameters, 'hidden_to_hidden_%i' % i)
-                             for i in range(len(self.n_hiddens) - 1)]
-        hidden_biases = [getattr(self.parameters, 'hidden_bias_%i' % i)
-                         for i in range(len(self.n_hiddens))]
-        self.exprs = self.make_exprs(
-            T.matrix('inpt'), T.matrix('target'),
-            self.parameters.in_to_hidden,
-            hidden_to_hiddens,
-            self.parameters.hidden_to_out,
-            hidden_biases,
-            self.parameters.out_bias,
-            self.hidden_transfers, self.out_transfer, self.loss)
-
-    @staticmethod
-    def get_parameter_spec(n_inpt, n_hiddens, n_output):
-        spec = dict(in_to_hidden=(n_inpt, n_hiddens[0]),
-                    hidden_to_out=(n_hiddens[-1], n_output),
-                    hidden_bias_0=n_hiddens[0],
-                    out_bias=n_output)
-
-        zipped = zip(n_hiddens[:-1], n_hiddens[1:])
-        spec['hidden_bias_0'] = n_hiddens[0]
-        for i, (inlayer, outlayer) in enumerate(zipped):
-            spec['hidden_to_hidden_%i' % i] = (inlayer, outlayer)
-            spec['hidden_bias_%i' % (i + 1)] = outlayer
-
-        return spec
-
-    @staticmethod
-    def make_exprs(inpt, target, in_to_hidden,
-                   hidden_to_hiddens,
-                   hidden_to_out,
-                   hidden_biases,
-                   out_bias,
-                   hidden_transfers, output_transfer, loss):
-        exprs = {}
-
-        f_hidden = lookup(hidden_transfers[0], transfer)
-        hidden_in = exprs['hidden_in_0'] = T.dot(inpt, in_to_hidden) + hidden_biases[0]
-        hidden = exprs['hidden_0'] =  f_hidden(hidden_in)
-
-        zipped = zip(hidden_to_hiddens, hidden_biases[1:], hidden_transfers[1:])
-        for i, (w, b, t) in enumerate(zipped):
-            hidden_m1 = hidden
-            hidden_in = T.dot(hidden_m1, w) + b
-            f = lookup(t, transfer)
-            hidden = f(hidden_in)
-            exprs['hidden_in_%i' % (i + 1)] = hidden_in
-            exprs['hidden_%i' % (i + 1)] = hidden
-
-        f_output = lookup(output_transfer, transfer)
-        output_in = T.dot(hidden, hidden_to_out) + out_bias
-        output = f_output(output_in)
-
-        f_loss = lookup(loss, loss_)
-
-        loss_rowwise = f_loss(target, output).sum(axis=1)
-        loss = loss_rowwise.mean()
-
-        exprs.update({
-            'inpt': inpt,
-            'target': target,
-            'output_in': output_in,
-            'output': output,
-            'loss_rowwise': loss_rowwise,
-            'loss': loss
-        })
-
-        return exprs
+    return exprs
