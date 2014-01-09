@@ -118,9 +118,6 @@ class BrezeWrapperBase(object):
         self.CTRL_C_FLAG = False
         signal.signal(signal.SIGINT, self._ctrl_c_handler)
 
-        loss_key = 'true_loss' if 'true_loss' in self.exprs else 'loss'
-        f_loss = self.function(self.data_arguments, loss_key)
-
         best_pars = None
         best_loss = float('inf')
 
@@ -130,10 +127,10 @@ class BrezeWrapperBase(object):
                     # Not all optimizers, e.g. ilne and gd, do actually
                     # calculate the loss.
                     if eval_train_loss:
-                        info['loss'] = ma.scalar(f_loss(*fit_data))
+                        info['loss'] = ma.scalar(self.score(*fit_data))
                     else:
                         info['loss'] = 0.
-                info['val_loss'] = ma.scalar(f_loss(*eval_data))
+                info['val_loss'] = ma.scalar(self.score(*eval_data))
 
                 if info['val_loss'] < best_loss:
                     best_loss = info['val_loss']
@@ -155,6 +152,9 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
     data_arguments = 'inpt', 'target'
     sample_dim = 0, 0
+
+    f_score = None
+    f_predict = None
 
     def _make_loss_functions(self, mode=None, givens=None,
                              on_unused_input='raise'):
@@ -258,6 +258,37 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         Y = self.f_predict(X)
 
         return Y
+
+    def _make_score_function(self):
+        """Return a function to predict targets from input sequences."""
+        key = 'true_loss' if 'true_loss' in self.exprs else 'loss'
+        return self.function(['inpt', 'target'], key)
+
+    def score(self, X, Z):
+        """Return the score of the model given the input and targets.
+
+        Parameters
+        ----------
+
+        X : array_like
+            Input to the model.
+
+        Z : array_like
+            Target for the inputs.
+
+        Returns
+        -------
+
+        l : scalar
+            Score of the model.
+        """
+        X = cast_array_to_local_type(X)
+        Z = cast_array_to_local_type(Z)
+        if self.f_score is None:
+            self.f_score = self._make_score_function()
+        l = self.f_score(X, Z)
+
+        return l
 
 
 class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):

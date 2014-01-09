@@ -15,7 +15,7 @@ import theano
 import theano.tensor as T
 import theano.tensor.shared_randomstreams
 
-from breze.arch.model import neural
+from breze.arch.model.neural import mlp
 #from breze.arch.model.varprop import FastDropoutNetwork
 #from breze.arch.model.awn import AdaptiveWeightNoiseNetwork
 from breze.arch.component import corrupt
@@ -92,7 +92,7 @@ class Mlp(Model, SupervisedBrezeWrapperBase):
         super(Mlp, self).__init__()
 
     def _init_pars(self):
-        spec = neural.parameters(self.n_inpt, self.n_hiddens, self.n_output)
+        spec = mlp.parameters(self.n_inpt, self.n_hiddens, self.n_output)
         self.parameters = ParameterSet(**spec)
         self.parameters.data[:] = np.random.standard_normal(
             self.parameters.data.shape).astype(theano.config.floatX)
@@ -110,7 +110,7 @@ class Mlp(Model, SupervisedBrezeWrapperBase):
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
 
-        self.exprs.update(neural.exprs(
+        self.exprs.update(mlp.exprs(
             self.exprs['inpt'], self.exprs['target'],
             P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
             hidden_biases, P.out_bias,
