@@ -66,6 +66,7 @@ def nce(target, prediction):
         up to one and be strictly positive for this measure to make sense.
     :returns: An array of the same size as `target` and `prediction`
         representing the pairwise divergences."""
+    prediction = T.clip(prediction, 1e-8, 1 - 1e-8)
     return -(target * T.log(prediction))
 
 
