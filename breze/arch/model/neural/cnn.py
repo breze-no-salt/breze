@@ -6,9 +6,10 @@ import theano.tensor as T
 from theano.tensor.nnet import conv
 from theano.tensor.signal import downsample
 
-
 from ...util import lookup
 from ...component import transfer, loss as loss_
+
+import mlp
 
 
 def parameters(n_inpt, n_hidden_conv, n_hidden_full, n_output,
@@ -67,39 +68,33 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
         hidden_in_down = hidden_in_predown + b.dimshuffle('x', 0, 'x', 'x')
         f = lookup(t, transfer)
         hidden = f(hidden_in_down)
-        exprs['hidden_in_%i' % (i + 1)] = hidden_in_down
-        exprs['hidden_%i' % (i + 1)] = hidden
+        exprs['conv-hidden_in_%i' % (i + 1)] = hidden_in_down
+        exprs['conv-hidden_%i' % (i + 1)] = hidden
 
     # Mlp part
-    f_hidden = lookup(hidden_full_transfers[0], transfer)
     hidden_middle = hidden.flatten(2)
-    offset = len(hidden_conv_to_hidden_conv)
-    hidden_in = T.dot(hidden_middle, hidden_conv_to_hidden_full) + hidden_full_bias[0]
-    exprs['hidden_in_0'] = hidden_in
-    hidden = exprs['hidden_0'] = f_hidden(hidden_in)
-    zipped = zip(hidden_full_to_hidden_full, hidden_full_bias[1:], hidden_full_transfers[1:])
-    for i, (w, b, t) in enumerate(zipped):
-        hidden_m1 = hidden
-        hidden_in = T.dot(hidden_m1, w) + b
-        f = lookup(t, transfer)
-        hidden = f(hidden_in)
-        exprs['hidden_in_%i' % (i + offset + 1)] = hidden_in
-        exprs['hidden_%i' % (i + offset + 1)] = hidden
 
-    f_output = lookup(output_transfer, transfer)
-    output_in = T.dot(hidden, hidden_to_out) + out_bias
-    output = f_output(output_in)
+    exprs.update(mlp.exprs(
+        hidden_middle, None, hidden_conv_to_hidden_full,
+        hidden_full_to_hidden_full,
+        hidden_to_out, hidden_full_bias, out_bias,
+        hidden_full_transfers, output_transfer,
+        prefix='mlp-'))
 
     f_loss = lookup(loss, loss_)
 
-    loss_rowwise = f_loss(target, output).sum(axis=1)
+    # Tidy a little.
+    exprs['output'] = exprs['mlp-output']
+    exprs['output'].name = 'output'
+    del exprs['mlp-output']
+    exprs['output_in'] = exprs['mlp-output_in']
+    del exprs['mlp-output_in']
+    exprs['output_in'].name = 'output_in'
+
+    loss_rowwise = f_loss(target, exprs['output']).sum(axis=1)
     loss = loss_rowwise.mean()
 
     exprs.update({
-        'inpt': inpt,
-        'target': target,
-        'output_in': output_in,
-        'output': output,
         'loss_rowwise': loss_rowwise,
         'loss': loss
     })
