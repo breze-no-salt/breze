@@ -81,18 +81,18 @@ described in the corresponding paragraphs.
 import climin.initialize
 import numpy as np
 import theano
+import theano.tensor as T
 
-from breze.arch.model.feature import (
-    AutoEncoder as _AutoEncoder,
-    SparseAutoEncoder as _SparseAutoEncoder,
-    ContractiveAutoEncoder as _ContractiveAutoEncoder,
-    DenoisingAutoEncoder as _DenoisingAutoEncoder)
 from breze.learn.base import (
     UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin,
     ReconstructBrezeWrapperMixin)
+from breze.arch.model.neural import mlp, autoencoder
+from breze.arch.component import loss as loss_
+from breze.arch.util import ParameterSet, Model, lookup, get_named_variables
+from breze.arch.component import corrupt
 
 
-class AutoEncoder(_AutoEncoder, UnsupervisedBrezeWrapperBase,
+class AutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                   TransformBrezeWrapperMixin, ReconstructBrezeWrapperMixin):
     """Auto Encoder class.
 
@@ -111,17 +111,18 @@ class AutoEncoder(_AutoEncoder, UnsupervisedBrezeWrapperBase,
     exprs : dictionary
         Dictionary containing the different symbolic variables of the model.
 
-    feature_transfer : string or function
+    hidden_transfers: list of string or functions
         Transfer function being used.
 
-    n_features : integer
-        Number of features/hidden units to detect.
+    n_hiddens : list of integer
+        Number of features/hidden units to detect per layer.
     """
 
-    transform_expr_name = 'hidden'
+    transform_expr_name = 'feature'
 
-    def __init__(self, n_inpt, n_hidden, hidden_transfer='identity',
+    def __init__(self, n_inpt, n_hiddens, hidden_transfers,
                  out_transfer='identity', loss='squared', tied_weights=True,
+                 code_idx=None,
                  batch_size=None,
                  optimizer='lbfgs', max_iter=1000, verbose=False):
         """Create an AutoEncoder object.
@@ -132,14 +133,14 @@ class AutoEncoder(_AutoEncoder, UnsupervisedBrezeWrapperBase,
         n_inpt : integer
             Input dimensionality of the data.
 
-        n_hidden : integer
-            Dimensionality of the hidden feature dimension.
+        n_hiddens : list of integer
+            Dimensionality of the hidden feature dimension per layer.
 
-        hidden_transfer : string or function
-            Transfer function to use for the hidden units. Can be a string
-            referring any function found in ``breze.component.transfer`` or a
-            function that given an (n, d) array returns an (n, d) array as
-            theano expressions.
+        hidden_transfers : list of strings or functions
+            List of transfer functions to use for the hidden units. Each item
+            can be a string referring any function found in
+            ``breze.arch.component.transfer`` or a function that given an
+            ``(n, d)`` array returns an ``(n, d)`` array as theano expressions.
 
         out_transfer : string or function
             Output transfer function of the linear auto encoder for calculation
@@ -172,21 +173,65 @@ class AutoEncoder(_AutoEncoder, UnsupervisedBrezeWrapperBase,
         verbose : boolean
             Flag indicating whether to print out information during fitting.
         """
-        super(AutoEncoder, self).__init__(
-            n_inpt, n_hidden, hidden_transfer, out_transfer, loss, tied_weights)
+        self.n_inpt = n_inpt
+        self.n_hiddens = n_hiddens
+        self.hidden_transfers = hidden_transfers
+        self.out_transfer = out_transfer
+        self.loss = loss
+        self.tied_weights = tied_weights
+        self.code_idx = code_idx if code_idx is not None else len(n_hiddens) / 2
+
         self.batch_size = batch_size
         self.optimizer = optimizer
+
+        # TODO move this somehwere central (Mixins)
         self.f_transform = None
         self.f_reconstruct = None
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
+
         self.max_iter = max_iter
         self.verbose = verbose
 
+        super(AutoEncoder, self).__init__()
 
-class SparseAutoEncoder(_SparseAutoEncoder, UnsupervisedBrezeWrapperBase,
-                        TransformBrezeWrapperMixin,
-                        ReconstructBrezeWrapperMixin):
+    def _init_exprs(self):
+        self.exprs = {
+            'inpt': T.matrix('inpt'),
+        }
+        P = self.parameters
+
+        n_layers = len(self.n_hiddens)
+        if self.tied_weights:
+            hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
+                                for i in range(n_layers / 2)]
+            hidden_to_hiddens += [i.T for i in reversed(hidden_to_hiddens)]
+            hidden_to_out = P.in_to_hidden.T
+        else:
+            hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
+                                for i in range(n_layers - 1)]
+            hidden_to_out = P.hidden_to_out
+        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
+                        for i in range(n_layers)]
+
+        self.exprs.update(mlp.exprs(
+            self.exprs['inpt'], self.exprs['inpt'],
+            P.in_to_hidden, hidden_to_hiddens, hidden_to_out,
+            hidden_biases, P.out_bias,
+            self.hidden_transfers, self.out_transfer,
+            self.loss))
+
+        print self.exprs.keys()
+        self.exprs['feature'] = self.exprs['layer-%i-output' % self.code_idx]
+
+    def _init_pars(self):
+        spec = autoencoder.parameters(
+            self.n_inpt, self.n_hiddens,
+            tied_weights=self.tied_weights)
+        self.parameters = ParameterSet(**spec)
+        self.parameters.data[:] = np.random.standard_normal(
+            self.parameters.data.shape).astype(theano.config.floatX)
+
+
+class SparseAutoEncoder(AutoEncoder):
     """Implementation of the Sparse Auto Encoder (SAE) as described in [UFDLT]_.
 
     The SAE discourages trivial solutions to the reconstruction loss by
@@ -248,13 +293,11 @@ class SparseAutoEncoder(_SparseAutoEncoder, UnsupervisedBrezeWrapperBase,
         loss.
     """
 
-    transform_expr_name = 'hidden'
-
-    def __init__(self, n_inpt, n_hidden, hidden_transfer='sigmoid',
-                 out_transfer='identity', reconstruct_loss='squared',
+    def __init__(self, n_inpt, n_hiddens, hidden_transfers,
+                 out_transfer='identity', loss='squared',
                  c_sparsity=1, sparsity_loss='bern_bern_kl',
                  sparsity_target=0.01,
-                 tied_weights=True, batch_size=None,
+                 tied_weights=True, code_idx=None, batch_size=None,
                  optimizer='lbfgs', max_iter=1000, verbose=False):
         """Create a SparseAutoEncoder object.
 
@@ -278,24 +321,30 @@ class SparseAutoEncoder(_SparseAutoEncoder, UnsupervisedBrezeWrapperBase,
             Subtract this value from each hidden unit before applying the
             sparsity loss.
         """
+        self.c_sparsity = c_sparsity
+        self.sparsity_loss = sparsity_loss
+        self.sparsity_target = sparsity_target
         super(SparseAutoEncoder, self).__init__(
-            n_inpt, n_hidden, hidden_transfer, out_transfer,
-            reconstruct_loss, c_sparsity, sparsity_loss, sparsity_target,
-            tied_weights)
-        self.batch_size = batch_size
-        self.optimizer = optimizer
-        self.f_transform = None
-        self.f_reconstruct = None
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
-        self.max_iter = max_iter
-        self.verbose = verbose
+            n_inpt, n_hiddens, hidden_transfers, out_transfer,
+            loss,
+            tied_weights=tied_weights,
+            code_idx=code_idx,
+            batch_size=batch_size,
+            optimizer=optimizer,
+            max_iter=max_iter,
+            verbose=verbose)
+
+    def _init_exprs(self):
+        super(SparseAutoEncoder, self)._init_exprs()
+        f_sparsity_loss = lookup(self.sparsity_loss, loss_)
+        sparsity_loss = f_sparsity_loss(
+            self.sparsity_target, self.exprs['feature'].mean(axis=0)).sum()
+        loss = self.exprs['loss'] + self.c_sparsity * sparsity_loss
+
+        self.exprs.update(get_named_variables(locals(), overwrite=True))
 
 
-class ContractiveAutoEncoder(_ContractiveAutoEncoder,
-                             UnsupervisedBrezeWrapperBase,
-                             TransformBrezeWrapperMixin,
-                             ReconstructBrezeWrapperMixin):
+class ContractiveAutoEncoder(AutoEncoder):
     """Implementation of the Contractive Auto Encoder (CAE) as described in
     [CAE]_.
 
@@ -328,11 +377,10 @@ class ContractiveAutoEncoder(_ContractiveAutoEncoder,
         reconstruction cost.
     """
 
-    transform_expr_name = 'hidden'
-
-    def __init__(self, n_inpt, n_hidden, hidden_transfer='sigmoid',
-                 out_transfer='identity', reconstruct_loss='squared',
-                 c_jacobian=1, tied_weights=True, batch_size=None,
+    def __init__(self, n_inpt, n_hiddens, hidden_transfers,
+                 out_transfer='identity', loss='squared',
+                 c_jacobian=1,
+                 tied_weights=True, code_idx=None, batch_size=None,
                  optimizer='lbfgs', max_iter=1000, verbose=False):
         """Create a ContractiveAutoEncoder object.
 
@@ -345,23 +393,27 @@ class ContractiveAutoEncoder(_ContractiveAutoEncoder,
             Coefficient weighing the Jacobian cost in comparison to the
             reconstruction cost.
         """
+        self.c_jacobian = c_jacobian
         super(ContractiveAutoEncoder, self).__init__(
-            n_inpt, n_hidden, hidden_transfer, out_transfer,
-            reconstruct_loss, c_jacobian,
-            tied_weights)
-        self.batch_size = batch_size
-        self.optimizer = optimizer
-        self.f_transform = None
-        self.f_reconstruct = None
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
-        self.max_iter = max_iter
-        self.verbose = verbose
+            n_inpt, n_hiddens, hidden_transfers, out_transfer,
+            loss,
+            tied_weights=tied_weights,
+            code_idx=code_idx,
+            batch_size=batch_size,
+            optimizer=optimizer,
+            max_iter=max_iter,
+            verbose=verbose)
+
+    def _init_exprs(self):
+        super(ContractiveAutoEncoder, self)._init_exprs()
+        jacobian_loss = T.sum(T.grad(self.exprs['feature'].mean(axis=0).sum(),
+                              self.exprs['inpt']).mean(axis=0) ** 2)
+        loss = self.exprs['loss'] + self.c_jacobian * jacobian_loss
+
+        self.exprs.update(get_named_variables(locals(), overwrite=True))
 
 
-class DenoisingAutoEncoder(_DenoisingAutoEncoder, UnsupervisedBrezeWrapperBase,
-                           TransformBrezeWrapperMixin,
-                           ReconstructBrezeWrapperMixin):
+class DenoisingAutoEncoder(AutoEncoder):
     """Implementation of the Denoising Auto Encoder (DAE) as described in
     [DAE]_.
 
@@ -398,12 +450,13 @@ class DenoisingAutoEncoder(_DenoisingAutoEncoder, UnsupervisedBrezeWrapperBase,
         zero" probability in case of blink noise.
 
     """
-    transform_expr_name = 'hidden'
 
-    def __init__(self, n_inpt, n_hidden, hidden_transfer='sigmoid',
-                 out_transfer='identity', reconstruct_loss='squared',
+    def __init__(self, n_inpt, n_hiddens, hidden_transfers='sigmoid',
+                 out_transfer='identity', loss='squared',
                  noise_type='gauss', c_noise=.2,
-                 tied_weights=True, batch_size=None,
+                 tied_weights=True,
+                 code_idx=None,
+                 batch_size=None,
                  optimizer='lbfgs', max_iter=1000, verbose=False):
         """Create a DenoisingAutoEncoder object.
 
@@ -421,14 +474,45 @@ class DenoisingAutoEncoder(_DenoisingAutoEncoder, UnsupervisedBrezeWrapperBase,
             Standard deviation of the noise in case of Gaussian
             noise, "set to zero" probability in case of blink noise.
         """
+        self.c_noise = c_noise
+        self.noise_type = noise_type
+
         super(DenoisingAutoEncoder, self).__init__(
-            n_inpt, n_hidden, hidden_transfer, out_transfer,
-            reconstruct_loss, noise_type, c_noise,
-            tied_weights)
-        self.batch_size = batch_size
-        self.optimizer = optimizer
-        self.f_transform = None
-        self.f_reconstruct = None
-        climin.initialize.randomize_normal(self.parameters.data)
-        self.max_iter = max_iter
-        self.verbose = verbose
+            n_inpt, n_hiddens, hidden_transfers, out_transfer,
+            loss,
+            tied_weights=tied_weights,
+            code_idx=code_idx,
+            batch_size=batch_size,
+            optimizer=optimizer,
+            max_iter=max_iter,
+            verbose=verbose)
+
+    def _init_exprs(self):
+        # Here we need to replace the input with a corrupted version. If we do
+        # so naively by calling clone on the loss, the targets (which are
+        # identical to the inputs in thesense of identity in programming) the
+        # targets will be replaced as well. Instead, we just want to thave the
+        # inputs replaced. Thus we first clone the output of the model and
+        # replace the input with the corrupted input. This will not change the
+        # targets. Afterwards, we put that corruption into the loss as well.
+        super(DenoisingAutoEncoder, self)._init_exprs()
+        if self.noise_type == 'gauss':
+            corrupted_inpt = corrupt.gaussian_perturb(
+                    self.exprs['inpt'], self.c_noise)
+        elif self.noise_type == 'mask':
+            corrupted_inpt = corrupt.mask(
+                    self.exprs['inpt'], self.c_noise)
+
+        output_from_corrupt = theano.clone(
+                self.exprs['output'],
+                {self.exprs['inpt']: corrupted_inpt}
+        )
+
+        score = self.exprs['loss']
+        loss = theano.clone(
+                self.exprs['loss'],
+                {self.exprs['output']: output_from_corrupt})
+
+        new_exprs = locals()
+        del new_exprs['output_from_corrupt']
+        self.exprs.update(get_named_variables(locals(), overwrite=True))
