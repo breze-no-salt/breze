@@ -13,13 +13,16 @@ References
 
 import numpy as np
 import theano
+import theano.tensor as T
 
-from breze.arch.model.rim import Rim as _Rim
+from breze.arch.model import rim
+from breze.arch.util import ParameterSet, Model
 from breze.learn.base import (
     UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin)
+from breze.arch.model import linear, rim
 
 
-class Rim(_Rim, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
+class Rim(Model, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
     """Class for regularized information maximization.
 
     Attributes
@@ -31,7 +34,7 @@ class Rim(_Rim, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
     n_inpt : integer
         Input dimensionality of the data.
 
-    n_clusters : integer
+    n_cluster : integer
         Amount of clusters to use.
 
     c_rim : float
@@ -53,17 +56,17 @@ class Rim(_Rim, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
 
     transform_expr_name = 'output'
 
-    def __init__(self, n_inpt, n_clusters, c_rim, optimizer='lbfgs',
+    def __init__(self, n_inpt, n_cluster, c_rim, optimizer='lbfgs',
                  max_iter=1000, verbose=False):
         """Create a Rim object.
 
-        Paramters
-        ---------
+        Parameters
+        ----------
 
         n_inpt : integer
             Input dimensionality of the data.
 
-        n_clusters : integer
+        n_cluster : integer
             Amount of clusters to use.
 
         c_rim : float
@@ -83,12 +86,28 @@ class Rim(_Rim, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
         verbose : boolean
             Flag indicating whether to print out information during fitting.
         """
-        super(Rim, self).__init__(
-            n_inpt, n_clusters, c_rim)
-        self.f_transform = None
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
+        self.n_inpt = n_inpt
+        self.n_cluster = n_cluster
+        self.c_rim = c_rim
 
         self.optimizer = optimizer
         self.max_iter = max_iter
         self.verbose = verbose
+
+        super(Rim, self).__init__()
+
+    def _init_pars(self):
+        spec = linear.parameters(self.n_inpt, self.n_cluster)
+        self.parameters = ParameterSet(**spec)
+        self.parameters.data[:] = np.random.standard_normal(
+            self.parameters.data.shape).astype(theano.config.floatX)
+
+    def _init_exprs(self):
+        self.exprs = {
+            'inpt': T.matrix('inpt'),
+        }
+        P = self.parameters
+
+        self.exprs.update(linear.exprs(
+            self.exprs['inpt'], P.in_to_out, P.bias, 'softmax'))
+        self.exprs.update(rim.loss(self.exprs['output'], [P.in_to_out], self.c_rim))

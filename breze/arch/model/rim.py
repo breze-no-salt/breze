@@ -3,40 +3,21 @@
 import theano.tensor as T
 
 from ..component import misc
-from linear import Linear
+from ..util import lookup, get_named_variables
+from linear import parameters, exprs as linear_exprs
 
 
-class Rim(Linear):
+def loss(posterior, pars_to_penalize, c_rim):
+    marginal = posterior.mean(axis=0)
+    cond_entropy = misc.discrete_entropy(posterior, axis=1).mean()
+    entropy = misc.discrete_entropy(marginal)
 
-    def __init__(self, n_inpt, n_output, c_rim):
-        self.c_rim = c_rim
-        super(Rim, self).__init__(
-            n_inpt=n_inpt,
-            n_output=n_output, out_transfer='softmax',
-            loss='nce')
+    nmi = cond_entropy - entropy
 
-    def init_exprs(self):
-        self.exprs = self.make_exprs(
-            T.matrix('inpt'),
-            self.parameters.in_to_out, self.parameters.bias,
-            self.out_transfer, self.loss, self.c_rim)
+    n_samples = posterior.shape[0]
+    penalties = [(i ** 2).sum() / n_samples for i in pars_to_penalize]
+    penalty = sum(penalties)
 
-    @staticmethod
-    def make_exprs(inpt, in_to_out, bias, out_transfer, loss, c_rim):
-        exprs = Linear.make_exprs(inpt, in_to_out, bias, out_transfer, loss)
-        output = exprs['output']
+    loss = nmi + c_rim * penalty
 
-        marginal = output.mean(axis=0)
-        cond_entropy = misc.discrete_entropy(output, axis=1).mean()
-        entropy = misc.discrete_entropy(marginal)
-
-        # negative mutual information -> we are minimizing
-        neg_mi = cond_entropy - entropy
-        l2 = (in_to_out**2).sum()
-
-        exprs['neg_mi'] = neg_mi
-        exprs['l2'] = l2
-
-        exprs['loss'] = neg_mi + c_rim * l2
-
-        return exprs
+    return get_named_variables(locals())
