@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 
 
-import numpy as np
 import theano.tensor as T
 
 from ...util import lookup, get_named_variables
-from ...component import transfer as _transfer, distance, norm
+from ...component import transfer as _transfer, norm
 
 
 def parameters(n_inpt, n_output):
@@ -17,9 +16,9 @@ def loss(output, transfer):
     output_post = f_transfer(output)
 
     col_normalized = T.sqrt(
-        norm.normalize(output_post, lambda x: x**2, axis=0) + 1E-8)
+        norm.normalize(output_post, lambda x: x ** 2, axis=0) + 1E-8)
     row_normalized = T.sqrt(
-        norm.normalize(col_normalized, lambda x: x**2, axis=1) + 1E-8)
+        norm.normalize(col_normalized, lambda x: x ** 2, axis=1) + 1E-8)
 
     loss_rowwise = row_normalized.sum(axis=1)
     loss = loss_rowwise.mean()

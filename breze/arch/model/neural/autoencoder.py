@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 
 
-from ...util import lookup
-from ...component import loss as loss_, layer, corrupt
-
-
 def parameters(n_inpt, n_hiddens, tied_weights=False):
     # Validate symmetry of layer sizes in case of tied weights.
     if tied_weights:

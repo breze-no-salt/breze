@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 
 
-from ...util import lookup
-from ...component import loss as loss_, layer, corrupt
+from ...component import layer, corrupt
 
 
 def parameters(n_inpt, n_hiddens, n_output):
