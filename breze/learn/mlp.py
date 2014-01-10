@@ -19,6 +19,7 @@ from breze.arch.model.neural import mlp
 #from breze.arch.model.varprop import FastDropoutNetwork
 #from breze.arch.model.awn import AdaptiveWeightNoiseNetwork
 from breze.arch.component import corrupt
+from breze.arch.component.common import supervised_loss
 from breze.learn.base import SupervisedBrezeWrapperBase
 from breze.arch.util import ParameterSet, Model
 
@@ -111,11 +112,14 @@ class Mlp(Model, SupervisedBrezeWrapperBase):
                          for i in range(n_layers)]
 
         self.exprs.update(mlp.exprs(
-            self.exprs['inpt'], self.exprs['target'],
+            self.exprs['inpt'],
             P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
             hidden_biases, P.out_bias,
             self.hidden_transfers, self.out_transfer,
-            self.loss))
+            ))
+
+        self.exprs.update(supervised_loss(
+            self.exprs['target'], self.exprs['output'], self.loss))
 
 
 def dropout_optimizer_conf(

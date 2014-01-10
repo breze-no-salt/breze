@@ -83,5 +83,7 @@ class GeneralizedLinearModel(Model, SupervisedBrezeWrapperBase):
         P = self.parameters
 
         self.exprs.update(linear.exprs(
-            self.exprs['inpt'], self.exprs['target'],
-            P.in_to_out, P.bias, self.out_transfer, self.loss))
+            self.exprs['inpt'], P.in_to_out, P.bias, self.out_transfer))
+
+        self.exprs.update(supervised_loss(
+            self.exprs['target'], self.exprs['output'], self.loss))

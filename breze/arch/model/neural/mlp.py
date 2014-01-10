@@ -20,13 +20,11 @@ def parameters(n_inpt, n_hiddens, n_output):
     return spec
 
 
-def exprs(inpt, target, in_to_hidden, hidden_to_hiddens, hidden_to_out,
+def exprs(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
           hidden_biases, out_bias,
           hidden_transfers, out_transfer,
-          loss=None,
           p_dropout_inpt=False, p_dropout_hiddens=False,
-          prefix=''
-          ):
+          prefix=''):
 
     if not len(hidden_to_hiddens) + 1 == len(hidden_biases) == len(hidden_transfers):
         print (hidden_to_hiddens)
@@ -62,14 +60,6 @@ def exprs(inpt, target, in_to_hidden, hidden_to_hiddens, hidden_to_out,
     exprs['output_in'] = exprs['layer-%i-output_in' % i]
     del exprs['layer-%i-output' % i]
     del exprs['layer-%i-output_in' % i]
-
-    if loss is not None:
-        f_loss = lookup(loss, loss_)
-        loss_rowwise = f_loss(target, last_output).sum(axis=1)
-        loss = loss_rowwise.mean()
-
-        exprs['loss_rowwise'] = loss_rowwise
-        exprs['loss'] = loss
 
     exprs = dict(('%s%s' % (prefix, k), v) for k, v in exprs.items())
 

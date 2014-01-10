@@ -90,6 +90,7 @@ from breze.arch.model.neural import mlp, autoencoder
 from breze.arch.component import loss as loss_
 from breze.arch.util import ParameterSet, Model, lookup, get_named_variables
 from breze.arch.component import corrupt
+from breze.arch.component.common import supervised_loss
 
 
 class AutoEncoder(Model, UnsupervisedBrezeWrapperBase,
@@ -213,13 +214,14 @@ class AutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                         for i in range(n_layers)]
 
         self.exprs.update(mlp.exprs(
-            self.exprs['inpt'], self.exprs['inpt'],
+            self.exprs['inpt'],
             P.in_to_hidden, hidden_to_hiddens, hidden_to_out,
             hidden_biases, P.out_bias,
-            self.hidden_transfers, self.out_transfer,
-            self.loss))
+            self.hidden_transfers, self.out_transfer))
 
-        print self.exprs.keys()
+        self.exprs.update(supervised_loss(
+            self.exprs['inpt'], self.exprs['output'], self.loss))
+
         self.exprs['feature'] = self.exprs['layer-%i-output' % self.code_idx]
 
     def _init_pars(self):

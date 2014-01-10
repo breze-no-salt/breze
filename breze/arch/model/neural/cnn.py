@@ -75,7 +75,7 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
     hidden_middle = hidden.flatten(2)
 
     exprs.update(mlp.exprs(
-        hidden_middle, None, hidden_conv_to_hidden_full,
+        hidden_middle, hidden_conv_to_hidden_full,
         hidden_full_to_hidden_full,
         hidden_to_out, hidden_full_bias, out_bias,
         hidden_full_transfers, output_transfer,
