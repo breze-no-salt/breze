@@ -2,3 +2,4 @@
 docs/build/*
 cover/*
 *.pyc
+notebooks/.ipynb*
