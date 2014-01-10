@@ -1,4 +1,3 @@
-from autoencoder import AutoEncoder, ContractiveAutoEncoder, SparseAutoEncoder, DenoisingAutoEncoder
 from rica import Rica
 from sparsecoding import SparseCoding
 from sparsefiltering import SparseFiltering
