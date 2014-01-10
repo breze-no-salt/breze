@@ -4,7 +4,7 @@ import random
 
 import numpy as np
 
-from breze.learn.glm import GeneralizedLinearModel
+from breze.learn.glm import Linear
 
 
 def test_glm_fit():
@@ -14,7 +14,7 @@ def test_glm_fit():
     X = X[idxs]
     Z = np.sin(X)
 
-    glm = GeneralizedLinearModel(1, 1, max_iter=10)
+    glm = Linear(1, 1, max_iter=10)
     glm.fit(X, Z)
 
 
@@ -25,7 +25,7 @@ def test_glm_iter_fit():
     X = X[idxs]
     Z = np.sin(X)
 
-    glm = GeneralizedLinearModel(1, 1, max_iter=10)
+    glm = Linear(1, 1, max_iter=10)
     for i, info in enumerate(glm.iter_fit(X, Z)):
         if i >= 10:
             break
@@ -38,7 +38,7 @@ def test_glm_predict_linear():
     X = X[idxs]
     Z = np.sin(X)
 
-    glm = GeneralizedLinearModel(1, 1, max_iter=10)
+    glm = Linear(1, 1, max_iter=10)
     glm.fit(X, Z)
     glm.predict(X)
 

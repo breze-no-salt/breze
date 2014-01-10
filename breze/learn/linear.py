@@ -5,19 +5,20 @@ import numpy as np
 import theano
 import theano.tensor as T
 
+from breze.arch.component.common import supervised_loss
 from breze.arch.model import linear
 from breze.arch.util import ParameterSet, Model
 from breze.learn.base import SupervisedBrezeWrapperBase
 
 
-class GeneralizedLinearModel(Model, SupervisedBrezeWrapperBase):
+class Linear(Model, SupervisedBrezeWrapperBase):
     """Class to represent a linear model."""
 
     def __init__(self, n_inpt, n_output,
                  out_transfer='identity', loss='squared',
                  optimizer='lbfgs', batch_size=None,
                  max_iter=1000, verbose=False):
-        """Create a GeneralizedLinearModel object.
+        """Create a Linear object.
 
         Parameters
         ---------
@@ -67,7 +68,7 @@ class GeneralizedLinearModel(Model, SupervisedBrezeWrapperBase):
 
         self.f_predict = None
 
-        super(GeneralizedLinearModel, self).__init__()
+        super(Linear, self).__init__()
 
     def _init_pars(self):
         parameter_spec = linear.parameters(self.n_inpt, self.n_output)
