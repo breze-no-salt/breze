@@ -40,11 +40,16 @@ class Rica(autoencoder.AutoEncoder):
 
     c_ica : float, optional, [default: 0.5]
         Weight of the ICA cost, cost of reconstruction is 1.
+
+    fit_project_weights :  boolean
+        If set to True, the length of an weight vector coming into a code unit
+        will be set to 1 after each training iteration.
     """
 
     def __init__(self, n_inpt, n_hidden, hidden_transfer='identity',
                  code_transfer='softabs', out_transfer='identity',
                  loss='squared', c_ica=0.5,
+                 fit_project_weights=True,
                  tied_weights=True,
                  batch_size=None,
                  optimizer='lbfgs',
@@ -65,9 +70,13 @@ class Rica(autoencoder.AutoEncoder):
         c_ica : float, optional, [default: 0.5]
             Weight of the ICA cost, cost of linear reconstruction is 1.
 
+        fit_project_weights : boolean
+            If set to True, the length of an weight vector coming into a code
+            unit will be set to 1 after each training iteration.
         """
         self.code_transfer = code_transfer
         self.c_ica = c_ica
+        self.fit_project_weights = fit_project_weights
         super(Rica, self).__init__(
             n_inpt, [n_hidden], [hidden_transfer],
             out_transfer, loss, tied_weights=tied_weights,
@@ -83,11 +92,12 @@ class Rica(autoencoder.AutoEncoder):
         self.exprs['loss_sample_wise'] += self.exprs['ica_loss_sample_wise']
         self.exprs['loss'] += self.exprs['ica_loss']
 
-    def normalize_weights(self):
+    def project_weights(self):
         w = self.parameters['in_to_hidden']
-        w /= ma.sqrt((w ** 2).sum(axis=0))[np.newaxis, :]
+        w /= ma.sqrt((w ** 2).sum(axis=0) + 1e-4)[np.newaxis, :]
 
     def iter_fit(self, X):
         for info in super(Rica, self).iter_fit(X):
-            self.normalize_weights()
+            if self.fit_project_weights:
+                self.project_weights()
             yield info
