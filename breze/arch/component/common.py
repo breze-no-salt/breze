@@ -15,3 +15,12 @@ def supervised_loss(target, prediction, loss, coord_axis=1):
     loss = loss_sample_wise.mean()
 
     return get_named_variables(locals())
+
+
+def unsupervised_loss(prediction, loss, coord_axis=1):
+    f_loss = lookup(loss, loss_)
+    loss_coord_wise = f_loss(prediction)
+    loss_sample_wise = loss_coord_wise.sum(axis=coord_axis)
+    loss = loss_sample_wise.mean()
+
+    return get_named_variables(locals())
