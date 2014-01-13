@@ -24,5 +24,3 @@ References
 .. [FD-RNN] Bayer, Justin, et al. "On Fast Dropout and its Applicability to
             Recurrent Networks." arXiv preprint arXiv:1311.0701 (2013).
 """
-
-from mlp import VariancePropagationNetwork, FastDropoutNetwork
