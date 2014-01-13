@@ -194,6 +194,14 @@ class AutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
         super(AutoEncoder, self).__init__()
 
+    def _init_pars(self):
+        spec = autoencoder.parameters(
+            self.n_inpt, self.n_hiddens,
+            tied_weights=self.tied_weights)
+        self.parameters = ParameterSet(**spec)
+        self.parameters.data[:] = np.random.standard_normal(
+            self.parameters.data.shape).astype(theano.config.floatX)
+
     def _init_exprs(self):
         self.exprs = {
             'inpt': T.matrix('inpt'),
@@ -223,14 +231,6 @@ class AutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             self.exprs['inpt'], self.exprs['output'], self.loss))
 
         self.exprs['feature'] = self.exprs['layer-%i-output' % self.code_idx]
-
-    def _init_pars(self):
-        spec = autoencoder.parameters(
-            self.n_inpt, self.n_hiddens,
-            tied_weights=self.tied_weights)
-        self.parameters = ParameterSet(**spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
 
 
 class SparseAutoEncoder(AutoEncoder):
