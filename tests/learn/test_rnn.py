@@ -36,15 +36,13 @@ def test_srnn_predict():
 
 
 def test_fd_srnn_fit():
-    raise SkipTest()
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
-    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfer=['rectifier'], max_iter=10)
+    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'], max_iter=10)
     rnn.fit(X, Z)
 
 
 def test_fd_srnn_iter_fit():
-    raise SkipTest()
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
     rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'], max_iter=10)
@@ -54,9 +52,8 @@ def test_fd_srnn_iter_fit():
 
 
 def test_fd_srnn_predict():
-    raise SkipTest()
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfer=['rectifier'], max_iter=10)
+    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'], max_iter=10)
     print rnn.exprs
     rnn.predict(X)
 

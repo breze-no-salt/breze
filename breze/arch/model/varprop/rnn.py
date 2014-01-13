@@ -289,9 +289,10 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
             hidden_mean_rec, hidden_var_rec)
 
 
-def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
-        hidden_biases, hidden_var_biases_sqrt, initial_hiddens, recurrents,
-        out_bias, hidden_transfers, out_transfer, p_dropouts, hotk_inpt):
+def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
+          hidden_biases, hidden_var_scales_sqrt, initial_hiddens, recurrents,
+          out_bias, hidden_transfers, out_transfer, p_dropouts,
+          hotk_inpt):
     """Return a dictionary containing Theano expressions for various components
     of a recurrent network with variance propagation.
 
@@ -319,7 +320,7 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
     hidden_biases : list of Theano variables
         Biases for the hidden layers.
 
-    hidden_var_biases_sqrt : Theano variable
+    hidden_var_scales_sqrt : Theano variable
         Biases for the variances. See ``forward_layer`` for an exact description
         of what it does.
 
@@ -383,12 +384,12 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
     if hotk_inpt:
         hmi, hvi, hmo, hvo = int_forward_layer(
             inpt_mean, inpt_var, in_to_hidden,
-            hidden_biases[0], hidden_var_biases_sqrt[0],
+            hidden_biases[0], hidden_var_scales_sqrt[0],
             f_hiddens[0], p_dropouts[0])
     else:
         hmi, hvi, hmo, hvo = forward_layer(
             inpt_mean, inpt_var, in_to_hidden,
-            hidden_biases[0], hidden_var_biases_sqrt[0],
+            hidden_biases[0], hidden_var_scales_sqrt[0],
             f_hiddens[0], p_dropouts[0])
 
     hmi_rec, hvi_rec, hmo_rec, hvo_rec = recurrent_layer(
@@ -403,7 +404,7 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
     })
 
     zipped = zip(
-        hidden_to_hiddens, hidden_biases[1:], hidden_var_biases_sqrt[1:],
+        hidden_to_hiddens, hidden_biases[1:], hidden_var_scales_sqrt[1:],
         recurrents[1:], f_hiddens[1:], initial_hiddens[1:], p_dropouts[1:])
 
     for i, (w, b, vb, r, t, j, d) in enumerate(zipped):
@@ -424,7 +425,7 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
 
     output_in_mean, output_in_var, output_mean, output_var = forward_layer(
         hmo_rec, hvo_rec, hidden_to_out,
-        out_bias, hidden_var_biases_sqrt[-1],
+        out_bias, hidden_var_scales_sqrt[-1],
         f_output, p_dropouts[-1])
 
     exprs.update({

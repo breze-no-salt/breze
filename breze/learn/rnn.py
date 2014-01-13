@@ -9,6 +9,8 @@ import theano.tensor as T
 
 from breze.arch.component.misc import project_into_l2_ball
 from breze.arch.component.common import supervised_loss, unsupervised_loss
+from breze.arch.component.varprop.common import supervised_loss as varprop_supervised_loss
+from breze.arch.model.varprop import rnn as varprop_rnn
 from breze.arch.model.rnn import rnn, lstm
 from breze.arch.util import ParameterSet, Model
 from breze.learn.base import (
@@ -343,39 +345,69 @@ class UnsupervisedLstmRnn(BaseLstmRnn, UnsupervisedBrezeWrapperBase):
         self.exprs.update(unsupervised_loss(self.exprs['output'], self.loss, 2))
 
 
-#class SupervisedFastDropoutRnn(BaseRnn, varprop_rnn.FastDropoutRnn,
-                               #SupervisedBrezeWrapperBase):
-class SupervisedFastDropoutRnn(object):
+class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
 
     sample_dim = 1, 1
 
-    def __init__(self, n_inpt, n_hidden, n_output,
-                 hidden_transfer='tanh', out_transfer='identity',
+    def __init__(self, n_inpt, n_hiddens, n_output,
+                 hidden_transfers, out_transfer='identity',
                  loss='squared', pooling=None,
                  leaky_coeffs=None,
-                 optimizer='rprop',
-                 batch_size=None,
                  gradient_clip=False,
-                 p_dropout_inpt=.2, p_dropout_hidden=.5,
+                 p_dropout_inpt=.2, p_dropout_hiddens=.5,
                  p_dropout_hidden_to_out=None,
                  use_varprop_at=None,
                  hotk_inpt=False,
+                 optimizer='rprop',
+                 batch_size=None,
                  max_iter=1000,
                  verbose=False):
-        # TODO: this is code duplication from breze/arch/model/varprop/rnn.py
-        # Should be done more elegantly.
+        self.p_dropout_inpt = p_dropout_inpt
+        self.p_dropout_hiddens = p_dropout_hiddens
+        if isinstance(self.p_dropout_hiddens, float):
+            self.p_dropout_hiddens = [self.p_dropout_hiddens]
+        else:
+            self.p_dropout_hiddens = self.p_dropout_hiddens
         if p_dropout_hidden_to_out is None:
-            self.p_dropout_hidden_to_out = p_dropout_hidden
+            self.p_dropout_hidden_to_out = self.p_dropout_hiddens[-1]
         else:
             self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
 
-        self.p_dropout_inpt = p_dropout_inpt
-        self.p_dropout_hidden = p_dropout_hidden
-        self.hotk_inpt = hotk_inpt
-
         if use_varprop_at is None:
-            use_varprop_at = [True] * len(n_hidden)
+            use_varprop_at = [True] * len(n_hiddens)
+
+        self.hotk_inpt = hotk_inpt
+        if hotk_inpt or leaky_coeffs or pooling:
+            raise NotImplementedError('not implemented')
+
         super(SupervisedFastDropoutRnn, self).__init__(
-            n_inpt, n_hidden, n_output, hidden_transfer, out_transfer,
-            loss, pooling, leaky_coeffs,
-            optimizer, batch_size, gradient_clip, max_iter, verbose)
+            n_inpt, n_hiddens, n_output,
+            hidden_transfers, out_transfer, loss, pooling, leaky_coeffs,
+            gradient_clip, optimizer, batch_size, max_iter, verbose)
+
+    def _init_exprs(self):
+        self.exprs = {'inpt': T.tensor3('inpt'),
+                      'target': T.tensor3('target')}
+        P = self.parameters
+
+        n_layers = len(self.n_hiddens)
+        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
+                             for i in range(n_layers - 1)]
+        recurrents = [getattr(P, 'recurrent_%i' % i)
+                      for i in range(n_layers)]
+        initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
+                           for i in range(n_layers)]
+        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
+                         for i in range(n_layers)]
+
+        inpt_var = T.zeros_like(self.exprs['inpt'])
+
+        self.exprs.update(varprop_rnn.exprs(
+            self.exprs['inpt'], inpt_var, P.in_to_hidden, hidden_to_hiddens,
+            P.hidden_to_out, hidden_biases,
+            [1 for _ in hidden_biases], initial_hiddens,
+            recurrents, P.out_bias, self.hidden_transfers, self.out_transfer,
+            [self.p_dropout_inpt] + self.p_dropout_hiddens, False))
+
+        self.exprs.update(varprop_supervised_loss(
+            self.exprs['target'], self.exprs['output'], self.loss, 2))
