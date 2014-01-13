@@ -3,14 +3,15 @@
 
 import numpy as np
 import theano
-
-from breze.arch.model.gaussianprocess import GaussianProcess as GaussianProcess_
+import theano.tensor as T
 
 from breze.learn.base import SupervisedBrezeWrapperBase
+from breze.arch.model import gaussianprocess
 from breze.learn.sampling import slice_
+from breze.arch.util import ParameterSet, Model
 
 
-class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
+class GaussianProcess(Model, SupervisedBrezeWrapperBase):
     """GaussianProcess class.
 
     Parameters
@@ -56,18 +57,33 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
 
     def __init__(self, n_inpt, kernel='linear', optimizer='rprop',
                  max_iter=1000, verbose=False):
-        super(GaussianProcess, self).__init__(n_inpt, kernel=kernel)
+        self.n_inpt = n_inpt
+        self.kernel = kernel
 
         self.optimizer = optimizer
         self.max_iter = max_iter
         self.verbose = verbose
-
-        self.f_predict = None
-        self.f_predict_var = None
+        self._gram_matrix = None
         self.f_gram_matrix = None
 
-        self.parameters.data[:] = 0
-        self._gram_matrix = None
+        super(GaussianProcess, self).__init__()
+
+    def _init_pars(self):
+        spec = gaussianprocess.parameters(self.n_inpt)
+        self.parameters = ParameterSet(**spec)
+        self.parameters.data[:][...] = 0
+
+    def _init_exprs(self):
+        self.exprs = {
+            'inpt': T.matrix('inpt'),
+            'test_inpt': T.matrix('inpt'),
+            'target': T.matrix('target'),
+        }
+        P = self.parameters
+
+        self.exprs.update(gaussianprocess.exprs(
+            self.exprs['inpt'], self.exprs['test_inpt'], self.exprs['target'],
+            P.length_scales, P.noise, P.amplitude, self.kernel))
 
     def _make_predict_functions(self, stored_inpt, stored_target):
         """Return a function to predict targets from input sequences."""
