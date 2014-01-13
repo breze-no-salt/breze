@@ -370,8 +370,6 @@ class FastDropoutNetwork(FastDropoutNetwork,
                     max_length_columns(W, self.max_length)
                 W = self.parameters['hidden_to_out']
                 max_length_columns(W, self.max_length)
-            W = self.parameters['hidden_to_out']
-            max_length_columns(W, self.max_length)
 
 
 class AwnNetwork(AdaptiveWeightNoiseNetwork,
