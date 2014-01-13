@@ -5,7 +5,7 @@ import theano
 import theano.tensor as T
 
 import loss as loss_
-from ..util import lookup, get_named_variables
+from ...util import lookup, get_named_variables
 
 
 def supervised_loss(target, prediction, loss, coord_axis=1):
