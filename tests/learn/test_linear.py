@@ -4,10 +4,10 @@ import random
 
 import numpy as np
 
-from breze.learn.glm import Linear
+from breze.learn.linear import Linear
 
 
-def test_glm_fit():
+def test_linear_fit():
     X = np.arange(-2, 2, .01)[:, np.newaxis]
     idxs = range(X.shape[0])
     idxs = random.sample(idxs, 200)
@@ -18,7 +18,7 @@ def test_glm_fit():
     glm.fit(X, Z)
 
 
-def test_glm_iter_fit():
+def test_linear_iter_fit():
     X = np.arange(-2, 2, .01)[:, np.newaxis]
     idxs = range(X.shape[0])
     idxs = random.sample(idxs, 200)
@@ -31,7 +31,7 @@ def test_glm_iter_fit():
             break
 
 
-def test_glm_predict_linear():
+def test_linear_predict_linear():
     X = np.arange(-2, 2, .01)[:, np.newaxis]
     idxs = range(X.shape[0])
     idxs = random.sample(idxs, 200)
