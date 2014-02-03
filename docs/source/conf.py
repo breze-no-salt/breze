@@ -27,6 +27,7 @@ import sys, os
 extensions = ['sphinx.ext.autodoc', 'sphinx.ext.doctest',
               'sphinx.ext.intersphinx', 'sphinx.ext.coverage',
               'sphinx.ext.pngmath', 'sphinx.ext.mathjax',
+              'sphinx.ext.autosummary',
               'sphinx.ext.viewcode', 'numpydoc']
 
 # Add any paths that contain templates here, relative to this directory.
