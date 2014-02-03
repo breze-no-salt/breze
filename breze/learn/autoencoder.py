@@ -515,6 +515,4 @@ class DenoisingAutoEncoder(AutoEncoder):
                 self.exprs['loss'],
                 {self.exprs['output']: output_from_corrupt})
 
-        new_exprs = locals()
-        del new_exprs['output_from_corrupt']
         self.exprs.update(get_named_variables(locals(), overwrite=True))
