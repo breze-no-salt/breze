@@ -10,7 +10,7 @@ Recurrent Networks
 
 .. autofunction:: breze.arch.model.varprop.rnn.forward_layer
 .. autofunction:: breze.arch.model.varprop.rnn.recurrent_layer
-.. autofunction:: breze.arch.model.varprop.rnn.rnn
+.. autofunction:: breze.arch.model.varprop.rnn.exprs
 
 
 Transfer functions
