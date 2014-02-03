@@ -61,6 +61,14 @@ class BaseRnn(Model):
         a list of arrays, the length of the array should be the same as the
         number of hidden units in that layer.
 
+    gradient_clip : float, optional [default: False]
+        If the length of a gradient ever exceeds this value during training,
+        the gradient is renormalized to this value.
+
+    skip_to_out : boolean, optional [default: False[
+        Flag indicating whether to use skip connections from the input and each
+        hidden layer into the output layer.
+
     optimizer : string, pair
         Argument is passed to ``climin.util.optimizer`` to construct an
         optimizer.
@@ -68,10 +76,6 @@ class BaseRnn(Model):
     batch_size : integer, None
         Number of examples per batch when calculting the loss
         and its derivatives. None means to use all samples every time.
-
-    gradient_clip : float, optional [default: False]
-        If the length of a gradient ever exceeds this value during training,
-        the gradient is renormalized to this value.
 
     max_iter : int
         Maximum number of optimization iterations to perform. Only respected
@@ -81,11 +85,14 @@ class BaseRnn(Model):
         Flag indicating whether to print out information during fitting.
     """
 
+    # TODO: document skip to out
+
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer='identity',
                  loss='squared', pooling=None,
                  leaky_coeffs=None,
                  gradient_clip=False,
+                 skip_to_out=False,
                  optimizer='rprop',
                  batch_size=None,
                  max_iter=1000,
@@ -99,6 +106,7 @@ class BaseRnn(Model):
         self.pooling = pooling
         self.leaky_coeffs = leaky_coeffs
         self.gradient_clip = gradient_clip
+        self.skip_to_out = skip_to_out
         self.optimizer = optimizer
         self.batch_size = batch_size
         self.max_iter = max_iter
@@ -107,7 +115,8 @@ class BaseRnn(Model):
         super(BaseRnn, self).__init__()
 
     def _init_pars(self):
-        spec = rnn.parameters(self.n_inpt, self.n_hiddens, self.n_output)
+        spec = rnn.parameters(
+            self.n_inpt, self.n_hiddens, self.n_output, self.skip_to_out)
         self.parameters = ParameterSet(**spec)
         self.parameters.data[:] = np.random.standard_normal(
             self.parameters.data.shape).astype(theano.config.floatX)
@@ -126,11 +135,18 @@ class BaseRnn(Model):
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
 
+        if self.skip_to_out:
+            skip_to_outs = [getattr(P, 'hidden_%i_to_out' % i)
+                            for i in range(n_layers)]
+            in_to_out = P.in_to_out
+        else:
+            in_to_out = skip_to_outs = None
+
         self.exprs.update(rnn.exprs(
             self.exprs['inpt'], P.in_to_hidden, hidden_to_hiddens,
             P.hidden_to_out, hidden_biases, initial_hiddens,
             recurrents, P.out_bias, self.hidden_transfers, self.out_transfer,
-            self.pooling, self.leaky_coeffs))
+            self.pooling, self.leaky_coeffs, in_to_out,  skip_to_outs))
 
     def _gauss_newton_product(self):
         """Return a theano expression for the product of the networks
@@ -354,6 +370,7 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
                  loss='squared', pooling=None,
                  leaky_coeffs=None,
                  gradient_clip=False,
+                 skip_to_out=False,
                  p_dropout_inpt=.2, p_dropout_hiddens=.5,
                  p_dropout_hidden_to_out=None,
                  use_varprop_at=None,
@@ -383,7 +400,8 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
         super(SupervisedFastDropoutRnn, self).__init__(
             n_inpt, n_hiddens, n_output,
             hidden_transfers, out_transfer, loss, pooling, leaky_coeffs,
-            gradient_clip, optimizer, batch_size, max_iter, verbose)
+            gradient_clip, skip_to_out,
+            optimizer, batch_size, max_iter, verbose)
 
     def _init_exprs(self):
         self.exprs = {'inpt': T.tensor3('inpt'),
@@ -400,6 +418,13 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
 
+        if self.skip_to_out:
+            skip_to_outs = [getattr(P, 'hidden_%i_to_out' % i)
+                            for i in range(n_layers)]
+            in_to_out = P.in_to_out
+        else:
+            in_to_out = skip_to_outs = None
+
         inpt_var = T.zeros_like(self.exprs['inpt'])
 
         self.exprs.update(varprop_rnn.exprs(
@@ -407,7 +432,8 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
             P.hidden_to_out, hidden_biases,
             [1 for _ in hidden_biases], initial_hiddens,
             recurrents, P.out_bias, self.hidden_transfers, self.out_transfer,
-            [self.p_dropout_inpt] + self.p_dropout_hiddens, False))
+            in_to_out=in_to_out, skip_to_outs=skip_to_outs,
+            p_dropouts=[self.p_dropout_inpt] + self.p_dropout_hiddens, hotk_inpt=False))
 
         self.exprs.update(varprop_supervised_loss(
             self.exprs['target'], self.exprs['output'], self.loss, 2))

@@ -291,8 +291,9 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
 
 def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
           hidden_biases, hidden_var_scales_sqrt, initial_hiddens, recurrents,
-          out_bias, hidden_transfers, out_transfer, p_dropouts,
-          hotk_inpt):
+          out_bias, hidden_transfers, out_transfer,
+          in_to_out=None, skip_to_outs=None, p_dropouts=None,
+          hotk_inpt=False):
     """Return a dictionary containing Theano expressions for various components
     of a recurrent network with variance propagation.
 
@@ -370,6 +371,7 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
          - ``output_var``: post-synaptic variance of output,
          - ``output``: concatenation of mean and variance of output
     """
+    # TODO add skip to outs docs
     # TODO: add pooling
     # TODO: add leaky integration
     exprs = {}
@@ -423,10 +425,30 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
             'hidden_var_%i' % (i + 1): hvo
         })
 
-    output_in_mean, output_in_var, output_mean, output_var = forward_layer(
+    output_in_mean, output_in_var, _, _ = forward_layer(
         hmo_rec, hvo_rec, hidden_to_out,
         out_bias, hidden_var_scales_sqrt[-1],
-        f_output, p_dropouts[-1])
+        lambda x,y: (x, y), p_dropouts[-1])
+
+    if in_to_out is not None:
+        output_mean_inc, output_var_inc, _, _= forward_layer(
+            inpt_mean, inpt_var, in_to_out,
+            T.zeros_like(out_bias), T.ones_like(out_bias),
+            lambda x, y: (x, y), p_dropouts[0])
+        output_in_mean += output_mean_inc
+        output_in_var += output_var_inc
+    if skip_to_outs is not None:
+        for i, s in enumerate(skip_to_outs):
+            output_mean_inc, output_var_inc, _, _= forward_layer(
+                exprs['hidden_mean_%i' % i], exprs['hidden_var_%i' % i], s,
+                T.zeros_like(out_bias), T.ones_like(out_bias),
+                lambda x, y: (x, y), p_dropouts[i + 1])
+            output_in_mean += output_mean_inc
+            output_in_var += output_var_inc
+
+    output_mean, output_var = f_output(output_in_mean, output_in_var)
+
+    # TODO: raise not implemented for out scale
 
     exprs.update({
         'inpt_mean': inpt_mean,
