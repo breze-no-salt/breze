@@ -19,11 +19,19 @@ def test_srnn_fit():
     rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=10)
     rnn.fit(X, Z)
 
+    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], skip_to_out=True, max_iter=10)
+    rnn.fit(X, Z)
+
 
 def test_srnn_iter_fit():
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
     rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=10)
+    for i, info in enumerate(rnn.iter_fit(X, Z)):
+        if i >= 10:
+            break
+
+    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], skip_to_out=True, max_iter=10)
     for i, info in enumerate(rnn.iter_fit(X, Z)):
         if i >= 10:
             break
@@ -34,11 +42,18 @@ def test_srnn_predict():
     rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=10)
     rnn.predict(X)
 
+    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], skip_to_out=True, max_iter=10)
+    rnn.predict(X)
+
 
 def test_fd_srnn_fit():
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
     rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'], max_iter=10)
+    rnn.fit(X, Z)
+
+    rnn = SupervisedFastDropoutRnn(2, [10, 20], 3, hidden_transfers=['rectifier', 'tanh'],
+            skip_to_out=True, max_iter=10)
     rnn.fit(X, Z)
 
 
@@ -50,11 +65,20 @@ def test_fd_srnn_iter_fit():
         if i >= 10:
             break
 
+    rnn = SupervisedFastDropoutRnn(2, [10, 20], 3, hidden_transfers=['rectifier', 'tanh'],
+            skip_to_out=True, max_iter=10)
+    for i, info in enumerate(rnn.iter_fit(X, Z)):
+        if i >= 10:
+            break
+
 
 def test_fd_srnn_predict():
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'], max_iter=10)
-    print rnn.exprs
+    rnn.predict(X)
+
+    rnn = SupervisedFastDropoutRnn(2, [10, 20], 3, hidden_transfers=['rectifier', 'tanh'],
+            skip_to_out=True, max_iter=10)
     rnn.predict(X)
 
 
