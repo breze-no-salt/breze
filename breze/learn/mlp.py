@@ -17,7 +17,8 @@ import theano.tensor.shared_randomstreams
 
 from breze.arch.model.neural import mlp
 from breze.arch.model.varprop import mlp as varprop_mlp
-from breze.arch.component.varprop.common import supervised_loss
+from breze.arch.component.varprop.common import supervised_loss as varprop_supervised_loss
+from breze.arch.component.common import supervised_loss
 from breze.learn.base import SupervisedBrezeWrapperBase
 from breze.arch.util import ParameterSet, Model
 
@@ -320,7 +321,7 @@ class FastDropoutNetwork(Model, SupervisedBrezeWrapperBase):
 
         self.exprs['inpt'] = self.exprs['inpt_mean']
 
-        self.exprs.update(supervised_loss(
+        self.exprs.update(varprop_supervised_loss(
             self.exprs['target'], self.exprs['output'], self.loss))
 
     def iter_fit(self, X, Z):
