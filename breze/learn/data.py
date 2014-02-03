@@ -53,7 +53,8 @@ def shuffle_many(arrays, axes, random_state=None):
             a[old_index], a[new_index] = a[new_index], a[old_index]
 
 
-def padzeros(lst):
+def padzeros(lst, front=True):
+    # TODO add docs for ``front``
     """Given a list of arrays, pad every array with up front  zeros until they
     reach unit length.
 
@@ -69,8 +70,12 @@ def padzeros(lst):
 
     data = scipy.zeros(total_shape)
     for i in range(n_items):
+        # Iterate over indices because we work in place of the list.
         thislength = lst[i].shape[0]
-        data[i][-thislength:] = lst[i]
+        if front:
+            data[i][-thislength:] = lst[i]
+        else:
+            data[i][:thislength] = lst[i]
 
     return data
 
