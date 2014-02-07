@@ -95,11 +95,7 @@ def rectifier(mean, var):
     B = (mean ** 2 + std ** 2) * normal.cdf(ratio)
     exp_of_squared = A + B
 
-    mean_ = T.clip(mean_, 1e-8, 100)
-
-    var_ = exp_of_squared - mean_ ** 2 + 0.05
-    var_ = T.clip(var_, 1e-8, 100)
-
+    var_ = exp_of_squared - mean_ ** 2
 
     return mean_, var_
 
