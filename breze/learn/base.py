@@ -115,6 +115,7 @@ class BrezeWrapperBase(object):
             return True if the iterator should yield a value.
         :returns: An iterator over info dictionaries.
         """
+        # TODO document eval train loss
         self.CTRL_C_FLAG = False
         signal.signal(signal.SIGINT, self._ctrl_c_handler)
 
