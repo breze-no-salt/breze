@@ -427,13 +427,17 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
 
         inpt_var = T.zeros_like(self.exprs['inpt'])
 
+        p_dropouts = ([self.p_dropout_inpt]
+                      + self.p_dropout_hiddens
+                      + [self.p_dropout_hidden_to_out])
+
         self.exprs.update(varprop_rnn.exprs(
             self.exprs['inpt'], inpt_var, P.in_to_hidden, hidden_to_hiddens,
             P.hidden_to_out, hidden_biases,
             [1 for _ in hidden_biases], initial_hiddens,
             recurrents, P.out_bias, self.hidden_transfers, self.out_transfer,
             in_to_out=in_to_out, skip_to_outs=skip_to_outs,
-            p_dropouts=[self.p_dropout_inpt] + self.p_dropout_hiddens, hotk_inpt=False))
+            p_dropouts=p_dropouts, hotk_inpt=False))
 
         self.exprs.update(varprop_supervised_loss(
             self.exprs['target'], self.exprs['output'], self.loss, 2))
