@@ -291,7 +291,7 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
 
 def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
           hidden_biases, hidden_var_scales_sqrt, initial_hiddens, recurrents,
-          out_bias, hidden_transfers, out_transfer,
+          out_bias, out_var_scale_sqrt, hidden_transfers, out_transfer,
           in_to_out=None, skip_to_outs=None, p_dropouts=None,
           hotk_inpt=False):
     """Return a dictionary containing Theano expressions for various components

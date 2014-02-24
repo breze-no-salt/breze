@@ -126,6 +126,13 @@ sampling_softmax = make_sampling_transfer(safe_softmax)
 sampling_sigmoid = make_sampling_transfer(safe_sigmoid)
 
 
+def det_softmax(mean, var):
+    mean_flat = mean.reshape((mean.shape[0] * mean.shape[1], mean.shape[2]))
+    softmaxed = _softmax(mean_flat).reshape(mean.shape)
+
+    return T.clip(softmaxed, 1e-8, 1 - 1e-8), T.zeros_like(var) + 1e-8
+
+
 def sigmoid(mean, var):
     """Return the mean and variance of a Gaussian distributed random variable,
     described by its mean and variacne, after passing it through a logistic

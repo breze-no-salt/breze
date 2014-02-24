@@ -391,7 +391,8 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
             self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
 
         if use_varprop_at is None:
-            use_varprop_at = [True] * len(n_hiddens)
+            use_varprop_at = [True] * (len(n_hiddens) + 1)
+        self.use_varprop_at = use_varprop_at
 
         self.hotk_inpt = hotk_inpt
         if hotk_inpt or leaky_coeffs or pooling:
@@ -431,11 +432,15 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
                       + self.p_dropout_hiddens
                       + [self.p_dropout_hidden_to_out])
 
+        hidden_var_scales_sqrt = [int(i) for i in self.use_varprop_at[:-1]]
+        out_var_scale_sqrt = int(self.use_varprop_at[-1])
+
         self.exprs.update(varprop_rnn.exprs(
             self.exprs['inpt'], inpt_var, P.in_to_hidden, hidden_to_hiddens,
             P.hidden_to_out, hidden_biases,
-            [1 for _ in hidden_biases], initial_hiddens,
-            recurrents, P.out_bias, self.hidden_transfers, self.out_transfer,
+            hidden_var_scales_sqrt, initial_hiddens,
+            recurrents, P.out_bias, out_var_scale_sqrt,
+            self.hidden_transfers, self.out_transfer,
             in_to_out=in_to_out, skip_to_outs=skip_to_outs,
             p_dropouts=p_dropouts, hotk_inpt=False))
 
