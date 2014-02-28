@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 
+import cPickle
+
 import numpy as np
 import theano
 import theano.tensor as T
@@ -115,3 +117,11 @@ def test_theano_function_with_nested_exprs():
     assert np.allclose(resb, math.exp(vb))
 
 
+def test_pickling_models():
+    ma = T.matrix()
+    m = Model()
+    m.parameters = ParameterSet(bla=2)
+    m.exprs = {'m_sqrd': m.parameters.bla.sum() * ma.sum()}
+    m.f = m.function([ma], 'm_sqrd', explicit_pars=False)
+
+    cPickle.dumps(m)

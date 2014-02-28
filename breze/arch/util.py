@@ -545,12 +545,14 @@ class Model(object):
             def f_implicit_pars(*args, **kwargs):
                 return f(self.parameters.data, *args, **kwargs)
             f_implicit_pars.theano_func = f.theano_func
+            f_implicit_pars.breze_func = True
             return f_implicit_pars
 
         if GPU:
             f = gnumpy_func_wrap(f)
 
         else:
+            f.breze_func = True
             return f
 
     def var_exp_for_gpu(self, variables, exprs, outputs=True):
