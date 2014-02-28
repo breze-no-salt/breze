@@ -541,15 +541,15 @@ class Model(object):
             variables, exprs, givens=givens, mode=mode,
             on_unused_input=on_unused_input, updates=updates)
 
+        if GPU:
+            f = gnumpy_func_wrap(f)
+
         if not explicit_pars:
             def f_implicit_pars(*args, **kwargs):
                 return f(self.parameters.data, *args, **kwargs)
             f_implicit_pars.theano_func = f.theano_func
             f_implicit_pars.breze_func = True
             return f_implicit_pars
-
-        if GPU:
-            f = gnumpy_func_wrap(f)
 
         else:
             f.breze_func = True
@@ -599,6 +599,14 @@ class Model(object):
         gpu_exprs = unflatten(exprs, gpu_exprs_flat)
 
         return gpu_variables, gpu_exprs
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        to_delete = [k for k in state if getattr(state[k], 'breze_func', False)]
+        for key in to_delete:
+            del state[key]
+
+        return state
 
 
 class PrintEverythingMode(theano.Mode):
