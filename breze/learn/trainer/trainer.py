@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 
+# TODO document
+
+
 import signal
 import time
 
