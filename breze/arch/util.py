@@ -224,16 +224,6 @@ def lookup_some_key(what, where, default=None):
     return default
 
 
-def opt_from_model(model, fargs, args, opt_klass, opt_kwargs):
-    """Return an optimizer object given a model and an optimizer specification.
-    """
-    d_loss_d_pars = T.grad(model.exprs['loss'], model.parameters.flat)
-    f = model.function(fargs, 'loss', explicit_pars=True)
-    fprime = model.function(fargs, d_loss_d_pars, explicit_pars=True)
-    opt = opt_klass(model.parameters.data, f, fprime, args=args, **opt_kwargs)
-    return opt
-
-
 def theano_expr_bfs(expr):
     """Generator function to walk a Theano expression graph in breadth first."""
     stack = [expr]
