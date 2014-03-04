@@ -3,3 +3,4 @@ docs/build/*
 cover/*
 *.pyc
 notebooks/.ipynb*
+notebooks/*pickle
