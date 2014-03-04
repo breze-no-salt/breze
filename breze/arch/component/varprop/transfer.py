@@ -26,6 +26,11 @@ SQRT_2 = np.array(np.sqrt(2.), dtype=theano.config.floatX)
 epsilon = np.array(1e-4, dtype=theano.config.floatX)
 
 
+# TODO some ttidying up could be done here. Consider (a) closed form version of
+# transfers, (b) crude deterministic approximations which ignore the variance
+# and (c) sampling approximations.
+
+
 def safe_sigmoid(x):
     """Return the sigmoid with result truly between 0 and 1."""
     y = _sigmoid(x)
@@ -125,6 +130,8 @@ def make_sampling_transfer(f, axis=1, rng=None):
 sampling_softmax = make_sampling_transfer(safe_softmax)
 sampling_sigmoid = make_sampling_transfer(safe_sigmoid)
 
+
+# TODO there is no consistency here, really. There should be many det_ or none.
 
 def det_softmax(mean, var):
     mean_flat = mean.reshape((mean.shape[0] * mean.shape[1], mean.shape[2]))

@@ -6,6 +6,8 @@ from ..component import misc
 from ..util import lookup, get_named_variables
 from linear import parameters, exprs as linear_exprs
 
+# TODO document
+
 
 def loss(posterior, pars_to_penalize, c_rim):
     marginal = posterior.mean(axis=0)

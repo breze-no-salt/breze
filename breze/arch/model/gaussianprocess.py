@@ -15,6 +15,9 @@ from ..util import lookup, get_named_variables
 from ..component import misc, kernel as kernel_
 
 
+# TODO document
+
+
 def parameters(n_inpt):
     return dict(length_scales=n_inpt, noise=1, amplitude=1)
 
@@ -58,6 +61,9 @@ def exprs(inpt, test_inpt, target, length_scales, noise, amplitude, kernel):
         exprs['D2'] = D2
     else:
         gram_matrix = kernel_func(inpt, inpt, length_scales, amplitude)
+
+    # TODO clarify nomenclature; the gram matrix is actually the whole thing
+    # without noise.
 
     gram_matrix += T.identity_like(gram_matrix) * noise
 

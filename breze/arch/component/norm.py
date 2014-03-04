@@ -3,6 +3,9 @@
 
 import theano.tensor as T
 
+# TODO many of these are not norms. They should be renamed or so.
+# TODO also, document
+
 
 def l1(inpt, axis=None):
     return abs(inpt).sum(axis=axis)

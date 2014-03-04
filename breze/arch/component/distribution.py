@@ -11,6 +11,10 @@ from math import pi
 from . import transfer, distance, norm
 
 
+# TODO add some more distributions, somehow find out how pdf/cdf and so forth
+# fit in
+
+
 class Distribution(object):
     """A distribution"""
 
@@ -48,16 +52,16 @@ class Distribution(object):
 
     def dlp(self, fac):
         """Function returning partial derivative of log-partition function
-        with regard to all statistics, i.e. 
+        with regard to all statistics, i.e.
         fac[node, sample, statistic] -> dlp[node, sample, statistic]
-        where dlp[node, sample, statistic] is the derivative of 
+        where dlp[node, sample, statistic] is the derivative of
         lp[node, sample] with regard to statistic."""
         raise NotImplementedError()
 
     def sampler(self, fac, final_gibbs_sample):
         """Function sampling from the distribution given statistic factors fac,
         i.e. fac[node, sample, statistic] -> sample[node, sample].
-        
+
         :param final_gibbs_sample: Is True on the final iteration during
                                    Gibbs sampling.
         """
@@ -104,7 +108,7 @@ class BernoulliDistribution(Distribution):
         if final_gibbs_sample:
             return p
         else:
-            return self.srng.binomial(size=p.shape, n=1, p=p, 
+            return self.srng.binomial(size=p.shape, n=1, p=p,
                                       dtype=theano.config.floatX)
 
 
@@ -150,6 +154,6 @@ class NormalDistribution(Distribution):
         if final_gibbs_sample:
             return mean
         else:
-            return self.srng.normal(size=mean.shape, 
-                                    avg=mean, std=1.0,  
+            return self.srng.normal(size=mean.shape,
+                                    avg=mean, std=1.0,
                                     dtype=theano.config.floatX)

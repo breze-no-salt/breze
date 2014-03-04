@@ -4,6 +4,8 @@
 from ..util import lookup, get_named_variables
 from ..component import loss as loss_, layer
 
+# TODO document
+
 
 def parameters(n_inpt, n_output):
     return {'in_to_out': (n_inpt, n_output),

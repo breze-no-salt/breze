@@ -7,6 +7,9 @@ import norm as norm_
 from ..util import lookup
 
 
+# TODO document
+
+
 def pairwise_diff(X, Y=None):
     Y = X if Y is None else Y
     diffs = X.T.dimshuffle(1, 0, 'x') - Y.T.dimshuffle('x', 0, 1)

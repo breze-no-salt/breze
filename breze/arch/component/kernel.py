@@ -8,6 +8,12 @@ import theano.tensor as T
 from ..component import misc
 
 
+# TODO numpydoc
+# TODO There is also some chaos here. Candidates for tidying up
+# - unified api
+# - more kernels (polynomial?)
+
+
 def linear(X, X_, length_scales, amplitude, diag=False):
     """Return an expression representing a Kernel matrix of the linear kernel
     between rows in ``X`` and rows in ``X_``.

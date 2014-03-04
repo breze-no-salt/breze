@@ -9,6 +9,9 @@ det = Det()
 minv = MatrixInverse()
 
 
+# TODO unify with ../distributions.py -- maybe mimic scipy api?
+
+
 def pdf(sample, mean, cov):
     dim = sample.shape[0]
     psd(cov)

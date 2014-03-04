@@ -8,6 +8,9 @@ import norm
 from ..util import lookup
 
 
+# TODO which modules are using this? Is there a better place to put these?
+# Also, no documentation.
+
 
 def bern_nce(X, Y):
     return -(X * T.log(Y) + (1 - X) * T.log(1 - Y)).sum(axis=axis)

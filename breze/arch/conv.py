@@ -10,6 +10,7 @@ from breze.component import norm, corrupt as _corrupt
 from breze.util import lookup
 
 
+# TODO is this function still in use anywhere? If not, maybe remove?
 def corrupt(exprs, name, typ, pars):
     f_corrupt = lookup(typ, _corrupt)
     if 'true_loss' not in exprs:

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+# TODO document
 
 def parameters(n_inpt, n_hiddens, tied_weights=False):
     # Validate symmetry of layer sizes in case of tied weights.

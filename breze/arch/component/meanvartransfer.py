@@ -8,6 +8,10 @@ import theano.tensor.extra_ops
 from theano.tensor.shared_randomstreams import RandomStreams
 
 
+# TODO I believe this module is obsolete, since there is
+# breze.arch.component.varprop.transfer.
+
+
 PI = np.array(np.pi, dtype=theano.config.floatX)
 SQRT_2 = np.array(np.sqrt(2.), dtype=theano.config.floatX)
 epsilon = np.array(1e-4, dtype=theano.config.floatX)

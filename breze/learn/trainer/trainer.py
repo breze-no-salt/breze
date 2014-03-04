@@ -17,6 +17,8 @@ class Trainer(object):
 
 class GentleTrainer(Trainer):
 
+    # TODO This trainer needs a better name and documentation
+
     def __init__(self, ident, model, max_samples, sample_dims, log_func):
         self.ident = ident
         self.max_samples = max_samples
@@ -61,6 +63,9 @@ class GentleTrainer(Trainer):
                     'time': time.time() - self.start,
                 })
 
+                # TODO We need a way to test a variable for being a gnumpy
+                # array or a numpy array without gnumpy available.
+
                 filtered_info = dict(
                     (k, v) for k, v in info.items()
                     #if (not isinstance(v, (np.ndarray, gp.garray)) or v.size <= 1) and k not in ('args', 'kwargs'))
@@ -74,7 +79,6 @@ class GentleTrainer(Trainer):
 
                 if stop(info) or self.stop_next:
                     break
-
 
     def _ctrl_c_handler(self, signal, frame):
         self.stop_next = True

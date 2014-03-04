@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 
-
-import theano
 import theano.tensor as T
 
 from ..util import lookup, get_named_variables
 
 import transfer
 import corrupt
+
+
+# TODO document
 
 
 def simple(inpt, weights, bias, out_transfer, p_dropout=0, prefix=''):

@@ -6,6 +6,8 @@ import theano.tensor as T
 import theano.tensor.nnet
 import norm
 
+# TODO documentall of these
+
 
 def tanh(inpt):
     return T.tanh(inpt)

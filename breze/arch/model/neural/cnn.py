@@ -9,6 +9,8 @@ from ...component import transfer, loss as loss_
 
 import mlp
 
+# TODO document
+
 
 def parameters(n_inpt, n_hidden_conv, n_hidden_full, n_output,
                resulting_image_size, filter_shapes):

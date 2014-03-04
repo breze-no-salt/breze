@@ -3,6 +3,9 @@
 
 from ...component import layer, corrupt
 
+# TODO document
+# TODO add skip connections to MLPs
+
 
 def parameters(n_inpt, n_hiddens, n_output):
     spec = dict(in_to_hidden=(n_inpt, n_hiddens[0]),
@@ -26,9 +29,6 @@ def exprs(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
           prefix=''):
 
     if not len(hidden_to_hiddens) + 1 == len(hidden_biases) == len(hidden_transfers):
-        print (hidden_to_hiddens)
-        print (hidden_biases)
-        print (hidden_transfers)
         raise ValueError('n_hiddens and hidden_transfers and hidden_biases '
                          'have to be of the same length')
 
