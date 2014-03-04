@@ -381,7 +381,7 @@ class Model(object):
       - ``loss``: quantity to be optimized for fitting the parameters;
         might not refer to the criterion of interest, but instead to a
         regularzied objective.
-      - ``true_loss``: Quantity of interst for the user, e.g. the loss without
+      - ``true_loss``: Quantity of interest for the user, e.g. the loss without
         regularization or the empirical risk.
 
     Overriding these names is possible in general, but is part of the interface
