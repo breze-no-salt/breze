@@ -68,8 +68,6 @@ def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
 
     flat_function = theano.function(
         flat_variables, flat_exprs,
-        # HOTFIX
-        allow_input_downcast=True,
         *args, **kwargs)
 
     def wrapper(*fargs):
@@ -409,14 +407,14 @@ class Model(object):
         # variables from .exprs for the use with the GPU.
         self.gpu_variable_subs = {}
 
-    def init_pars(self):
-        pass
+    def _init_pars(self):
+        raise NotImplementedError()
 
-    def init_exprs(self):
-        pass
+    def _init_exprs(self):
+        raise NotImplementedError()
 
     def _unify_variables(self, variables):
-        """Given a list of variables where each identifier given as a astring
+        """Given a list of variables where each identifier given as a string
         is repaced by the corresponding variable from the .exprs
         dictionary."""
         def lookup(varname):
