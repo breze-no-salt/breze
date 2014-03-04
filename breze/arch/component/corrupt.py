@@ -4,7 +4,7 @@ with noise."""
 import theano
 import theano.tensor as T
 
-# TODO better documentations
+
 # TODO add saltnpepper
 
 
