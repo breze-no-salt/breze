@@ -25,10 +25,6 @@ import theano.tensor as T
 from misc import distance_matrix
 
 
-# TODO use numpydoc
-# TODO nce, nnce, nces and nnces are stupid names. They refer to a more general
-# concept, the cross entropy, although they really are Bernoulli or Multinomial
-# cross entropies. Better names required.
 # TODO add hinge loss
 # TODO add huber loss
 
