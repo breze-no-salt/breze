@@ -37,63 +37,110 @@ def squared(target, prediction):
     """Return the element wise squared loss between the `target` and
     the `prediction`.
 
-    :param target: An array of arbitrary shape representing representing
-        the targets.
-    :param prediction: An array of the same shape as `target`.
-    :returns: An array of the same size as `target` and `prediction`xi
-        representing the pairwise divergences."""
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of arbitrary shape representing representing the targets.
+
+    prediction : Theano variable
+        An array of arbitrary shape representing representing the predictions.
+
+    Returns
+    -------
+
+    res : Theano variable
+        An array of the same shape as ``target`` and ``prediction``
+        representing the pairwise distances."""
     return (target - prediction) ** 2
 
 
 def absolute(target, prediction):
-    """Return the element wise absolute difference between the `target` and
-    the `prediction`.
+    """Return the element wise absolute difference between the ``target`` and
+    the ``prediction``.
 
-    :param target: An array of arbitrary shape representing the targets.
-    :param prediction: An array of the same shape as `target`.
-    :returns: An array of the same size as `target` and `prediction`xi
-        representing the pairwise divergences."""
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of arbitrary shape representing representing the targets.
+
+    prediction : Theano variable
+        An array of arbitrary shape representing representing the predictions.
+
+    Returns
+    -------
+
+    res : Theano variable
+        An array of the same shape as ``target`` and ``prediction``
+        representing the pairwise distances."""
     return abs(target - prediction)
 
 
-def nce(target, prediction):
-    """Return the element wise negative cross entropy between the `target` and
-    the `prediction`.
+def multinomial_ce(target, prediction, eps=1e-8):
+    """Return the cross entropy between the ``target`` and the ``prediction``,
+    where ``prediction`` is a summary of the statistics of the multinomial and
+    ``target`` is a some outcome.
 
-    Used for classification purposes.
+    Used for multiclass classification purposes.
 
-    The loss is different to `nnce` by that `prediction` is not an array of
-    integers but a hot k coding.
+    The loss is different to ``nmultinomial_ce`` by that ``target`` is not
+    an array of integers but a hot k coding.
 
-    :param target: An array of shape `(n, k)` where `n` is the number of
-        samples and k is the number of classes. Each row represents a hot k
+    Note that predictions are clipped between ``eps`` and ``1 - eps`` to ensure
+    numerical stability.
+
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of shape ``(n, k)`` where ``n`` is the number of samples and
+        ``k`` is the number of classes. Each row represents a hot k
         coding. It should be zero except for one element, which has to be
         exactly one.
-    :param prediction: An array of shape `(n, k)`. Each row is
-        interpreted as a categorical probability. Thus, each row has to sum
-        up to one and be strictly positive for this measure to make sense.
-    :returns: An array of the same size as `target` and `prediction`
-        representing the pairwise divergences."""
-    prediction = T.clip(prediction, 1e-8, 1 - 1e-8)
+
+    prediction : Theano variable
+        An array of shape ``(n, k)``. Each row is interpreted as a categorical
+        probability. Thus, each row has to sum up to one and be non-negative.
+
+    Returns
+    -------
+
+    res : Theano variable.
+        An array of the same size as ``target`` and ``prediction`` representing
+        the pairwise divergences."""
+    prediction = T.clip(prediction, eps, 1 - eps)
     return -(target * T.log(prediction))
 
 
-def nnce(target, prediction):
-    """Return the element wise negative cross entropy between the `target` and
-    the `prediction`.
+def nmultinomial_ce(target, prediction):
+    """Return the cross entropy between the ``target`` and the ``prediction``,
+    where ``prediction`` is a summary of the statistics of the multinomial and
+    ``target`` is a some outcome.
 
     Used for classification purposes.
 
-    The loss is different to `nce` by that `prediction` is not a hot k coding
-    but an array of integers.
+    The loss is different to ``multinomial_ce`` by that ``target`` is not a hot
+    k coding but an array of integers.
 
-    :param target: An array of shape `(n,)` where `n` is the number of
-        samples. Each entry of the array should be an integer between `0` and
-        `k-1`, where `k` is the number of classes.
-    :param prediction: An array of shape `(n, k)`. Each row is
-        interpreted as a categorical probability. Thus, each row has to sum
-        up to one and be strictly positive for this measure to make sense.
-    :returns: An array of shape `(n, 1)` as `target` containing the log
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of shape ``(n,)`` where `n` is the number of samples. Each
+        entry of the array should be an integer between ``0`` and ``k-1``,
+        where ``k`` is the number of classes.
+    prediction : Theano variable
+        An array of shape ``(n, k)`` or ``(t, n , k)``. Each row (i.e. entry in
+        the last dimension) is interpreted as a categorical probability. Thus,
+        each row has to sum up to one and be non-negative.
+
+
+    Returns
+    -------
+
+    res : Theano variable
+        An array of shape ``(n, 1)`` as ``target`` containing the log
         probability that that example is classified correctly."""
 
     # The following code might seem more complicated as necessary. Yet,
@@ -131,34 +178,56 @@ def nnce(target, prediction):
     return loss
 
 
-def nces(target, prediction):
-    """Return the negative cross entropies between binary vectors (the targets)
-    and a number of Bernoulli variables (the predictions).
+def bernoulli_ces(target, prediction):
+    """Return the Bernoulli cross entropies between binary vectors ``target``
+    and a number of Bernoulli variables ``prediction``.
 
     Used in regression on binary variables, not classification.
 
-    :param target: An array of shape `(n, k)` where `n` is the number of
-        samples and k is the number of outputs. Each entry should be either 0 or
-        1.
-    :param prediction: An array of shape `(n, k)`. Each row is
-        interpreted as a set of statistics of Bernoulli variables. Thus, each
-        element has to lie in (0, 1).
-    :returns: An array of the same size as `target` and `prediction`
-        representing the pairwise divergences."""
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of shape ``(n, k)`` where ``n`` is the number of samples and k
+        is the number of outputs. Each entry should be either 0 or 1.
+
+    prediction : Theano variable.
+        An array of shape ``(n, k)``. Each row is interpreted as a set of
+        statistics of Bernoulli variables. Thus, each element has to lie in
+        ``(0, 1)``.
+
+    Returns
+    -------
+
+    res : Theano variable
+        An array of the same size as ``target`` and ``prediction`` representing
+        the pairwise divergences.
+    """
     return -(target * T.log(prediction) + (1 - target) * T.log(1 - prediction))
 
 
-def bern_bern_kl(X, Y, axis=None):
+def bern_bern_kl(X, Y):
     """Return the Kullback-Leibler divergence between Bernoulli variables
     represented by their sufficient statistics.
 
-    :param X: An array of arbitrary shape where each element represents
-        the statistic of a Bernoulli variable and thus should lie in (0, 1).
-    :param Y: An array of the same shape as `target` where each element
-        represents the statistic of a Bernoulli variable and thus should lie in
-        (0, 1).
-    :returns: An array of the same size as `target` and `prediction`
-        representing the pairwise divergences."""
+    Parameters
+    ----------
+
+    X : Theano variable
+        An array of arbitrary shape where each element represents
+        the statistic of a Bernoulli variable and thus should lie in
+        ``(0, 1)``.
+    Y : Theano variable
+        An array of the same shape as ``target`` where each element represents
+        the statistic of a Bernoulli variable and thus should lie in
+        ``(0, 1)``.
+
+    Returns
+    -------
+
+     res : Theano variable
+        An array of the same size as ``target`` and ``prediction`` representing
+        the pairwise divergences."""
     return X * T.log(X / Y) + (1 - X) * T.log((1 - X) / (1 - Y))
 
 

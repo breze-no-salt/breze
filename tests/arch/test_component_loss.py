@@ -5,7 +5,8 @@ import theano
 import theano.tensor as T
 import numpy as np
 
-from breze.arch.component.loss import absolute, squared, nce, nnce, ncac, drlim1
+from breze.arch.component.loss import (
+        absolute, squared, multinomial_ce, nmultinomial_ce, ncac, drlim1)
 
 from nose.tools import with_setup
 
@@ -101,11 +102,11 @@ def test_neg_cross_entropy():
     X, Y = T.matrix(), T.matrix()
     X.tag.test_value = test_X > 0.2
     Y.tag.test_value = test_Y
-    dist = nce(X, Y).sum()
+    dist = multinomial_ce(X, Y).sum()
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
     correct = np.allclose(res, 1.6063716678910529)
-    assert correct, 'nce loss not working'
+    assert correct, 'multinomial_ce loss not working'
 
 
 @with_setup(test_values_raise, test_values_off)
@@ -113,11 +114,11 @@ def test_neg_cross_entropy_rowwise():
     X, Y = T.matrix(), T.matrix()
     X.tag.test_value = test_X > 0.2
     Y.tag.test_value = test_Y
-    dist = nce(X, Y).sum(axis=1)
+    dist = multinomial_ce(X, Y).sum(axis=1)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
     correct = np.allclose(res, [0.85798192, 0.74838975])
-    assert correct, 'nce loss rowwise not working'
+    assert correct, 'multinomial_ce loss rowwise not working'
 
 
 @with_setup(test_values_raise, test_values_off)
@@ -125,11 +126,11 @@ def test_neg_cross_entropy_colwise():
     X, Y = T.matrix(), T.matrix()
     X.tag.test_value = test_X > 0.2
     Y.tag.test_value = test_Y
-    dist = nce(X, Y).sum(axis=0)
+    dist = multinomial_ce(X, Y).sum(axis=0)
     f = theano.function([X, Y], dist, mode='FAST_COMPILE')
     res = f(test_X, test_Y)
     correct = np.allclose(res, [[0.49795728, 0.48932523, 0.61908916]])
-    assert correct, 'nce loss colwise not working'
+    assert correct, 'multinomial_ce loss colwise not working'
 
 
 @with_setup(test_values_raise, test_values_off)
@@ -137,14 +138,14 @@ def test_nominal_neg_cross_entropy():
     Xc, Y = T.ivector(), T.matrix()
     Xc.tag.test_value = (test_X > 0.2).argmax(axis=1).astype('uint8')
     Y.tag.test_value = test_Y
-    dist = nnce(Xc, Y).sum()
+    dist = nmultinomial_ce(Xc, Y).sum()
     f = theano.function([Xc, Y], dist, mode='FAST_COMPILE')
     res = f(test_Xc, test_Y)
     desired = -np.log(test_Y)[np.arange(test_Xc.shape[0]), test_Xc].sum()
     correct = np.allclose(res, desired)
     print res
     print desired
-    assert correct, 'nnce loss not working'
+    assert correct, 'nmultinomial_ce loss not working'
 
 
 @with_setup(test_values_raise, test_values_off)

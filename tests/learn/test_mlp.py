@@ -66,7 +66,7 @@ def test_cnn_iter_fit():
     m = Cnn(100 * 50, [10, 15], [20, 12], 1,
             ['sigmoid', 'sigmoid'], ['rectifier', 'rectifier'],
             'sigmoid',
-            'nce', 100, 50, 2,
+            'multinomial_ce', 100, 50, 2,
             optimizer=('rmsprop', {'steprate': 1e-4, 'decay': 0.9}),
             batch_size=2,
             max_iter=10,
@@ -80,12 +80,12 @@ def test_cnn_iter_fit():
 
 def test_cnn_fit():
     X = np.random.standard_normal((10, 2 * 100 * 50))
-    Z = np.random.random((10, 1 )) > 0.5
+    Z = np.random.random((10, 1)) > 0.5
 
     m = Cnn(100 * 50, [10, 15], [20, 12], 1,
             ['sigmoid', 'sigmoid'], ['rectifier', 'rectifier'],
             'sigmoid',
-            'nce', 100, 50, 2,
+            'multinomial_ce', 100, 50, 2,
             optimizer=('rmsprop', {'steprate': 1e-4, 'decay': 0.9}),
             batch_size=2,
             max_iter=10,
@@ -94,14 +94,14 @@ def test_cnn_fit():
             )
     m.fit(X, Z)
 
+
 def test_cnn_predict():
     X = np.random.standard_normal((10, 2 * 100 * 50))
-    Z = np.random.random((10, 1)) > 0.5
 
     m = Cnn(100 * 50, [10, 15], [20, 12], 1,
             ['sigmoid', 'sigmoid'], ['rectifier', 'rectifier'],
             'sigmoid',
-            'nce', 100, 50, 2,
+            'multinomial_ce', 100, 50, 2,
             optimizer=('rmsprop', {'steprate': 1e-4, 'decay': 0.9}),
             batch_size=2,
             max_iter=10,
