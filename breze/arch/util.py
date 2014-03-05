@@ -398,10 +398,10 @@ class Model(object):
         self.gpu_variable_subs = {}
 
     def _init_pars(self):
-        raise NotImplementedError()
+        pass
 
     def _init_exprs(self):
-        raise NotImplementedError()
+        pass
 
     def _unify_variables(self, variables):
         """Given a list of variables where each identifier given as a string
