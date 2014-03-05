@@ -10,12 +10,12 @@ from breze.arch.component.misc import distance_matrix, project_into_l2_ball
 
 def test_distance_matrix():
     X = T.matrix()
-    D = distance_matrix(X)
+    D = distance_matrix(X) ** 2
     f = theano.function([X], D, mode='FAST_COMPILE')
     x = np.array([[1], [2], [3]]).astype(theano.config.floatX)
     res = f(x)
     print res
-    correct = np.allclose(res, np.array([[0, 1, 4], [1, 0, 1], [4, 1, 0]]))
+    correct = np.allclose(res, (np.array([[0, 1, 4], [1, 0, 1], [4, 1, 0]])))
     assert correct, 'distance matrix not working right'
 
 

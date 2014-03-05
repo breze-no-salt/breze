@@ -232,7 +232,7 @@ def bern_bern_kl(X, Y):
 
 
 def ncac(target, embedding):
-    """Return the sample wise NCA for classification method.
+    """Return the NCA for classification loss.
 
     This corresponds to the probability that a point is correctly classified
     with a soft knn classifier using leave-one-out. Each neighbour is weighted
@@ -243,12 +243,22 @@ def ncac(target, embedding):
     'Neighbourhood Component Analysis' by
     J Goldberger, S Roweis, G Hinton, R Salakhutdinov (2004).
 
-    :param target: An array of shape `(n,)` where `n` is the number of
-        samples. Each entry of the array should be an integer between `0` and
-        `k-1`, where `k` is the number of classes.
-    :param embedding: An array of shape `(n, d)` where each row represents
-        a point in d dimensional space.
-    :returns: Array of shape `(n, 1)`.
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of shape ``(n,)`` where ``n`` is the number of samples. Each
+        entry of the array should be an integer between ``0`` and ``k - 1``,
+        where ``k`` is the number of classes.
+    embedding : Theano variable
+        An array of shape ``(n, d)`` where each row represents a point in``d``-dimensional space.
+
+    Returns
+    -------
+
+    res : Theano variable
+        Array of shape `(n, 1)` holding a probability that a point is
+        classified correclty.
     """
     # Matrix of the distances of points.
     dist = distance_matrix(embedding)
@@ -268,7 +278,7 @@ def ncac(target, embedding):
 
 
 def ncar(target, embedding):
-    """Return the sample wise NCA for regression loss.
+    """Return the NCA for regression loss.
 
     This is similar to NCA for classification, except that not soft KNN
     classification but regression performance is maximized. (Actually, the
@@ -280,14 +290,24 @@ def ncar(target, embedding):
     Taylor, G. and Fergus, R. and Williams, G. and Spiro, I. and Bregler, C.
     (2010)
 
-    :param target: An array of shape `(n, d)` where `n` is the number of
-        samples and `d` the dimensionalty of the target space.
-    :param embedding: An array of shape `(n, d)` where each row represents
-        a point in d dimensional space.
-    :returns: Array of shape `(n, 1)`.
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of shape ``(n, d)`` where ``n`` is the number of samples and
+        ``d`` the dimensionalty of the target space.
+    embedding : Theano variable
+        An array of shape ``(n, d)`` where each row represents a point in
+        ``d``-dimensional space.
+
+    Returns
+    -------
+
+    res : Theano variable
+        Array of shape ``(n, 1)``.
     """
     # Matrix of the distances of points.
-    dist = distance_matrix(embedding)
+    dist = distance_matrix(embedding) ** 2
     thisid = T.identity_like(dist)
 
     # Probability that a point is neighbour of another point based on

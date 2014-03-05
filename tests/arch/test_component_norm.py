@@ -26,7 +26,7 @@ def test_l2_vector():
     inpt = T.vector()
     norm = l2(inpt)
     f = theano.function([inpt], norm, mode='FAST_COMPILE')
-    assert np.allclose(f(test_arr), 6), 'l2 norm for vector not working'
+    assert np.allclose(f(test_arr), np.sqrt(6)), 'l2 norm for vector not working'
 
 
 def test_exp_vector():
@@ -47,7 +47,7 @@ def test_l2_matrix():
     inpt = T.matrix()
     norm = l2(inpt)
     f = theano.function([inpt], norm, mode='FAST_COMPILE')
-    assert np.allclose(f(test_matrix), 10080.53), 'l2 norm for matrix not working'
+    assert np.allclose(f(test_matrix), np.sqrt(10080.53)), 'l2 norm for matrix not working'
 
 
 def test_exp_matrix():
@@ -71,7 +71,7 @@ def test_l2_matrix_rowwise():
     norm = l2(inpt, axis=1)
     f = theano.function([inpt], norm, mode='FAST_COMPILE')
     res = f(test_matrix)
-    correct = np.allclose(res, [1.00745300e+04, 6.])
+    correct = np.allclose(res, np.sqrt(np.array([1.00745300e+04, 6.])))
     assert correct, 'l2 norm rowwise not working'
 
 
@@ -100,7 +100,7 @@ def test_l2_matrix_colwise():
     res = f(test_matrix)
     correct = np.allclose(
             res,
-            [5., 1.12400000e+01, 2.42500000e+01, 1.00400400e+04])
+            np.sqrt(np.array([5., 1.12400000e+01, 2.42500000e+01, 1.00400400e+04])))
     assert correct, 'l2 norm colwise not working'
 
 

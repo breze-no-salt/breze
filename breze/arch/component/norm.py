@@ -7,20 +7,84 @@ import theano.tensor as T
 # TODO also, document
 
 
-def l1(inpt, axis=None):
-    return abs(inpt).sum(axis=axis)
+def l1(arr, axis=None):
+    """Return the L1 norm of a tensor.
+
+    Parameters
+    ----------
+
+    arr : Theano variable.
+        The variable to calculate the norm of.
+    axis : integer, optional [default: None]
+        The sum will be performed along this axis. This makes it possible to
+        calculate the norm of many tensors in parallel, given they are organized
+        along some axis. If not given, the norm will be computed for the whole
+        tensor.
+
+    Returns
+    -------
+
+    res : Theano variable.
+        If ``axis`` is ``None``, this will be a scalar. Otherwise it will be
+        a tensor with one dimension less, where the missing dimension
+        corresponds to ``axis``.
+    """
+
+    return abs(arr).sum(axis=axis)
 
 
-def soft_l1(inpt, axis=None):
-    return T.sqrt(inpt**2 + 1e-8).sum(axis=axis)
+def l2(arr, axis=None):
+    """Return the L2 norm of a tensor.
+
+    Parameters
+    ----------
+
+    arr : Theano variable.
+        The variable to calculate the norm of.
+    axis : integer, optional [default: None]
+        The sum will be performed along this axis. This makes it possible to
+        calculate the norm of many tensors in parallel, given they are organized
+        along some axis. If not given, the norm will be computed for the whole
+        tensor.
+
+    Returns
+    -------
+
+    res : Theano variable.
+        If ``axis`` is ``None``, this will be a scalar. Otherwise it will be
+        a tensor with one dimension less, where the missing dimension
+        corresponds to ``axis``.
+    """
+    return T.sqrt((arr ** 2).sum(axis=axis) + 1e-8)
 
 
-def l2(inpt, axis=None):
-    return (inpt**2).sum(axis=axis)
+def lp(inpt, p, axis=None):
+    """Return the Lp norm of a tensor.
 
+    Parameters
+    ----------
 
-def root_l2(inpt, axis=None):
-    return T.sqrt((inpt**2).sum(axis=axis) + 1e-8)
+    arr : Theano variable.
+        The variable to calculate the norm of.
+
+    p : Theano variable or float.
+        Order of the norm.
+
+    axis : integer, optional [default: None]
+        The sum will be performed along this axis. This makes it possible to
+        calculate the norm of many tensors in parallel, given they are organized
+        along some axis. If not given, the norm will be computed for the whole
+        tensor.
+
+    Returns
+    -------
+
+    res : Theano variable.
+        If ``axis`` is ``None``, this will be a scalar. Otherwise it will be
+        a tensor with one dimension less, where the missing dimension
+        corresponds to ``axis``.
+    """
+    return ((inpt ** p).sum(axis=axis)) ** (1. / p)
 
 
 def exp(inpt, axis=None):
@@ -39,3 +103,7 @@ def normalize(inpt, f_comp, axis, eps=1E-8):
         res = (transformed.T / (this_norm + eps)).T
 
     return res
+
+
+def soft_l1(inpt, axis=None):
+    return T.sqrt(inpt**2 + 1e-8).sum(axis=axis)
