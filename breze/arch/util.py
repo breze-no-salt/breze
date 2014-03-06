@@ -203,6 +203,7 @@ def get_named_variables(dct, name=True, overwrite=False, prefix=''):
     """
     exprs = [('%s%s' % (prefix, k), v) for k, v in dct.items()
              if isinstance(v, theano.tensor.basic.TensorVariable)]
+
     if name:
         for k, v in exprs:
             if not hasattr(v, 'name') or overwrite:

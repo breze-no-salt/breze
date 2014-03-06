@@ -75,4 +75,3 @@ class SparseFiltering(Model, UnsupervisedBrezeWrapperBase,
         self.exprs.update(linear.exprs(
             self.exprs['inpt'], P.in_to_out, 0, 'identity'))
         self.exprs.update(sparsefiltering.loss(self.exprs['output'], self.feature_transfer))
-
