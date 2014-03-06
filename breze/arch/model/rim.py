@@ -37,8 +37,8 @@ def loss(posterior, pars_to_penalize, c_rim):
         Weight of the L2 penalties.
     """
     marginal = posterior.mean(axis=0)
-    cond_entropy = misc.discrete_entropy(posterior, axis=1).mean()
-    entropy = misc.discrete_entropy(marginal)
+    cond_entropy = misc.cat_entropy(posterior).mean()
+    entropy = misc.cat_entropy(marginal.dimshuffle('x', 0)).sum()
 
     nmi = cond_entropy - entropy
 

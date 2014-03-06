@@ -90,10 +90,26 @@ def distance_matrix_by_diff(diff, norm=norm_.l2):
     return dist_comps
 
 
-def discrete_entropy(X, axis=None):
-    # TODO document me
-    X = T.minimum(1, X + 1e-8)
-    return -(X * T.log(X)).sum(axis=axis)
+def cat_entropy(arr):
+    """Return the entropy of categorical distributions described by the rows
+    in ``arr``.
+
+    Parameters
+    ----------
+
+    arr : Theano variable
+        Array of shape ``(n, d)`` describing ``n`` different categorical
+        variables. Rows need to sum up to ``1`` and be non-negative.
+
+    Returns
+    -------
+
+    res : theano variable
+        Has shape ``(n,)``.
+    """
+    # TODO check if this is also valid for multinomial.
+    arr = T.minimum(1, arr + 1e-8)
+    return -(arr * T.log(arr)).sum(axis=1)
 
 
 def project_into_l2_ball(arr, radius=1):
