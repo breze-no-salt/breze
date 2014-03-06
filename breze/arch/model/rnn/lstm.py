@@ -10,6 +10,7 @@ from ...component import transfer
 from rnn import feedforward_layer, leaky_integration
 from pooling import pooling_layer
 
+
 def parameters(n_inpt, n_hiddens, n_output):
     spec = {
         'in_to_hidden': (n_inpt, 4 * n_hiddens[0]),

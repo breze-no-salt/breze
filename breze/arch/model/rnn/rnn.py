@@ -7,8 +7,8 @@ import theano
 import theano.tensor as T
 from theano.tensor.extra_ops import repeat
 
-from ...util import ParameterSet, Model, lookup
-from ...component import transfer, loss as loss_
+from ...util import lookup
+from ...component import transfer
 from pooling import pooling_layer
 
 
@@ -119,7 +119,7 @@ def exprs(inpt, in_to_hidden, hidden_to_hiddens, hidden_to_out,
     unpooled = feedforward_layer(hidden_rec, hidden_to_out, out_bias)
 
     if in_to_out is not None:
-        unpooled += feedforward_layer( inpt, in_to_out, T.zeros_like(out_bias))
+        unpooled += feedforward_layer(inpt, in_to_out, T.zeros_like(out_bias))
 
     if skip_to_outs is not None:
         for i, s in enumerate(skip_to_outs):

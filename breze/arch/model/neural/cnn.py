@@ -11,7 +11,6 @@ import mlp
 
 # TODO document
 
-
 def parameters(n_inpt, n_hidden_conv, n_hidden_full, n_output,
                resulting_image_size, filter_shapes):
     spec = dict(in_to_hidden=(n_hidden_conv[0], n_inpt[1],
