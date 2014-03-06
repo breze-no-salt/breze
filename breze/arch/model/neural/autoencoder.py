@@ -4,6 +4,29 @@
 # TODO docstring example
 
 def parameters(n_inpt, n_hiddens, tied_weights=False):
+    """Return the parameter specification dictionary for an auto encoder.
+
+    Parameters
+    ----------
+
+    n_inpt : integer
+        Number of inputs of the model.
+
+    n_hiddens : list of integers
+        Each item corresponds to one hidden layer of the auto encoder. If
+        ``tied_weights`` is set, this has to be symmetric.
+
+    tied_weights : boolean, optional [default: False]
+        Flag indicating whether the auto encoder should use tied weights, i.e.
+        the n'th weight matrix equals the transpose of the K-n'th weight
+        matrix.
+
+    Returns
+    -------
+
+    res : dict
+        Dictionary specifying the parameters needed.
+    """
     # Validate symmetry of layer sizes in case of tied weights.
     if tied_weights:
         for i in range(len(n_hiddens) / 2):

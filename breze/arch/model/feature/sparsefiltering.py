@@ -11,6 +11,24 @@ from ...component import transfer as _transfer, norm
 
 
 def parameters(n_inpt, n_output):
+    """Return the parameter specification dictionary for a sparse filtering
+    model.
+
+    Parameters
+    ----------
+
+    n_inpt : integer
+        Number of inpus to the model.
+
+    n_output : integer
+        Number of outputs of the model.
+
+    Returns
+    -------
+
+    res : dict
+        Specification of the parameters.
+    """
     return dict(in_to_out=(n_inpt, n_output))
 
 
