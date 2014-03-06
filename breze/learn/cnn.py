@@ -228,7 +228,7 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
         """
         data = [minibatches(i, self.batch_size, d) for i, d in zip([X, Z], self.sample_dim)]
         total = [f(*element) for element in zip(data[0], data[1])]
-        return sum(total)/float(len(total))
+        return sum(total) / float(len(total))
 
     def loss_(self, X, Z):
         """Override the loss function.
