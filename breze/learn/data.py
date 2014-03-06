@@ -1,6 +1,5 @@
 """Module for manipulating data."""
 
-import itertools
 import math
 import random
 
@@ -9,7 +8,7 @@ import scipy.interpolate
 
 from sklearn.utils import check_random_state
 
-from climin.util import minibatches, iter_minibatches
+# TODO numpy doc
 
 
 def one_hot(array, n_classes=None):
@@ -166,10 +165,8 @@ def iter_windows(X, size, offset=1):
 
     `X` is expected to be a list of arrays, where each array represents a
     sequence along its first axis."""
-    x_count = itertools.count(0)
     for seq in X:
         for j in [k * offset for k in range(n_windows(seq, size, offset))]:
-            i = x_count.next()
             yield seq[j:j + size]
 
 
