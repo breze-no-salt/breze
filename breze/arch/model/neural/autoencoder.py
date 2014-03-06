@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # TODO document
+# TODO docstring example
 
 def parameters(n_inpt, n_hiddens, tied_weights=False):
     # Validate symmetry of layer sizes in case of tied weights.

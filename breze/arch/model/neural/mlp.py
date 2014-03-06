@@ -4,6 +4,7 @@
 from ...component import layer, corrupt
 
 # TODO document
+# TODO docstrings
 # TODO add skip connections to MLPs
 
 

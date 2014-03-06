@@ -6,6 +6,9 @@ import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
 
 
+# TODO document
+
+
 def multinomial_weights(inpt):
     # Numerical stability.
     inpt = T.maximum(inpt, -10)

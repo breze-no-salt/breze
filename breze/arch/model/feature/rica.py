@@ -7,6 +7,7 @@ from ...component import transfer as _transfer
 
 # TODO rename to ``loss``
 # TODO add prefix
+# TODO docstring example
 
 
 def ica_loss(code, transfer):

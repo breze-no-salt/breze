@@ -7,6 +7,9 @@ from ...util import lookup, get_named_variables
 from ...component import transfer as _transfer, norm
 
 
+# TODO docstring examples
+
+
 def parameters(n_inpt, n_output):
     return dict(in_to_out=(n_inpt, n_output))
 

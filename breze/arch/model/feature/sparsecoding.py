@@ -6,6 +6,9 @@ import theano.tensor as T
 from ...util import get_named_variables
 
 
+# TODO docstring examples
+
+
 def parameters(n_feature, n_inpt):
     return dict(feature_to_in=(n_feature, n_inpt))
 
