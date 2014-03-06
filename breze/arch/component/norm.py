@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 
+"""Module containing various norms."""
+
 
 import theano.tensor as T
-
-# TODO many of these are not norms. They should be renamed or so.
-# TODO also, document
 
 
 def l1(arr, axis=None):
@@ -29,8 +28,41 @@ def l1(arr, axis=None):
         a tensor with one dimension less, where the missing dimension
         corresponds to ``axis``.
     """
-
     return abs(arr).sum(axis=axis)
+
+
+def soft_l1(inpt, eps=1e-8, axis=None):
+    """Return a "soft" L1 norm of a tensor.
+
+    The term "soft" is used because we are using :math:`\sqrt{x^2 + \epsilon}`
+    in favor of :math:`|x|` which is not smooth at :math:`x=0`.
+
+    Parameters
+    ----------
+
+    arr : Theano variable.
+        The variable to calculate the norm of.
+
+    eps : float, optional [default: 1e-8]
+        Small offset to make the function more smooth.
+
+
+    axis : integer, optional [default: None]
+        The sum will be performed along this axis. This makes it possible to
+        calculate the norm of many tensors in parallel, given they are organized
+        along some axis. If not given, the norm will be computed for the whole
+        tensor.
+
+    Returns
+    -------
+
+    res : Theano variable.
+        If ``axis`` is ``None``, this will be a scalar. Otherwise it will be
+        a tensor with one dimension less, where the missing dimension
+        corresponds to ``axis``.
+    """
+
+    return T.sqrt(inpt ** 2 + eps).sum(axis=axis)
 
 
 def l2(arr, axis=None):
@@ -87,10 +119,6 @@ def lp(inpt, p, axis=None):
     return ((inpt ** p).sum(axis=axis)) ** (1. / p)
 
 
-def exp(inpt, axis=None):
-    return T.exp(inpt).sum(axis=axis)
-
-
 def normalize(inpt, f_comp, axis, eps=1E-8):
     if axis not in (0, 1):
         raise ValueError('only axis 0 or 1 allowed')
@@ -105,5 +133,6 @@ def normalize(inpt, f_comp, axis, eps=1E-8):
     return res
 
 
-def soft_l1(inpt, axis=None):
-    return T.sqrt(inpt**2 + 1e-8).sum(axis=axis)
+# TODO what about this? Is this a norm? Should it go?
+def exp(inpt, axis=None):
+    return T.exp(inpt).sum(axis=axis)

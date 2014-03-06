@@ -67,10 +67,13 @@ Helpers, convenience functions and tools
 Architectures, Components
 -------------------------
 
-.. toctree::
+.. toctree::    
+   arch/component/norm
    arch/component/transfer
    arch/component/loss
+   arch/component/corrupt
    arch/component/misc
+   arch/component/layer
 
 
 Implementation Notes

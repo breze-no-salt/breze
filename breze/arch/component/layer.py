@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Module that contains various layer like components."""
+
 import theano.tensor as T
 
 from ..util import lookup, get_named_variables

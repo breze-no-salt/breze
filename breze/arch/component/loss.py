@@ -1,23 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """Module containing several losses usable for supervised and unsupervised
-training.
-
-The only restriction that is imposed on losses in general is that they
-take Theano variables as arguments and return Theano variables as arguments
-as well.
-
-The API is agnostic about the exact definition how those arguments come
-to pass. Here are some abstrations.
-
-
-- _Supervised pairwise losses_ take two arguments, the target and the given
-  prediction of a model (in that order) of the same shape. The elements of
-  the two variables are paired coordinate-wise. The return value is of the
-  same shape and contains the loss that results from the respective pairs
-  at the corresponding coordinates.
-
-"""
+training."""
 
 
 import theano.tensor as T

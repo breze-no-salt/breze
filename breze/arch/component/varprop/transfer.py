@@ -26,7 +26,7 @@ SQRT_2 = np.array(np.sqrt(2.), dtype=theano.config.floatX)
 epsilon = np.array(1e-4, dtype=theano.config.floatX)
 
 
-# TODO some ttidying up could be done here. Consider (a) closed form version of
+# TODO some tidying up could be done here. Consider (a) closed form version of
 # transfers, (b) crude deterministic approximations which ignore the variance
 # and (c) sampling approximations.
 
