@@ -57,9 +57,9 @@ def discard_var_loss(loss):
 
 squared = discard_var_loss(loss.squared)
 absolute = discard_var_loss(loss.absolute)
-multinomial_ce = discard_var_loss(loss.multinomial_ce)
-nmultinomial_ce = discard_var_loss(loss.nmultinomial_ce)
-bernoulli_ces = discard_var_loss(loss.bernoulli_ces)
+cat_ce = discard_var_loss(loss.cat_ce)
+ncat_ce = discard_var_loss(loss.ncat_ce)
+bernoulli_ces = discard_var_loss(loss.bern_ces)
 ncac = discard_var_loss(loss.ncac)
 ncar = discard_var_loss(loss.ncar)
 

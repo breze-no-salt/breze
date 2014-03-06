@@ -73,14 +73,14 @@ def absolute(target, prediction):
     return abs(target - prediction)
 
 
-def multinomial_ce(target, prediction, eps=1e-8):
+def cat_ce(target, prediction, eps=1e-8):
     """Return the cross entropy between the ``target`` and the ``prediction``,
-    where ``prediction`` is a summary of the statistics of the multinomial and
-    ``target`` is a some outcome.
+    where ``prediction`` is a summary of the statistics of a categorial
+    distribution and ``target`` is a some outcome.
 
     Used for multiclass classification purposes.
 
-    The loss is different to ``nmultinomial_ce`` by that ``target`` is not
+    The loss is different to ``ncat_ce`` by that ``target`` is not
     an array of integers but a hot k coding.
 
     Note that predictions are clipped between ``eps`` and ``1 - eps`` to ensure
@@ -109,14 +109,14 @@ def multinomial_ce(target, prediction, eps=1e-8):
     return -(target * T.log(prediction))
 
 
-def nmultinomial_ce(target, prediction):
+def ncat_ce(target, prediction):
     """Return the cross entropy between the ``target`` and the ``prediction``,
-    where ``prediction`` is a summary of the statistics of the multinomial and
-    ``target`` is a some outcome.
+    where ``prediction`` is a summary of the statistics of the categorical
+    distribution and ``target`` is a some outcome.
 
     Used for classification purposes.
 
-    The loss is different to ``multinomial_ce`` by that ``target`` is not a hot
+    The loss is different to ``cat_ce`` by that ``target`` is not a hot
     k coding but an array of integers.
 
     Parameters
@@ -174,7 +174,7 @@ def nmultinomial_ce(target, prediction):
     return loss
 
 
-def bernoulli_ces(target, prediction):
+def bern_ces(target, prediction):
     """Return the Bernoulli cross entropies between binary vectors ``target``
     and a number of Bernoulli variables ``prediction``.
 
