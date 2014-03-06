@@ -7,9 +7,6 @@ import norm as norm_
 from ..util import lookup
 
 
-# TODO document
-
-
 def pairwise_diff(X, Y=None):
     """Given two arrays with samples in the row, compute the pairwise
     differences.
