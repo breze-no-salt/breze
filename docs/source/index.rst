@@ -64,6 +64,14 @@ Helpers, convenience functions and tools
    :maxdepth: 1
 
 
+Architectures, Components
+-------------------------
+
+.. toctree::
+   arch/component/transfer
+   arch/component/loss
+
+
 Implementation Notes
 --------------------
 
