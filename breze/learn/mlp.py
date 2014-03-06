@@ -358,29 +358,3 @@ class FastDropoutNetwork(Model, SupervisedBrezeWrapperBase):
                     max_length_columns(W, self.max_length)
                 W = self.parameters['hidden_to_out']
                 max_length_columns(W, self.max_length)
-
-
-#class AwnNetwork(AdaptiveWeightNoiseNetwork,
-#                 SupervisedBrezeWrapperBase):
-#
-#    def __init__(self, n_inpt, n_hiddens, n_output,
-#                 hidden_transfers, out_transfer,
-#                 prediction_loss, complexity_loss='gaussian',
-#                 optimizer='lbfgs',
-#                 batch_size=None,
-#                 inpt_var=1e-8,
-#                 max_iter=1000, verbose=False):
-#        self.inpt_var = inpt_var
-#
-#        super(AwnNetwork, self).__init__(
-#            n_inpt, n_hiddens, n_output, hidden_transfers, out_transfer,
-#            prediction_loss, complexity_loss)
-#        self.optimizer = optimizer
-#        self.batch_size = batch_size
-#
-#        self.max_iter = max_iter
-#        self.verbose = verbose
-#
-#        self.f_predict = None
-#        self.parameters.data[:] = np.random.standard_normal(
-#            self.parameters.data.shape)
