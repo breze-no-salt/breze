@@ -6,9 +6,6 @@ import theano
 import theano.tensor as T
 
 
-# TODO unify with ../distributions.py -- maybe mimic scipy api?
-
-
 PI = np.array(np.pi, dtype=theano.config.floatX)
 epsilon = np.array(1e-32, dtype=theano.config.floatX)
 
