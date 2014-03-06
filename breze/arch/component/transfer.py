@@ -205,4 +205,4 @@ def logcosh(inpt):
 
 
 def softabs(inpt, eps=1E-5):
-    return T.sqrt(inpt**2 + eps)
+    return T.sqrt(inpt ** 2 + eps)
