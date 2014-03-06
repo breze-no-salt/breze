@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Module holding miscellaneous functionality."""
+
 
 import theano.tensor as T
 

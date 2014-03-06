@@ -70,6 +70,7 @@ Architectures, Components
 .. toctree::
    arch/component/transfer
    arch/component/loss
+   arch/component/misc
 
 
 Implementation Notes
