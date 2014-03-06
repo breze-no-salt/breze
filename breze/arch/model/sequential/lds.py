@@ -256,32 +256,3 @@ class LinearDynamicalSystem(Model):
             'smoothed_covs': smoothed_covs,
             'log_likelihood': prob
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

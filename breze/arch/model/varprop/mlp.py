@@ -8,6 +8,9 @@ from ...component.varprop import transfer
 from ...model.neural import mlp
 
 
+# TODO document
+
+
 def mean_var_forward(in_mean, in_var, weights, bias, variance_bias_sqrt,
                      f, p_dropout):
     p_keep = 1 - p_dropout

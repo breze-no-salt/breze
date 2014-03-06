@@ -133,7 +133,7 @@ def cpu_expr_to_gpu(expr, unsafe=False):
     """
     expr_ = T.cast(expr, 'float32')
     expr_ = theano.Out(theano.sandbox.cuda.basic_ops.gpu_from_host(expr),
-                      borrow=unsafe)
+                       borrow=unsafe)
 
     expr_.name = expr.name
     return expr_

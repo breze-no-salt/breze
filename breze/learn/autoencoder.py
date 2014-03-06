@@ -78,7 +78,6 @@ described in the corresponding paragraphs.
 .. [UFDLT] http://ufldl.stanford.edu/
 """
 
-import climin.initialize
 import numpy as np
 import theano
 import theano.tensor as T
@@ -211,15 +210,15 @@ class AutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         n_layers = len(self.n_hiddens)
         if self.tied_weights:
             hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                                for i in range(n_layers / 2)]
+                                 for i in range(n_layers / 2)]
             hidden_to_hiddens += [i.T for i in reversed(hidden_to_hiddens)]
             hidden_to_out = P.in_to_hidden.T
         else:
             hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                                for i in range(n_layers - 1)]
+                                 for i in range(n_layers - 1)]
             hidden_to_out = P.hidden_to_out
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
-                        for i in range(n_layers)]
+                         for i in range(n_layers)]
 
         self.exprs.update(mlp.exprs(
             self.exprs['inpt'],
@@ -500,19 +499,19 @@ class DenoisingAutoEncoder(AutoEncoder):
         super(DenoisingAutoEncoder, self)._init_exprs()
         if self.noise_type == 'gauss':
             corrupted_inpt = corrupt.gaussian_perturb(
-                    self.exprs['inpt'], self.c_noise)
+                self.exprs['inpt'], self.c_noise)
         elif self.noise_type == 'mask':
             corrupted_inpt = corrupt.mask(
-                    self.exprs['inpt'], self.c_noise)
+                self.exprs['inpt'], self.c_noise)
 
         output_from_corrupt = theano.clone(
-                self.exprs['output'],
-                {self.exprs['inpt']: corrupted_inpt}
+            self.exprs['output'],
+            {self.exprs['inpt']: corrupted_inpt}
         )
 
         score = self.exprs['loss']
         loss = theano.clone(
-                self.exprs['loss'],
-                {self.exprs['output']: output_from_corrupt})
+            self.exprs['loss'],
+            {self.exprs['output']: output_from_corrupt})
 
         self.exprs.update(get_named_variables(locals(), overwrite=True))
