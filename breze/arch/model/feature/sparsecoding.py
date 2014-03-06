@@ -27,7 +27,7 @@ def parameters(n_feature, n_inpt):
 
     res : dict
         Specification of the parameters.
-    """"
+    """
 
     return dict(feature_to_in=(n_feature, n_inpt))
 
