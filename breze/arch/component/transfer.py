@@ -140,6 +140,7 @@ def identity(inpt):
     output : Theano variable
         Transformed output. Same shape as ``inpt``.
     """
+    return inpt
 
 
 def softmax(inpt):
