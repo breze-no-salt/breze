@@ -6,10 +6,11 @@ import numpy as np
 import theano
 import theano.tensor as T
 
+from climin.util import minibatches
+
 from breze.arch.model.neural import cnn
 from breze.arch.util import ParameterSet, Model
 from breze.learn.base import SupervisedBrezeWrapperBase
-from breze.learn.data import minibatches
 
 # TODO check docstrings
 

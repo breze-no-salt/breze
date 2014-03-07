@@ -4,8 +4,8 @@ import numpy as np
 import scipy
 import nose.tools
 
-from breze.learn.data import (shuffle, padzeros, minibatches, windowify,
-    interpolate, skip, one_hot)
+from breze.learn.data import (
+    shuffle, padzeros, windowify, interpolate, skip, one_hot)
 
 
 @nose.tools.nottest
@@ -40,15 +40,6 @@ def test_padzeros():
             "padding went wrong"
     assert (seqs[2] == scipy.array((1, 1, 1, 1, 1, 1, 1)).reshape(7, 1)).all(), \
             "padding went wrong"
-
-
-def test_minibatches():
-    """Test if minibatches are correctly generated if given a size."""
-    D = make_test_data()
-    batches = minibatches(D, batch_size=5)
-    assert batches[0].shape[0] == 5
-    assert batches[1].shape[0] == 5
-    assert batches[2].shape[0] == 3
 
 
 def test_skip():
