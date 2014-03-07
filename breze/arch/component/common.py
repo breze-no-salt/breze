@@ -5,11 +5,7 @@ import loss as loss_
 from ..util import lookup, get_named_variables
 
 
-# TODO add prefixes
-# TODO document
-
-
-def supervised_loss(target, prediction, loss, coord_axis=1):
+def supervised_loss(target, prediction, loss, coord_axis=1, prefix=''):
     """Return a dictionary populated with several expressions for a supervised
     loss and corresponding targets and predictions.
 
@@ -31,25 +27,35 @@ def supervised_loss(target, prediction, loss, coord_axis=1):
         Axis aong which the coordinates of single sample are stored. I.e. not
         the sample axis or some spatial axis.
 
+    prefix : string, optional [default: '']
+        Each key in the resulting dictionary will be prefixed with ``prefix``.
+
+    Returns
+    -------
+
+    res : dict
+        Dictionary containing the expressions. See example for keys.
+
     Example
     -------
 
     >>> import theano.tensor as T
     >>> prediction, target = T.matrix('prediction'), T.matrix('target')
     >>> from breze.arch.component.loss import squared
-    >>> loss_dict = supervised_loss(target, prediction, squared)
-    >>> loss_dict
-    {'loss': Elemwise{true_div,no_inplace}.0, 'loss_coord_wise': Elemwise{pow,no_inplace}.0, 'loss_sample_wise': Sum{1}.0, 'target': target, 'prediction': prediction}
+    >>> loss_dict = supervised_loss(target, prediction, squared,
+    ...   prefix='mymodel-')
+    >>> sorted(loss_dict.items())
+    [('mymodel-loss', Elemwise{true_div,no_inplace}.0), ('mymodel-loss_coord_wise', Elemwise{pow,no_inplace}.0), ('mymodel-loss_sample_wise', Sum{1}.0), ('mymodel-prediction', prediction), ('mymodel-target', target)]
     """
     f_loss = lookup(loss, loss_)
     loss_coord_wise = f_loss(target, prediction)
     loss_sample_wise = loss_coord_wise.sum(axis=coord_axis)
     loss = loss_sample_wise.mean()
 
-    return get_named_variables(locals())
+    return get_named_variables(locals(), prefix=prefix)
 
 
-def unsupervised_loss(output, loss, coord_axis=1):
+def unsupervised_loss(output, loss, coord_axis=1, prefix=''):
     """Return a dictionary populated with several expressions for a
     unsupervised loss and corresponding output.
 
@@ -71,21 +77,28 @@ def unsupervised_loss(output, loss, coord_axis=1):
         Axis aong which the coordinates of single sample are stored. I.e. not
         the sample axis or some spatial axis.
 
+    prefix : string, optional [default: '']
+        Each key in the resulting dictionary will be prefixed with ``prefix``.
+
+    Returns
+    -------
+
+    res : dict
+        Dictionary containing the expressions. See example for keys.
+
     Example
     -------
 
     >>> import theano.tensor as T
     >>> output = T.matrix('output')
     >>> my_loss = lambda x: abs(x)
-    >>> loss_dict = unsupervised_loss(output, my_loss)
-    >>> loss_dict
-    {'loss': Elemwise{true_div,no_inplace}.0, 'output': output, 'loss_sample_wise': Sum{1}.0, 'loss_coord_wise': Elemwise{abs_,no_inplace}.0}
-
-
+    >>> loss_dict = unsupervised_loss(output, my_loss, prefix='$')
+    >>> sorted(loss_dict.items())
+    [('$loss', Elemwise{true_div,no_inplace}.0), ('$loss_coord_wise', Elemwise{abs_,no_inplace}.0), ('$loss_sample_wise', Sum{1}.0), ('$output', output)]
     """
     f_loss = lookup(loss, loss_)
     loss_coord_wise = f_loss(output)
     loss_sample_wise = loss_coord_wise.sum(axis=coord_axis)
     loss = loss_sample_wise.mean()
 
-    return get_named_variables(locals())
+    return get_named_variables(locals(), prefix=prefix)
