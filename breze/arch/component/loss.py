@@ -1,7 +1,37 @@
 # -*- coding: utf-8 -*-
 
 """Module containing several losses usable for supervised and unsupervised
-training."""
+training.
+
+A loss is of the form::
+
+    def loss(target, prediction, ...):
+        ...
+
+The results depends on the exact nature of the loss. Some examples are:
+
+    - coordinate wise loss, such as a sum of squares or a Bernoulli cross
+      entropy with a one-of-k target,
+    - sample wise, such as neighbourhood component analysis.
+
+In case of the coordinate wise losses, the dimensionality of the result should
+be the same as that of the predictions and targets. In all other cases, it is
+important that the sample axes (usually the first axis) stays the same. The
+individual data points lie along the coordinate axis, which might change to 1.
+
+Some examples of valid shape transformations::
+
+    (n, d) -> (n, d)
+    (n, d) -> (n, 1)
+
+These are not valid::
+
+    (n, d) -> (1, d)
+    (n, d) -> (n,)
+
+
+For some examples, consult the source code of this module.
+"""
 
 
 import theano.tensor as T
