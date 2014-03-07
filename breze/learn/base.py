@@ -157,6 +157,8 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
     f_score = None
     f_predict = None
+    _f_loss = None
+    _f_dloss = None
 
     def _make_loss_functions(self, mode=None, givens=None,
                              on_unused_input='raise'):
@@ -208,10 +210,11 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         :param X: Array representing the inputs.
         :param Z: Array representing the outputs.
         """
-        f_loss, f_d_loss = self._make_loss_functions()
+        if self._f_loss is None or self._f_dloss is None:
+            self._f_loss, self._f_dloss = self._make_loss_functions()
 
         args = self._make_args(X, Z)
-        opt = self._make_optimizer(f_loss, f_d_loss, args)
+        opt = self._make_optimizer(self._f_loss, self._f_dloss, args)
 
         for i, info in enumerate(opt):
             yield info
