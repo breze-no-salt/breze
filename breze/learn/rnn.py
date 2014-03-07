@@ -18,6 +18,9 @@ from breze.learn.base import (
 #varprop import rnn as varprop_rnn
 
 
+# TODO check docstrings (e.g. loss is wrong)
+
+
 class BaseRnn(Model):
     """Base class for RNNs.
 

@@ -23,6 +23,9 @@ from breze.learn.base import SupervisedBrezeWrapperBase
 from breze.arch.util import ParameterSet, Model
 
 
+# TODO Mlp docs are loss missing
+
+
 class Mlp(Model, SupervisedBrezeWrapperBase):
     """Multilayer perceptron class.
 
