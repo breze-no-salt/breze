@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Module that contains functionality common to many other modules."""
+
 
 import loss as loss_
 from ..util import lookup, get_named_variables
