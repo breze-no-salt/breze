@@ -6,16 +6,20 @@ import numpy as np
 import theano
 
 from breze.learn.gaussianprocess import GaussianProcess
+from breze.learn.utils import theano_floatx
 
 from nose.plugins.skip import SkipTest
 
 
 def test_gp_fit():
     X = np.arange(-2, 2, .01)[:, np.newaxis].astype(theano.config.floatX)
+    X, = theano_floatx(X)
     idxs = range(X.shape[0])
     idxs = random.sample(idxs, 200)
     X = X[idxs]
     Z = np.sin(X)
+
+    X, Z = theano_floatx(X, Z)
 
     gp = GaussianProcess(1, max_iter=10, kernel='ardse')
     gp.fit(X, Z)
@@ -27,6 +31,7 @@ def test_gp_iter_fit():
     idxs = random.sample(idxs, 200)
     X = X[idxs]
     Z = np.sin(X)
+    X, Z = theano_floatx(X, Z)
 
     gp = GaussianProcess(1, max_iter=10, kernel='ardse')
     for i, info in enumerate(gp.iter_fit(X, Z)):
@@ -42,6 +47,7 @@ def test_gp_predict_linear():
     X = X[idxs]
     Z = np.sin(X)
     Z += np.random.normal(0, 1e-1, X.shape)
+    X, Z = theano_floatx(X, Z)
 
     gp = GaussianProcess(1, max_iter=1, kernel='linear')
     gp.fit(X, Z)
@@ -55,6 +61,7 @@ def test_gp_predict_matern52():
     X = X[idxs]
     Z = np.sin(X)
     Z += np.random.normal(0, 1e-1, X.shape)
+    X, Z = theano_floatx(X, Z)
 
     gp = GaussianProcess(1, max_iter=10, kernel='matern52')
     gp.fit(X, Z)
@@ -68,6 +75,7 @@ def test_gp_predict_maxrows():
     X = X[idxs]
     Z = np.sin(X)
     Z += np.random.normal(0, 1e-1, X.shape).astype(theano.config.floatX)
+    X, Z = theano_floatx(X, Z)
 
     gp = GaussianProcess(1, max_iter=10, kernel='matern52')
     gp.fit(X, Z)
@@ -84,6 +92,7 @@ def test_gp_sample_parameters():
     X = X[idxs]
     Z = np.sin(X)
     Z += np.random.normal(0, 1e-1, X.shape).astype(theano.config.floatX)
+    X, Z = theano_floatx(X, Z)
 
     gp = GaussianProcess(1, max_iter=1, kernel='ardse')
     gp.store_dataset(X, Z)

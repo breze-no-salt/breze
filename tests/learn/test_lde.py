@@ -2,11 +2,13 @@
 
 import numpy as np
 
+from breze.learn.utils import theano_floatx
 from breze.learn.lde import LinearDenoiser
 
 
 def test_lde():
     X = np.eye(2)
+    X, = theano_floatx(X)
     lde = LinearDenoiser(0.5)
     lde.fit(X)
     assert np.allclose(lde.weights, [[0.499995, -0.499985], [-0.499985, 0.499995]])

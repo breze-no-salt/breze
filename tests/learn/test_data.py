@@ -6,11 +6,12 @@ import nose.tools
 
 from breze.learn.data import (
     shuffle, padzeros, windowify, interpolate, skip, one_hot)
+from breze.learn.utils import theano_floatx
 
 
 @nose.tools.nottest
 def make_test_data():
-    return scipy.random.random((13, 5))
+    return theano_floatx(scipy.random.random((13, 5)))[0]
 
 
 def test_shuffle():
@@ -107,4 +108,3 @@ def test_one_hot():
 
     assert np.allclose(desired, one_hot(arr))
     assert np.allclose(desired, one_hot(arr, 4))
-
