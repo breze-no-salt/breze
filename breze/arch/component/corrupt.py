@@ -31,6 +31,16 @@ def gaussian_perturb(arr, std, rng=None):
 
     res : Theano variable
         Of shape ``n``.
+
+
+    Examples
+    --------
+
+    >>> from theano.printing import pprint
+    >>> m = T.matrix()
+    >>> c = gaussian_perturb(m, 0.1)
+    >>> pprint(c)
+    '(<TensorType(float32, matrix)> + RandomFunction{normal}(<RandomStateType>, int32(<TensorType(float32, matrix)>.shape), TensorConstant{0.0}, TensorConstant{0.10000000149}))'
     """
 
     if rng is None:
@@ -62,6 +72,16 @@ def mask(arr, p, rng=None):
 
     res : Theano variable
         Of shape ``n``.
+
+
+    Examples
+    --------
+
+    >>> from theano.printing import pprint
+    >>> m = T.matrix()
+    >>> c = mask(m, 0.1)
+    >>> pprint(c)
+    '(<TensorType(float32, matrix)> * float32(RandomFunction{binomial}(<RandomStateType>, int32(<TensorType(float32, matrix)>.shape), TensorConstant{1}, TensorConstant{0.10000000149})))'
     """
     if rng is None:
         rng = T.shared_randomstreams.RandomStreams()
