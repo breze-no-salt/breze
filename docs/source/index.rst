@@ -74,6 +74,7 @@ Architectures, Components
    arch/component/corrupt
    arch/component/misc
    arch/component/layer
+   arch/component/common
 
 
 Implementation Notes
