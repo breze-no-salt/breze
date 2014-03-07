@@ -31,6 +31,7 @@ from functools import wraps
 
 import numpy as np
 import h5py
+import theano
 
 
 def scale_to_unit_interval(ndar, eps=1e-8):
@@ -249,3 +250,7 @@ def parameter_copy(source, sink, par_map):
     """
     for key, value in par_map.items():
         sink.parameters[key][...] = source.parameters[value]
+
+
+def theano_floatx(*arrs):
+    return [i.astype(theano.config.floatX) for i in arrs]
