@@ -64,10 +64,7 @@ def unsupervised_loss(output, loss, coord_axis=1, prefix=''):
     Parameters
     ----------
 
-    target : Theano variable
-        Array representing the target variables.
-
-    prediction : Theano variable
+    output : Theano variable
         Array representing the predictions.
 
     loss : callable or string
