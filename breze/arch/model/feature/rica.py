@@ -5,12 +5,7 @@ from ...util import lookup, get_named_variables
 from ...component import transfer as _transfer
 
 
-# TODO rename to ``loss``
-# TODO add prefix
-# TODO docstring example
-
-
-def ica_loss(code, transfer):
+def loss(code, transfer, prefix=''):
     """Return the ica loss of a code ``code`` given a density function.
 
     Parameters
@@ -32,9 +27,17 @@ def ica_loss(code, transfer):
         Dictionary containing the loss coordinate wise, sample wise and
         completely. Corresponding keys are ``ica_loss_coord_wise``,
         ``ica_loss_sample_wise`` and ``ica_loss``.
+
+    Examples
+    --------
+
+    >>> import theano.tensor as T
+    >>> m = T.matrix()
+    >>> loss(m, 'softabs', 'rica-')
+    {'rica-ica_loss': Elemwise{true_div,no_inplace}.0, 'rica-code': <TensorType(float32, matrix)>, 'rica-ica_loss_sample_wise': Sum{1}.0, 'rica-ica_loss_coord_wise': Elemwise{sqrt,no_inplace}.0}
     """
-    f_transfer= lookup(transfer, _transfer)
+    f_transfer = lookup(transfer, _transfer)
     ica_loss_coord_wise = f_transfer(code)
     ica_loss_sample_wise = ica_loss_coord_wise.sum(axis=1)
     ica_loss = ica_loss_sample_wise.mean()
-    return get_named_variables(locals())
+    return get_named_variables(locals(), prefix=prefix)

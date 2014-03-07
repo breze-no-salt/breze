@@ -85,8 +85,8 @@ class Rica(autoencoder.AutoEncoder):
 
     def _init_exprs(self):
         super(Rica, self)._init_exprs()
-        self.exprs.update(rica.ica_loss(self.exprs['layer-0-output'],
-                                        self.code_transfer))
+        self.exprs.update(rica.loss(self.exprs['layer-0-output'],
+                                    self.code_transfer))
 
         self.exprs['loss_coord_wise'] += self.exprs['ica_loss_coord_wise']
         self.exprs['loss_sample_wise'] += self.exprs['ica_loss_sample_wise']
