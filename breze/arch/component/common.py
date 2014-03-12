@@ -38,8 +38,8 @@ def supervised_loss(target, prediction, loss, coord_axis=1, prefix=''):
     res : dict
         Dictionary containing the expressions. See example for keys.
 
-    Example
-    -------
+    Examples
+    --------
 
     >>> import theano.tensor as T
     >>> prediction, target = T.matrix('prediction'), T.matrix('target')
@@ -85,8 +85,8 @@ def unsupervised_loss(output, loss, coord_axis=1, prefix=''):
     res : dict
         Dictionary containing the expressions. See example for keys.
 
-    Example
-    -------
+    Examples
+    --------
 
     >>> import theano.tensor as T
     >>> output = T.matrix('output')
