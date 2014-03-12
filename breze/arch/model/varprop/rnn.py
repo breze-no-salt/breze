@@ -21,7 +21,6 @@ from theano.tensor.extra_ops import repeat
 
 from ...util import lookup
 from ...component.varprop import transfer, loss as loss_
-from ...model.sequential.rnn import BaseRecurrentNetwork, SimpleRnnComponent
 import mlp
 
 
