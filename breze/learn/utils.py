@@ -29,8 +29,8 @@
 
 from functools import wraps
 
-import numpy as np
 import h5py
+import numpy as np
 import theano
 
 
