@@ -8,8 +8,6 @@ Data manipulation
 .. autofunction:: breze.learn.data.collapse_seq_borders
 .. autofunction:: breze.learn.data.uncollapse_seq_borders
 .. autofunction:: breze.learn.data.skip
-.. autofunction:: breze.learn.data.minibatches
-.. autofunction:: breze.learn.data.iter_minibatches
 .. autofunction:: breze.learn.data.interleave
 .. autofunction:: breze.learn.data.uninterleave
 .. autofunction:: breze.learn.data.interpolate
