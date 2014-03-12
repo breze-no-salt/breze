@@ -5,10 +5,11 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.learn.base import SupervisedBrezeWrapperBase
 from breze.arch.model import gaussianprocess
-from breze.learn.sampling import slice_
 from breze.arch.util import ParameterSet, Model
+from breze.learn.base import SupervisedBrezeWrapperBase
+from breze.learn.sampling import slice_
+from breze.learn.utils import theano_floatx
 
 
 class GaussianProcess(Model, SupervisedBrezeWrapperBase):
@@ -196,8 +197,8 @@ class GaussianProcess(Model, SupervisedBrezeWrapperBase):
         X = (X - self.mean_x) / self.std_x
 
         if var:
-            Y = np.empty((X.shape[0], 1)).astype(theano.config.floatX)
-            Y_var = np.empty((X.shape[0], 1)).astype(theano.config.floatX)
+            Y, = theano_floatx(np.empty((X.shape[0], 1)))
+            Y_var, = theano_floatx(np.empty((X.shape[0], 1)))
 
             for start, stop in steps:
                 this_x = X[start:stop]
@@ -208,7 +209,7 @@ class GaussianProcess(Model, SupervisedBrezeWrapperBase):
             Y_var = Y_var * self.std_z
             return Y, Y_var
         else:
-            Y = np.empty((X.shape[0], 1)).astype(theano.config.floatX)
+            Y, = theano_floatx(np.empty((X.shape[0], 1)))
             for start, stop in steps:
                 this_x = X[start:stop]
                 Y[start:stop] = self.f_predict(this_x)
