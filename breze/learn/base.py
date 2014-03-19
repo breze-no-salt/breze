@@ -57,6 +57,7 @@ class BrezeWrapperBase(object):
         flat parameters of the model."""
         return T.grad(self.exprs['loss'], self.parameters.flat)
 
+    def _make_optimizer(self, f, fprime, args, wrt=None, f_Hp=None):
     def _make_optimizer(self, f, fprime, args, wrt=None, f_Hp=None, info=None):
         if isinstance(self.optimizer, (str, unicode)):
             ident = self.optimizer
@@ -80,7 +81,7 @@ class BrezeWrapperBase(object):
 
         kwargs['args'] = args
         opt = climin.util.optimizer(ident, wrt, **kwargs)
-        if info:
+        if info is not None:
             opt.set_from_info(info)
         return opt
 
