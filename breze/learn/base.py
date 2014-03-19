@@ -57,7 +57,7 @@ class BrezeWrapperBase(object):
         flat parameters of the model."""
         return T.grad(self.exprs['loss'], self.parameters.flat)
 
-    def _make_optimizer(self, f, fprime, args, wrt=None, f_Hp=None):
+    def _make_optimizer(self, f, fprime, args, wrt=None, f_Hp=None, info=None):
         if isinstance(self.optimizer, (str, unicode)):
             ident = self.optimizer
             kwargs = {}
@@ -79,7 +79,10 @@ class BrezeWrapperBase(object):
             kwargs['f_Hp'] = f_Hp
 
         kwargs['args'] = args
-        return climin.util.optimizer(ident, wrt, **kwargs)
+        opt = climin.util.optimizer(ident, wrt, **kwargs)
+        if info:
+            opt.set_from_info(info)
+        return opt
 
     def powerfit(self, fit_data, eval_data, stop, report, eval_train_loss=True):
         """Iteratively fit the model.
@@ -197,7 +200,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         args = ((i, {}) for i in data)
         return args
 
-    def iter_fit(self, X, Z):
+    def iter_fit(self, X, Z, info_opt=None):
         """Iteratively fit the parameters of the model to the given data with
         the given error function.
 
@@ -214,7 +217,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
             self._f_loss, self._f_dloss = self._make_loss_functions()
 
         args = self._make_args(X, Z)
-        opt = self._make_optimizer(self._f_loss, self._f_dloss, args)
+        opt = self._make_optimizer(self._f_loss, self._f_dloss, args, info=info_opt)
 
         for i, info in enumerate(opt):
             yield info
