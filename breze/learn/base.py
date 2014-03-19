@@ -80,7 +80,7 @@ class BrezeWrapperBase(object):
 
         kwargs['args'] = args
         opt = climin.util.optimizer(ident, wrt, **kwargs)
-        if info:
+        if info is not None:
             opt.set_from_info(info)
         return opt
 
