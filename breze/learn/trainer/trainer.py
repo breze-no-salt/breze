@@ -47,7 +47,7 @@ class GentleTrainer(Trainer):
             seen_samples += this_samples
         return ma.scalar(score / seen_samples)
 
-    def fit(self, fit_data, eval_data, val_key, stop, report):
+    def fit(self, fit_data, eval_data, stop, report, val_key='val'):
         self.start = time.time()
         for info in self.model.iter_fit(*fit_data):
             if report(info):
@@ -56,7 +56,7 @@ class GentleTrainer(Trainer):
                         self.model.score, data)
 
                 if info['%s_loss' % val_key] < self.best_loss:
-                    self.best_loss = info['val_loss']
+                    self.best_loss = info['%s_loss' % val_key]
                     self.best_pars = self.model.parameters.data.copy()
 
                 info['best_loss'] = self.best_loss
