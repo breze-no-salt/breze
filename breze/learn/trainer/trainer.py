@@ -22,11 +22,11 @@ class GentleTrainer(Trainer):
 
     # TODO This trainer needs a better name and documentation
 
-    def __init__(self, ident, model, max_samples, sample_dims, log_func):
+    def __init__(self, ident, model, max_samples, sample_dims):
         self.ident = ident
         self.max_samples = max_samples
+        #TODO: Check whether it can be inferred from model.
         self.sample_dims = sample_dims
-        self.log_func = log_func
 
         self.best_pars = None
         self.best_loss = float('inf')
@@ -77,8 +77,9 @@ class GentleTrainer(Trainer):
                 for key in filtered_info:
                     if isinstance(filtered_info[key], np.float32):
                         filtered_info[key] = float(filtered_info[key])
-                self.log_func(self.ident, filtered_info)
+
                 self.infos.append(filtered_info)
+                yield info
 
                 if stop(info) or self.stop_next:
                     break
