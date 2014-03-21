@@ -57,6 +57,7 @@ class BrezeWrapperBase(object):
         flat parameters of the model."""
         return T.grad(self.exprs['loss'], self.parameters.flat)
 
+    def _make_optimizer(self, f, fprime, args, wrt=None, f_Hp=None):
     def _make_optimizer(self, f, fprime, args, wrt=None, f_Hp=None, info=None):
         if isinstance(self.optimizer, (str, unicode)):
             ident = self.optimizer
