@@ -67,7 +67,7 @@ def padzeros(lst, front=True):
     item_shape = [maxlength] + restshape
     total_shape = [n_items] + item_shape
 
-    data = scipy.zeros(total_shape)
+    data = scipy.zeros(total_shape, dtype=lst[0].dtype)
     for i in range(n_items):
         # Iterate over indices because we work in place of the list.
         thislength = lst[i].shape[0]
