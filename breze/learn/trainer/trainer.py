@@ -6,6 +6,7 @@ import time
 import numpy as np
 from climin import mathadapt as ma
 from climin.util import iter_minibatches
+from copy import deepcopy
 
 class Trainer(object):
 
@@ -21,17 +22,15 @@ class Trainer(object):
         return stop_info
 
     def handle_update(self, fit_data, eval_data):
-        update_losses = []
-        update_losses['loss'] = ma.scalar(self.score(*fit_data))
+        update_losses = {'loss': ma.scalar(self.model.score(*fit_data))}
         for key, data in eval_data.items():
-            update_losses['%s_loss' % key] = self.score(data)
+            update_losses['%s_loss' % key] = self.model.score(data)
         return update_losses
 
     def fit(self, fit_data, eval_data, stop, report, val_key='val'):
         start = time.time()
-        for info in self.model.iter_fit(*fit_data, info=self.current_info):
+        for info in self.model.iter_fit(*fit_data, info_opt=self.current_info):
             if report(info):
-
                 update_losses = self.handle_update(fit_data, eval_data)
                 for key, data in update_losses.items():
                     info[key] = data
@@ -94,12 +93,12 @@ class GentleTrainer(Trainer):
 
 
 
-class CheckpointTrainer(Trainer):
+class SnapshotTrainer(Trainer):
 
     def __init__(self, ident, model):
         signal.signal(signal.SIGINT, self._ctrl_c_handler)
         self.stop_next = False
-        super(CheckpointTrainer, self).__init__(ident, model)
+        super(SnapshotTrainer, self).__init__(ident, model)
 
     def stop(self, stop_info):
         return stop_info or self.stop_next
@@ -107,22 +106,21 @@ class CheckpointTrainer(Trainer):
     def _ctrl_c_handler(self, signal, frame):
         self.stop_next = True
 
-    def save_state(self, filename):
-        #Maybe save model?
-        if self.current_info:
-            return {
-                'model_params': self.model.parameters.data.copy(),
-                     'info': self.current_info
-            }
-        return None
+    def provide_snapshot(self, copy=False):
+        dict = {
+            'ident': self.ident
+        }
+        if copy:
+            dict['model'] = deepcopy(self.model)
+            dict['info'] = deepcopy(self.current_info)
+        else:
+            dict['model'] = self.model
+            dict['info'] = self.current_info
+        return dict
 
-    def load_state(self, state):
-        assert state is not None
-        self.model.parameters.data = state['model_params']
-        self.current_info = state['info']
-
-
-class GentleCheckpointTrainer(CheckpointTrainer, GentleTrainer):
-
-    def __init__(self, ident, model):
-        super(GentleCheckpointTrainer, self).__init__(ident, model)
+    @staticmethod
+    def load_trainer(snapshot):
+        assert snapshot is not None
+        new_trainer = SnapshotTrainer(snapshot['ident'], snapshot['model'])
+        new_trainer.current_info = snapshot['info']
+        return new_trainer

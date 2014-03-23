@@ -305,7 +305,7 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
     sample_dim = 0,
     f_score = None
 
-    def iter_fit(self, X):
+    def iter_fit(self, X, info_opt=None):
         """Iteratively fit the parameters of the model to the given data.
 
         Each iteration of the learning algorithm is an iteration of the
@@ -319,7 +319,7 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
         f_loss, f_d_loss = self._make_loss_functions()
 
         args = self._make_args(X)
-        opt = self._make_optimizer(f_loss, f_d_loss, args)
+        opt = self._make_optimizer(f_loss, f_d_loss, args, info=info_opt)
 
         for i, info in enumerate(opt):
             yield info
