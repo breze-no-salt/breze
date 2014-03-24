@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 import cPickle
+import copy
 
 import numpy as np
 from breze.learn import autoencoder
-from breze.learn.trainer.trainer import Trainer, SnapshotTrainer
+from breze.learn.trainer.trainer import Trainer
 from breze.learn.utils import theano_floatx
 
 from breze.learn.trainer.score import MinibatchScore
@@ -13,6 +14,7 @@ def test_minibatch_score_trainer():
     X = np.random.random((100, 10))
     X, = theano_floatx(X)
     cut_size = 10
+
     class MyAutoEncoder(autoencoder.AutoEncoder):
 
         def score(self, X):
@@ -44,46 +46,58 @@ def test_checkpoint_trainer():
                     else:
                         assert e1 == e2
             else:
+                print key, info1[key], info2[key]
                 assert info1[key] == info2[key]
 
-    X = np.random.random((100, 10))
+    # Make model and data for the test.
+    X = np.random.random((10, 2))
     X, = theano_floatx(X)
-    optimizer = 'rmsprop', {'step_rate': 0.0001, 'momentum': 0.9,
-                            'decay': 0.9}
-    m = autoencoder.AutoEncoder(10, [100], ['tanh'], 'identity', 'squared',
+    optimizer = 'rmsprop', {'step_rate': 0.0001}
+    m = autoencoder.AutoEncoder(2, [2], ['tanh'], 'identity', 'squared',
                                 tied_weights=True, max_iter=10,
                                 optimizer=optimizer)
-    t = SnapshotTrainer('eggs', m)
-    for _ in t.fit((X,), {'val': (X,)}, lambda info: info['n_iter'] >= 1000,
+
+    # Train the mdoel with a trainer for 2 epochs.
+    t = Trainer('eggs', m)
+    for _ in t.fit((X,), {'val': (X,)},
+                   lambda info: info['n_iter'] >= 2,
                    lambda info: True):
         pass
-    snapshot = t.provide_snapshot(copy=True)
-    intermediate_pars = t.model.parameters.data.copy()
-    intermediate_info = t.current_info.copy()
-    for _ in t.fit((X,), {'val': (X,)}, lambda info: info['n_iter'] >= 1000,
+
+    # Make a copy of the trainer.
+    t2 = copy.deepcopy(t)
+    intermediate_pars = t2.model.parameters.data.copy()
+    intermediate_info = t2.current_info.copy()
+
+    # Train original for 2 more epochs.
+    for _ in t.fit((X,), {'val': (X,)},
+                   lambda info: info['n_iter'] >= 2,
                    lambda info: True):
         pass
-    #Check that the snapshot has not changed
-    assert np.all(snapshot['model'].parameters.data == intermediate_pars)
+
+    # Check that the snapshot has not changed
+    assert np.all(t2.model.parameters.data == intermediate_pars)
+
     final_pars = t.model.parameters.data.copy()
     final_info = t.current_info.copy()
-    t = SnapshotTrainer.load_trainer(snapshot)
-    check_infos(intermediate_info, t.current_info)
-    assert np.all(intermediate_pars == t.model.parameters.data)
 
-    for _ in t.fit((X,), {'val': (X,)}, lambda info: info['n_iter'] >= 1000,
-                   lambda info: True):
+    check_infos(intermediate_info, t2.current_info)
+    assert np.all(intermediate_pars == t2.model.parameters.data)
+
+    for _ in t2.fit((X,), {'val': (X,)},
+                    lambda info: info['n_iter'] >= 2,
+                    lambda info: True):
         pass
-    check_infos(final_info, t.current_info)
+    check_infos(final_info, t2.current_info)
 
-    assert np.allclose(final_pars, t.model.parameters.data)
+    assert np.allclose(final_pars, t2.model.parameters.data)
 
-    s = cPickle.dumps(snapshot)
-    snapshot_from_pickle = cPickle.loads(s)
+    t_pickled = cPickle.dumps(t2)
+    t_unpickled = cPickle.loads(t_pickled)
 
-    t = SnapshotTrainer.load_trainer(snapshot_from_pickle)
-    for _ in t.fit((X,), {'val': (X,)}, lambda info: info['n_iter'] >= 1000,
-                   lambda info: True):
+    for _ in t_unpickled.fit((X,), {'val': (X,)},
+                             lambda info: info['n_iter'] >= 2,
+                             lambda info: True):
         pass
 
-    assert np.allclose(final_pars, t.model.parameters.data, atol=5.e-3)
+    assert np.allclose(final_pars, t_unpickled.model.parameters.data, atol=5.e-3)

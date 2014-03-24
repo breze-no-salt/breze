@@ -74,36 +74,3 @@ class Trainer(object):
 
                 if self.stop(stop(info)):
                     break
-
-
-class SnapshotTrainer(Trainer):
-
-    def __init__(self, ident, model):
-        signal.signal(signal.SIGINT, self._ctrl_c_handler)
-        self.stop_next = False
-        super(SnapshotTrainer, self).__init__(ident, model)
-
-    def stop(self, stop_info):
-        return stop_info or self.stop_next
-
-    def _ctrl_c_handler(self, signal, frame):
-        self.stop_next = True
-
-    def provide_snapshot(self, copy=False):
-        dict = {
-            'ident': self.ident
-        }
-        if copy:
-            dict['model'] = deepcopy(self.model)
-            dict['info'] = deepcopy(self.current_info)
-        else:
-            dict['model'] = self.model
-            dict['info'] = self.current_info
-        return dict
-
-    @staticmethod
-    def load_trainer(snapshot):
-        assert snapshot is not None
-        new_trainer = SnapshotTrainer(snapshot['ident'], snapshot['model'])
-        new_trainer.current_info = snapshot['info']
-        return new_trainer
