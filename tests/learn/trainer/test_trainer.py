@@ -3,11 +3,13 @@ import cPickle
 
 import numpy as np
 from breze.learn import autoencoder
-from breze.learn.trainer.trainer import GentleTrainer, SnapshotTrainer
+from breze.learn.trainer.trainer import Trainer, SnapshotTrainer
 from breze.learn.utils import theano_floatx
 
+from breze.learn.trainer.score import MinibatchScore
 
-def test_gentle_trainer():
+
+def test_minibatch_score_trainer():
     X = np.random.random((100, 10))
     X, = theano_floatx(X)
     cut_size = 10
@@ -19,9 +21,13 @@ def test_gentle_trainer():
 
     m = MyAutoEncoder(10, [100], ['tanh'], 'identity', 'squared',
                       tied_weights=True, max_iter=10)
-    gt = GentleTrainer('spam', m, cut_size, [0])
-    for _ in gt.fit((X,), {'val': (X,)}, lambda info: False, lambda info: True):
+
+    score = MinibatchScore(cut_size, [0])
+    trainer = Trainer('spam', m, score=score)
+
+    for _ in trainer.fit((X,), {'val': (X,)}, lambda info: False, lambda info: True):
         break
+
 
 def test_checkpoint_trainer():
 
@@ -81,5 +87,3 @@ def test_checkpoint_trainer():
         pass
 
     assert np.allclose(final_pars, t.model.parameters.data, atol=5.e-3)
-
-test_checkpoint_trainer()

@@ -3,16 +3,21 @@
 # TODO document
 import signal
 import time
+import types
+
 import numpy as np
 from climin import mathadapt as ma
-from climin.util import iter_minibatches
 from copy import deepcopy
+
+import score as score_
+
 
 class Trainer(object):
 
-    def __init__(self, ident, model, *args, **kwargs):
-        self.model = model
+    def __init__(self, ident, model, score=score_.simple, *args, **kwargs):
         self.ident = ident
+        self.model = model
+        self._score = score
         self.best_pars = None
         self.best_loss = float('inf')
         self.infos = []
@@ -21,10 +26,15 @@ class Trainer(object):
     def stop(self, stop_info):
         return stop_info
 
+    def score(self, *data):
+        return self._score(self.model.score, *data)
+
     def handle_update(self, fit_data, eval_data):
-        update_losses = {'loss': ma.scalar(self.model.score(*fit_data))}
+        update_losses = {
+            'loss': ma.scalar(self.score(*fit_data))
+        }
         for key, data in eval_data.items():
-            update_losses['%s_loss' % key] = self.model.score(data)
+            update_losses['%s_loss' % key] = self.score(*data)
         return update_losses
 
     def fit(self, fit_data, eval_data, stop, report, val_key='val'):
@@ -64,33 +74,6 @@ class Trainer(object):
 
                 if self.stop(stop(info)):
                     break
-
-class GentleTrainer(Trainer):
-
-    # TODO This trainer needs a better name and documentation
-    def __init__(self, ident, model, max_samples, sample_dims):
-        self.max_samples = max_samples
-        #TODO: Check whether it can be inferred from model.
-        self.sample_dims = sample_dims
-        super(GentleTrainer, self).__init__(ident, model)
-
-    def minibatch_score(self, f, data):
-        batches = iter_minibatches(data, self.max_samples, self.sample_dims, 1)
-        score = 0.
-        seen_samples = 0.
-        for batch in batches:
-            this_samples = batch[0].shape[self.sample_dims[0]]
-            score += f(*batch) * this_samples
-            seen_samples += this_samples
-        return ma.scalar(score / seen_samples)
-
-    def handle_update(self, fit_data, eval_data):
-        update_losses = {}
-        for key, data in eval_data.items():
-            update_losses['%s_loss' % key] = self.minibatch_score(
-            self.model.score, data)
-        return update_losses
-
 
 
 class SnapshotTrainer(Trainer):
