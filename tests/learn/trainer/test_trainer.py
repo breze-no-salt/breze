@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import cPickle
 import copy
+import os
 
 import numpy as np
 import climin.stops
@@ -9,6 +10,22 @@ from breze.learn import autoencoder
 from breze.learn.trainer.trainer import Trainer
 from breze.learn.utils import theano_floatx
 from breze.learn.trainer.score import MinibatchScore
+
+
+def check_infos(info1, info2):
+    for key in info1:
+        if key == 'time':
+            continue
+        if isinstance(info1[key], np.ndarray):
+            assert np.allclose(info1[key], info2[key])
+        elif isinstance(info1[key], list):
+            for e1, e2 in zip(info1[key], info2[key]):
+                if isinstance(e1, np.ndarray):
+                    assert np.allclose(e1, e2)
+                else:
+                    assert e1 == e2
+        else:
+            assert info1[key] == info2[key]
 
 
 def test_minibatch_score_trainer():
@@ -36,22 +53,6 @@ def test_minibatch_score_trainer():
 
 
 def test_checkpoint_trainer():
-
-    def check_infos(info1, info2):
-        for key in info1:
-            if key == 'time':
-                continue
-            if isinstance(info1[key], np.ndarray):
-                assert np.allclose(info1[key], info2[key])
-            elif isinstance(info1[key], list):
-                for e1, e2 in zip(info1[key], info2[key]):
-                    if isinstance(e1, np.ndarray):
-                        assert np.allclose(e1, e2)
-                    else:
-                        assert e1 == e2
-            else:
-                assert info1[key] == info2[key]
-
     # Make model and data for the test.
     X = np.random.random((10, 2))
     X, = theano_floatx(X)
@@ -99,3 +100,30 @@ def test_checkpoint_trainer():
     t_unpickled.fit(X)
 
     assert np.allclose(final_pars, t_unpickled.model.parameters.data, atol=5.e-3)
+
+
+def test_training_continuation():
+    # Make model and data for the test.
+    X = np.random.random((10, 2))
+    X, = theano_floatx(X)
+    optimizer = 'gd'
+    m = autoencoder.AutoEncoder(2, [2], ['tanh'], 'identity', 'squared',
+                                tied_weights=True, max_iter=10,
+                                optimizer=optimizer)
+
+    # Train the mdoel with a trainer for 2 epochs.
+    stopper = climin.stops.OnSignal()
+    print stopper.sig
+    stops = climin.stops.any_([stopper, climin.stops.AfterNIterations(5)])
+    t = Trainer(
+        m,
+        stop=stops,
+        pause=climin.stops.always)
+
+    t.val_key = 'val'
+    t.eval_data = {'val': (X,)}
+    killed = False
+    for info in t.iter_fit(X):
+        os.kill(os.getpid(), stopper.sig)
+
+    assert info['n_iter'] == 1
