@@ -3,10 +3,11 @@ import cPickle
 import copy
 
 import numpy as np
+import climin.stops
+
 from breze.learn import autoencoder
 from breze.learn.trainer.trainer import Trainer
 from breze.learn.utils import theano_floatx
-
 from breze.learn.trainer.score import MinibatchScore
 
 
@@ -25,9 +26,12 @@ def test_minibatch_score_trainer():
                       tied_weights=True, max_iter=10)
 
     score = MinibatchScore(cut_size, [0])
-    trainer = Trainer('spam', m, score=score)
+    trainer = Trainer(
+        m, score=score, pause=lambda info: True, stop=lambda info: False)
+    trainer.eval_data = {'val': (X,)}
+    trainer.val_key = 'val'
 
-    for _ in trainer.fit((X,), {'val': (X,)}, lambda info: False, lambda info: True):
+    for _ in trainer.iter_fit(X):
         break
 
 
@@ -46,7 +50,6 @@ def test_checkpoint_trainer():
                     else:
                         assert e1 == e2
             else:
-                print key, info1[key], info2[key]
                 assert info1[key] == info2[key]
 
     # Make model and data for the test.
@@ -58,11 +61,13 @@ def test_checkpoint_trainer():
                                 optimizer=optimizer)
 
     # Train the mdoel with a trainer for 2 epochs.
-    t = Trainer('eggs', m)
-    for _ in t.fit((X,), {'val': (X,)},
-                   lambda info: info['n_iter'] >= 2,
-                   lambda info: True):
-        pass
+    t = Trainer(
+        m,
+        stop=climin.stops.after_n_iterations(2),
+        pause=climin.stops.always)
+    t.val_key = 'val'
+    t.eval_data = {'val': (X,)}
+    t.fit(X)
 
     # Make a copy of the trainer.
     t2 = copy.deepcopy(t)
@@ -70,10 +75,8 @@ def test_checkpoint_trainer():
     intermediate_info = t2.current_info.copy()
 
     # Train original for 2 more epochs.
-    for _ in t.fit((X,), {'val': (X,)},
-                   lambda info: info['n_iter'] >= 2,
-                   lambda info: True):
-        pass
+    t.stop = climin.stops.after_n_iterations(4)
+    t.fit(X)
 
     # Check that the snapshot has not changed
     assert np.all(t2.model.parameters.data == intermediate_pars)
@@ -82,22 +85,17 @@ def test_checkpoint_trainer():
     final_info = t.current_info.copy()
 
     check_infos(intermediate_info, t2.current_info)
-    assert np.all(intermediate_pars == t2.model.parameters.data)
 
-    for _ in t2.fit((X,), {'val': (X,)},
-                    lambda info: info['n_iter'] >= 2,
-                    lambda info: True):
-        pass
+    t2.stop = climin.stops.after_n_iterations(4)
+    t2.fit(X)
     check_infos(final_info, t2.current_info)
 
     assert np.allclose(final_pars, t2.model.parameters.data)
 
     t_pickled = cPickle.dumps(t2)
     t_unpickled = cPickle.loads(t_pickled)
+    t.stop = climin.stops.after_n_iterations(4)
 
-    for _ in t_unpickled.fit((X,), {'val': (X,)},
-                             lambda info: info['n_iter'] >= 2,
-                             lambda info: True):
-        pass
+    t_unpickled.fit(X)
 
     assert np.allclose(final_pars, t_unpickled.model.parameters.data, atol=5.e-3)

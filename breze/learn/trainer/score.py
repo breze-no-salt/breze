@@ -5,8 +5,8 @@ from climin.util import iter_minibatches
 from climin import mathadapt as ma
 
 
-def simple(f_score, data):
-    return f_score(data)
+def simple(f_score, *data):
+    return f_score(*data)
 
 
 class MinibatchScore(object):

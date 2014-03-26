@@ -1,52 +1,61 @@
 # -*- coding: utf-8 -*-
 
 # TODO document
-import signal
 import time
-import types
 
 import numpy as np
 from climin import mathadapt as ma
-from copy import deepcopy
 
 import score as score_
+import report as report_
 
 
 class Trainer(object):
 
-    def __init__(self, ident, model, score=score_.simple, *args, **kwargs):
+    def __init__(self, model, score=score_.simple, stop=None, pause=None,
+                 report=report_.point_print, ident=None):
         self.ident = ident
         self.model = model
+
         self._score = score
+        self.pause = pause
+        self.stop = stop
+        self.report = report
+
         self.best_pars = None
         self.best_loss = float('inf')
+
         self.infos = []
         self.current_info = None
 
-    def stop(self, stop_info):
-        return stop_info
+        self.eval_data = {}
+        self.val_key = None
 
     def score(self, *data):
         return self._score(self.model.score, *data)
 
-    def handle_update(self, fit_data, eval_data):
+    def handle_update(self, fit_data):
         update_losses = {
             'loss': ma.scalar(self.score(*fit_data))
         }
-        for key, data in eval_data.items():
+        for key, data in self.eval_data.items():
             update_losses['%s_loss' % key] = self.score(*data)
         return update_losses
 
-    def fit(self, fit_data, eval_data, stop, report, val_key='val'):
+    def fit(self, *fit_data):
+        for i in self.iter_fit(*fit_data):
+            self.report(i)
+
+    def iter_fit(self, *fit_data):
         start = time.time()
         for info in self.model.iter_fit(*fit_data, info_opt=self.current_info):
-            if report(info):
-                update_losses = self.handle_update(fit_data, eval_data)
-                for key, data in update_losses.items():
-                    info[key] = data
+            if self.pause(info):
+                update_losses = self.handle_update(fit_data)
+                info.update(update_losses)
 
-                if info['%s_loss' % val_key] < self.best_loss:
-                    self.best_loss = info['%s_loss' % val_key]
+                val_loss_key = '%s_loss' % self.val_key
+                if val_loss_key in info and info['%s_loss' % self.val_key] < self.best_loss:
+                    self.best_loss = info['%s_loss' % self.val_key]
                     self.best_pars = self.model.parameters.data.copy()
 
                 info['best_loss'] = self.best_loss
@@ -72,5 +81,5 @@ class Trainer(object):
                 self.current_info = info
                 yield info
 
-                if self.stop(stop(info)):
+                if self.stop(info):
                     break
