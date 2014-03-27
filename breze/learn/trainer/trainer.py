@@ -5,6 +5,7 @@ import time
 
 import numpy as np
 from climin import mathadapt as ma
+from climin.stops import never
 
 import score as score_
 import report as report_
@@ -13,6 +14,7 @@ import report as report_
 class Trainer(object):
 
     def __init__(self, model, score=score_.simple, stop=None, pause=None,
+                 interrupt=never,
                  report=report_.point_print, ident=None):
         self.ident = ident
         self.model = model
@@ -20,7 +22,9 @@ class Trainer(object):
         self._score = score
         self.pause = pause
         self.stop = stop
+        self.interrupt = never
         self.report = report
+
 
         self.best_pars = None
         self.best_loss = float('inf')
@@ -30,6 +34,7 @@ class Trainer(object):
 
         self.eval_data = {}
         self.val_key = None
+        self.stopped = False
 
     def score(self, *data):
         return self._score(self.model.score, *data)
@@ -82,4 +87,7 @@ class Trainer(object):
                 yield info
 
                 if self.stop(info):
+                    self.stopped = True
                     break
+            if self.interrupt(info):
+                break
