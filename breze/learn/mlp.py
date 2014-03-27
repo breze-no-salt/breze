@@ -327,7 +327,7 @@ class FastDropoutNetwork(Model, SupervisedBrezeWrapperBase):
         self.exprs.update(varprop_supervised_loss(
             self.exprs['target'], self.exprs['output'], self.loss))
 
-    def iter_fit(self, X, Z):
+    def iter_fit(self, X, Z, info_opt=None):
         """Iteratively fit the parameters of the model to the given data with
         the given error function.
 
@@ -349,7 +349,7 @@ class FastDropoutNetwork(Model, SupervisedBrezeWrapperBase):
             defined as in ``X``, but ``l`` is the dimensionality of a single
             output.
         """
-        for info in super(FastDropoutNetwork, self).iter_fit(X, Z):
+        for info in super(FastDropoutNetwork, self).iter_fit(X, Z, info_opt=info_opt):
             yield info
             if self.max_length is not None:
                 W = self.parameters['in_to_hidden']
