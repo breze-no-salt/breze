@@ -132,7 +132,7 @@ def cpu_expr_to_gpu(expr, unsafe=False):
     expression might return arrays pointing at the same memory region.
     """
     expr_ = T.cast(expr, 'float32')
-    expr_ = theano.Out(theano.sandbox.cuda.basic_ops.gpu_from_host(expr),
+    expr_ = theano.Out(theano.sandbox.cuda.basic_ops.gpu_from_host(expr_),
                        borrow=unsafe)
 
     expr_.name = expr.name

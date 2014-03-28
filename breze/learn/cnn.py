@@ -2,18 +2,20 @@
 
 """Module for learning convolutional neural networks."""
 
-import numpy as np
+
 import theano
 import theano.tensor as T
 
-from climin.util import minibatches
+import numpy as np
 
 from breze.arch.model.neural import cnn
 from breze.arch.util import ParameterSet, Model
 from breze.learn.base import SupervisedBrezeWrapperBase
 
-# TODO check docstrings
+from climin.util import minibatches
+from climin.initialize import randomize_normal
 
+# TODO check docstrings
 
 class Cnn(Model, SupervisedBrezeWrapperBase):
     """Cnn class.
@@ -80,27 +82,73 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
     def __init__(self, n_inpt, n_hidden_conv, n_hidden_full, n_output,
                  hidden_conv_transfers, hidden_full_transfers, out_transfer,
                  loss, image_height=None, image_width=None, n_image_channel=1,
-                 pool_size=(2, 2), filter_shapes=None,
-                 optimizer='lbfgs', batch_size=None, max_iter=1000,
-                 verbose=False):
+                 optimizer='lbfgs', batch_size=1, max_iter=1000,
+                 verbose=False, pool_shapes=None, pool_strides=None,
+                 filter_shapes=None, padding=None, lrnorm=None,
+                 init_weights_stdev=None, init_biases_stdev=None):
 
-        if filter_shapes is None:
-            filter_shapes = [[5, 5] for _ in range(len(n_hidden_conv))]
-        if len(n_hidden_conv) != len(hidden_conv_transfers):
-            raise ValueError('n_hidden_conv and hidden_conv_transfers have to '
-                             'be of the same length')
-        if len(n_hidden_full) != len(hidden_full_transfers):
-            raise ValueError('n_hidden_full and hidden_full_transfers have to '
-                             'be of the same length')
-        if len(filter_shapes) != len(n_hidden_conv):
-            raise ValueError('n_hidden_conv and filter_shapes have to '
-                             'be of the same length')
-        self.batch_size = 1 if batch_size is None else batch_size
+        n_conv = len(n_hidden_conv)
+        n_full = len(n_hidden_full)
+        n_all = n_conv + n_full + 1
+        self.batch_size = 1
+        self.padding = [0]*n_conv if padding is None else padding
+        self.padding += [0]
+
+        self.lrnorm = lrnorm
+        if self.lrnorm is not None:
+            if not isinstance(self.lrnorm[0], list):
+                self.lrnorm = [self.lrnorm] * n_conv
+        else:
+            self.lrnorm = [None] * n_conv
+
+        self.filter_shapes = filter_shapes
+        if self.filter_shapes is None:
+            self.filter_shapes = [[5, 5]] * n_conv
+
+        self.pool_shapes = pool_shapes
+        if self.pool_shapes is None:
+            self.pool_shapes = [[2, 2]] * n_conv
+
+        self.pool_strides = pool_strides
+        if self.pool_strides is None:
+            self.pool_strides = self.pool_shapes
+
+        self.init_weigths_stdev = init_weights_stdev
+        if init_weights_stdev is None:
+            self.init_weigths_stdev = [0.01] * n_all
+
+        self.init_biases_stdev = init_biases_stdev
+        if init_biases_stdev is None:
+            self.init_biases_stdev = [0] * n_all
+
         if image_height is None or image_width is None:
             self.n_inpt = (self.batch_size, n_image_channel, n_inpt, 1)
         else:
             self.n_inpt = (self.batch_size, n_image_channel,
                            image_height, image_width)
+
+        if len(hidden_conv_transfers) != n_conv:
+            raise ValueError('n_hidden_conv and hidden_conv_transfers have to '
+                             'be of the same length')
+        if len(hidden_full_transfers) != n_full:
+            raise ValueError('n_hidden_full and hidden_full_transfers have to '
+                             'be of the same length')
+        if len(self.filter_shapes) != n_conv:
+            raise ValueError('n_hidden_conv and filter_shapes have to '
+                             'be of the same length')
+        if len(self.init_weigths_stdev) != n_all:
+            raise ValueError('n_hidden_conv and init_weigths_stdev have to '
+                             'be of the same length')
+        if len(self.init_biases_stdev) != n_all:
+            raise ValueError('n_hidden_conv and init_biases_stdev have to '
+                             'be of the same length')
+        if len(self.pool_shapes) != n_conv:
+            raise ValueError('n_hidden_conv and pool_shapes have to '
+                             'be of the same length')
+        if len(self.pool_strides) != n_conv:
+            raise ValueError('n_hidden_conv and pool_strides have to '
+                             'be of the same length')
+
         self.n_hidden_conv = n_hidden_conv
         self.n_hidden_full = n_hidden_full
         self.n_output = n_output
@@ -110,17 +158,14 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
         self.loss = loss
         self.image_shapes = []
         self.filter_shapes_comp = []
-        self.pool_size = pool_size
-        self.filter_shapes = filter_shapes
+        self.pool_shifts = []
         self._init_image_shapes()
         self._init_filter_shapes()
-
+        self._init_pool_shifts()
         self.optimizer = optimizer
         self.batch_size = batch_size
-
         self.max_iter = max_iter
         self.verbose = verbose
-
         super(Cnn, self).__init__()
 
     def _init_filter_shapes(self):
@@ -134,15 +179,15 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
                 (outlayer, inlayer, filter_shape[0], filter_shape[1]))
 
     def _init_image_shapes(self):
-        if len(self.n_hidden_conv) == 0:
-            raise ValueError('If you are not going to use convolutional layers,'
-                             ' please use MultilayerPerceptron.')
-        image_size = [self.n_inpt[2], self.n_inpt[3]]
-        self.image_shapes.append(self.n_inpt)
-        zipped = zip(self.n_hidden_conv, self.filter_shapes)
-        for n_feature_maps, filter_shape in zipped:
-            image_size = [(comp - fs + 1) / ps for comp, fs, ps in
-                          zip(image_size, filter_shape, self.pool_size)]
+        image_size = [self.n_inpt[2]+2*self.padding[0], self.n_inpt[3]+2*self.padding[0]]
+        self.image_shapes.append([self.n_inpt[0], self.n_inpt[1],
+                                  image_size[0],
+                                  image_size[1]])
+        zipped = zip(self.n_hidden_conv, self.filter_shapes,
+                     self.pool_shapes, self.pool_strides, self.padding[1:])
+        for n_feature_maps, filter_shape, pool_shape, pool_stride, padding in zipped:
+            image_size = [2*padding + 1 + (comp - fs + 1 - psh) / pst for comp, fs, psh, pst in
+                          zip(image_size, filter_shape, pool_shape, pool_stride)]
             self.image_shapes.append((self.batch_size, n_feature_maps,
                                       image_size[0], image_size[1]))
 
@@ -155,8 +200,19 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
             resulting_image_size, self.filter_shapes)
 
         self.parameters = ParameterSet(**spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
+
+    def _init_pool_shifts(self):
+        self.pool_shifts = []
+        for sh, st in zip(self.pool_shapes, self.pool_strides):
+            pool_shift = [[0], [0]]
+            i, j = st
+            while (i % sh[0]) != 0:
+                pool_shift[0].append(i)
+                i += st[0]
+            while (j % sh[1]) != 0:
+                pool_shift[1].append(j)
+                j += st[1]
+            self.pool_shifts.append(pool_shift)
 
     def _init_exprs(self):
         self.exprs = {
@@ -182,30 +238,41 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
             hidden_conv_to_hidden_conv, hidden_full_to_hidden_full,
             hidden_conv_bias, hidden_full_bias, self.hidden_conv_transfers,
             self.hidden_full_transfers, self.out_transfer, self.loss,
-            self.image_shapes[:-1], self.filter_shapes_comp, self.n_inpt,
-            self.pool_size))
+            self.image_shapes, self.filter_shapes_comp, self.n_inpt,
+            self.pool_shapes, self.pool_shifts, self.pool_strides,
+            self.padding, self.lrnorm))
 
-    # TODO move this somewhere else
-    def sample_conv_weights(self, seed=23455):
-        init_vals = []
+    def _init_weights(self, seed=314):
         rng = np.random.RandomState(seed)
-        # init in_to_hidden
-        fan_in = np.prod(self.filter_shapes[0][1:])
-        fan_out = (self.filter_shapes[0][0] * np.prod(self.filter_shapes[0][2:]) /
-                   np.prod(self.pool_size))
-        w_bound = np.sqrt(6. / (fan_in + fan_out))
-        init_vals.append(('in_to_hidden', rng.uniform(low=-w_bound, high=w_bound, size=self.filter_shapes[0])))
-        # init hidden_conv_to_hidden_conv_%i
-        for i in np.arange(len(self.n_hidden_conv) - 1):
-            fan_in = np.prod(self.filter_shapes[i + 1][1:])
-            fan_out = (self.filter_shapes[i + 1][0] * np.prod(self.filter_shapes[i + 1][2:]) /
-                       np.prod(self.pool_size))
-            w_bound = np.sqrt(6. / (fan_in + fan_out))
-            init_vals.append(('hidden_conv_to_hidden_conv_%i' % i,
-                              rng.uniform(low=-w_bound, high=w_bound,
-                                          size=self.filter_shapes[i + 1])))
+        self.parameters.data[:] = rng.standard_normal(
+            self.parameters.data.shape).astype(theano.config.floatX)
+        weight_order = ['in_to_hidden']
+        bias_order = ['hidden_conv_bias_0']
+        for i in np.arange(1, len(self.n_hidden_conv)):
+            weight_order.append('hidden_conv_to_hidden_conv_%i' % (i-1))
+            bias_order.append('hidden_conv_bias_%i' % i)
+        weight_order.append('hidden_conv_to_hidden_full')
+        bias_order.append('hidden_full_bias_0')
+        for i in range(1, len(self.n_hidden_full)):
+            weight_order.append('hidden_full_to_full_conv_%i' % (i-1))
+            bias_order.append('hidden_conv_bias_%i' % i)
+        weight_order.append('hidden_to_out')
+        bias_order.append('out_bias')
+        for i, (weight, bias) in enumerate(zip(weight_order, bias_order)):
 
-        return init_vals
+            if self.init_weigths_stdev[i] == 0:
+                weight_data = np.zeros(self.parameters[weight].shape)
+            else:
+                weight_data = rng.normal(0, self.init_weigths_stdev[i],
+                                     self.parameters[weight].shape)
+            self.parameters[weight] = weight_data
+            if self.init_biases_stdev[i] == 0:
+                bias_data = np.zeros(self.parameters[bias].shape)
+            else:
+                bias_data = rng.normal(0, self.init_biases_stdev[i],
+                                       self.parameters[bias].shape)
+            self.parameters[bias] = bias_data
+
 
     def apply_minibatches_function(self, f, X, Z):
         """Apply a function to batches of the input.
@@ -227,9 +294,15 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
 
         :returns: The average of the results of the function over all the batches.
         """
-        data = [minibatches(i, self.batch_size, d) for i, d in zip([X, Z], self.sample_dim)]
-        total = [f(*element) for element in zip(data[0], data[1])]
-        return sum(total) / float(len(total))
+        data = [minibatches(i, self.batch_size, d)
+                for i, d in zip([X, Z], self.sample_dim)]
+        if theano.config.device == 'gpu':
+            total = [f(*element).asndarray()
+                     for element in zip(data[0], data[1])]
+        else:
+            total = [f(*element) for element in zip(data[0], data[1])]
+        return sum(total)/float(len(total))
+
 
     def loss_(self, X, Z):
         """Override the loss function.
@@ -261,8 +334,5 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
         :returns: The predictions of the network.
         """
         data = minibatches(X, self.batch_size, 0)
-        if theano.config.device == 'gpu':
-            raise NotImplementedError(
-                'prediction not possible on gpu with conv net yet, please implement :)')
         total = np.concatenate([super(Cnn, self).predict(element) for element in data], axis=0)
         return total
