@@ -53,6 +53,12 @@ Sampling
    sampling/hmc
 
 
+Trainers
+
+.. toctree::
+   learn/trainer/trainer
+
+
 Helpers, convenience functions and tools
 ----------------------------------------
 

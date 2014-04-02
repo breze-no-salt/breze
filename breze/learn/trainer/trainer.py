@@ -19,25 +19,30 @@ class Trainer(object):
     A Trainer object is used to ease bookkeeping of fitting models. This is done
     by composing a trainer out of several basic strategies.
 
-     - `Scoring strategy`: The way the score is calculated can be determined by
-     the callable stored in the ``_score`` field. For some examples, see the
-     module ``breze.learn.trainer.score``.
-     - `Reporting strategy`: For a report function that is applied to each info
-     dictionary during a pause when calling ``.fit()``, ``.report`` can be set.
-     - `Pause criterion`: When to pause optimization of the model to yield
-     control back to the user. Determined by the ``.pause`` field. Contains a
-     callable, for example see ``climin.stops``.
-     - `Interrupt criterion`: When to interrupt optimization of the model to
-     yield control back to the user. Determined by the ``.interrupt`` field.
-     Contains a callable, for example see ``climin.stops``.
-     - `Stopping criterion`: When to interrupt optimization of the model to
-     yield control back to the user. Determined by the ``.stop`` field.
-     Contains a callable, for example see ``climin.stops``.
+    `Scoring strategy`: The way the score is calculated can be determined by
+    the callable stored in the ``_score`` field. For some examples, see the
+    module ``breze.learn.trainer.score``.
 
-     Why do we need separate stopping and interrupting criterions? An
-     optimization might get interrupted (e.g. by a SIGINT of a shared resource
-     system). In order to find out whether the trainer thinks optimization has
-     actually finished, the ``.stopped`` field is provided.
+    `Reporting strategy`: For a report function that is applied to each info
+    dictionary during a pause when calling ``.fit()``, ``.report`` can be set.
+    For examples, see the module ``breze.learn.trainer.report``.
+
+    `Pause criterion`: When to pause optimization of the model to yield
+    control back to the user. Determined by the ``.pause`` field. Contains a
+    callable, for example see ``climin.stops``.
+
+    `Interrupt criterion`: When to interrupt optimization of the model to
+    yield control back to the user. Determined by the ``.interrupt`` field.
+    Contains a callable, for example see ``climin.stops``.
+
+    `Stopping criterion`: When to interrupt optimization of the model to
+    yield control back to the user. Determined by the ``.stop`` field.
+    Contains a callable, for example see ``climin.stops``.
+
+    Why do we need separate stopping and interrupting criterions? An
+    optimization might get interrupted (e.g. by a SIGINT of a shared resource
+    system). In order to find out whether the trainer thinks optimization has
+    actually finished, the ``.stopped`` field is provided.
 
 
     Attributes

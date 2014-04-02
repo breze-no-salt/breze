@@ -259,14 +259,14 @@ class ParameterSet(object):
     tensor/variable refers to the symbolic Theano variable.
 
 
-    Parameters
-    ----------
-
     Initialization takes a variable amount of keyword arguments, where each has
     to be a single integer or a tuple of arbitrary length containing only
     integers. For each of the keyword argument keys a tensor of the shape given
     by the value will be created. The key is the identifier of that variable.
 
+    All symbolic variables can be accessed as attributes of the object, all
+    concrete variables as keys. E.g. parameter_set.x references the symbolic
+    variable, while parameter_set['x'] will give you the concrete array.
 
     Attributes
     ----------
@@ -275,20 +275,15 @@ class ParameterSet(object):
         Total amount of parameters.
 
     flat : Theano vector
-        Flat one dimensional tensor containing all the different tensors
-        flattened out. Symbolic pendant to ``data``.
+        Flat one dimensional tensor containing all the different tensors flattened out. Symbolic pendant to ``data``.
 
     data : array_like
         Concrete array containig all the different arrays flattened out.
         Concrete pendant to ``flat``.
 
-    views : dictionary
+    views : dict
         All parameter arrays can be accessed by with their identifier as key
         in this dictionary.
-
-    All symbolic variables can be accessed as attributes of the object, all
-    concrete variables as keys. E.g. parameter_set.x references the symbolic
-    variable, while parameter_set['x'] will give you the concrete array.
     """
 
     def __init__(self, **kwargs):
@@ -358,23 +353,6 @@ class Model(object):
     targets, the data (3) *expressions* composed out of the two, such as the
     prediction of a model or the loss resulting from those.
 
-    Attributes
-    ----------
-
-    pars : ParameterSet object
-        Holding the adaptable parameters of the object.
-
-    exprs : dictionary
-        Containig the expressions. Out of convenience, the external variables
-        are held in here as well.
-
-    updates : dictionary containing update variables, e.g. due to the use of
-        ``theano.scan``.
-
-
-    Expression Names
-    ----------------
-
     There are several "reserved" names for expressions.
 
       - ``inpt``: observations of a supervised or unsupervised model,
@@ -387,7 +365,22 @@ class Model(object):
 
     Overriding these names is possible in general, but is part of the interface
     and will lead to unexpected behaviour with functionality building upon
-    this."""
+    this.
+
+
+    Attributes
+    ----------
+
+    pars : ParameterSet object
+        Holding the adaptable parameters of the object.
+
+    exprs : dictionary
+        Containig the expressions. Out of convenience, the external variables
+        are held in here as well.
+
+    updates : dict
+        Containing update variables, e.g. due to the use of ``theano.scan``.
+    """
 
     def __init__(self):
         self.updates = collections.defaultdict(dict)

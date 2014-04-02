@@ -20,6 +20,7 @@ class MinibatchScore(object):
     of rows can be calculated at the same time. This score assumes that scores
     are averages.
 
+
     Attributes
     ----------
 
@@ -27,13 +28,14 @@ class MinibatchScore(object):
         Maximum samples to calculcate the score for at the same time.
 
     sample_dims : list of ints
-        Dimensions along which the samples are stored. The length of this list
-        corresponds to the number of arguments the score takes. The entry
-        along which different samples are stored.
+        Dimensions along which the samples are stored. The length of this list\
+        corresponds to the number of arguments the score takes. The entry along\
+        which different samples are stored.
     """
 
     def __init__(self, max_samples, sample_dims):
         """Create MinibatchScore object.
+
 
         Parameters
         ----------
@@ -42,9 +44,9 @@ class MinibatchScore(object):
             Maximum samples to calculcate the score for at the same time.
 
         sample_dims : list of ints
-            Dimensions along which the samples are stored. The length of this list
-            corresponds to the number of arguments the score takes. The entry
-            along which different samples are stored.
+            Dimensions along which the samples are stored. The length of this
+            list corresponds to the number of arguments the score takes. The
+            entry along which different samples are stored.
         """
         self.max_samples = max_samples
         self.sample_dims = sample_dims

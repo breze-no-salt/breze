@@ -11,11 +11,12 @@ import numpy as np
 class KeyPrinter(object):
     """KeyPrinter class.
 
+
     Attributes
     ----------
 
     keys : list of strings
-        For each entry in this list, the corresponding key will be taken from
+        For each entry in this list, the corresponding key will be taken from\
         the info dictionary and printed to stdout.
     """
 
@@ -57,11 +58,12 @@ class JsonPrinter(object):
     Prints json documents of the info dictionaries to stdout, using only the
     keys specified.
 
+
     Attributes
     ----------
 
     keys : list of strings
-        For each entry in this list, the corresponding key will be taken from
+        For each entry in this list, the corresponding key will be taken from\
         the info dictionary and printed to stdout.
     """
 
