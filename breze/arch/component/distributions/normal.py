@@ -57,8 +57,10 @@ def pdf(sample, location=0, scale=1):
 
     divisor = 2 * scale ** 2 # + epsilon,
     #divisor = T.cast(divisor, theano.config.floatX)
+    if isinstance(location, T.TensorVariable) and location.ndim == 0:
+        location = location.dimshuffle('x')
 
-    exp_arg = -((sample - location.dimshuffle('x')) ** 2) / divisor
+    exp_arg = -((sample - location) ** 2) / divisor
     z = 1. / (SQRT_2_PI * scale + epsilon)
 
     return T.exp(exp_arg) * z
