@@ -56,12 +56,14 @@ def unflatten(tmpl, flat):
 
 
 def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
-    """Creates and returns a theano.function that takes values for `variables`
-    as arguments, where `variables` may contain nested lists and/or tuples,
-    and returns values for `exprs`, where again `exprs` may contain nested
+    """Creates and returns a ``theano.function`` that takes values for
+    ``variables``
+    as arguments, where ``variables` may contain nested lists and/or tuples,
+    and returns values for ``exprs``, where again ``exprs`` may contain nested
     lists and/or tuples.
 
-    All other arguments are passed to theano.function without modification."""
+    All other arguments are passed to ``theano.function`` without
+    modification."""
 
     flat_variables = flatten(variables)
     flat_exprs = flatten(exprs)
@@ -189,8 +191,6 @@ def lookup(what, where, default=None):
         res = getattr(where, what, default)
     else:
         res = what
-    if res is None:
-        raise ValueError('could not find %s' % what)
     return res
 
 
