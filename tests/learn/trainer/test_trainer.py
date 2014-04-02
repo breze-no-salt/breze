@@ -64,7 +64,7 @@ def test_checkpoint_trainer():
     # Train the mdoel with a trainer for 2 epochs.
     t = Trainer(
         m,
-        stop=climin.stops.after_n_iterations(2),
+        stop=climin.stops.AfterNIterations(2),
         pause=climin.stops.always)
     t.val_key = 'val'
     t.eval_data = {'val': (X,)}
@@ -76,7 +76,7 @@ def test_checkpoint_trainer():
     intermediate_info = t2.current_info.copy()
 
     # Train original for 2 more epochs.
-    t.stop = climin.stops.after_n_iterations(4)
+    t.stop = climin.stops.AfterNIterations(4)
     t.fit(X)
 
     # Check that the snapshot has not changed
@@ -87,7 +87,7 @@ def test_checkpoint_trainer():
 
     check_infos(intermediate_info, t2.current_info)
 
-    t2.stop = climin.stops.after_n_iterations(4)
+    t2.stop = climin.stops.AfterNIterations(4)
     t2.fit(X)
     check_infos(final_info, t2.current_info)
 
@@ -95,7 +95,7 @@ def test_checkpoint_trainer():
 
     t_pickled = cPickle.dumps(t2)
     t_unpickled = cPickle.loads(t_pickled)
-    t.stop = climin.stops.after_n_iterations(4)
+    t.stop = climin.stops.AfterNIterations(4)
 
     t_unpickled.fit(X)
 
@@ -114,7 +114,7 @@ def test_training_continuation():
     # Train the mdoel with a trainer for 2 epochs.
     stopper = climin.stops.OnSignal()
     print stopper.sig
-    stops = climin.stops.any_([stopper, climin.stops.AfterNIterations(5)])
+    stops = climin.stops.Any([stopper, climin.stops.AfterNIterations(5)])
     t = Trainer(
         m,
         stop=stops,
