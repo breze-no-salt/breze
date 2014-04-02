@@ -77,6 +77,7 @@ Architectures, Components
    arch/component/common
    arch/component/distributions/normal
    arch/component/distributions/mvn
+   arch/util
 
 For variance propagation:
 
