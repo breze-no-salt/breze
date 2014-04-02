@@ -40,7 +40,7 @@ def pdf(sample, mean, cov):
         Array of shape ``(n,)`` where each entry represents the density of the
         corresponding sample.
     """
-    dim = sample.shape[1]
+    dim = sample.shape[0]
     psd(cov)
     inv_cov = minv(cov)
 
