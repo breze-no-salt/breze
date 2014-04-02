@@ -90,7 +90,7 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
         n_conv = len(n_hidden_conv)
         n_full = len(n_hidden_full)
         n_all = n_conv + n_full + 1
-        self.batch_size = 1
+        self.batch_size = batch_size
         self.padding = [0]*n_conv if padding is None else padding
         self.padding += [0]
 
@@ -179,16 +179,17 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
                 (outlayer, inlayer, filter_shape[0], filter_shape[1]))
 
     def _init_image_shapes(self):
-        image_size = [self.n_inpt[2]+2*self.padding[0], self.n_inpt[3]+2*self.padding[0]]
-        self.image_shapes.append([self.n_inpt[0], self.n_inpt[1],
-                                  image_size[0],
-                                  image_size[1]])
+        image_size = [self.n_inpt[2]+2*self.padding[0],
+                      self.n_inpt[3]+2*self.padding[0]]
+        self.image_shapes.append(self.n_inpt[:2]+image_size)
         zipped = zip(self.n_hidden_conv, self.filter_shapes,
                      self.pool_shapes, self.pool_strides, self.padding[1:])
-        for n_feature_maps, filter_shape, pool_shape, pool_stride, padding in zipped:
-            image_size = [2*padding + 1 + (comp - fs + 1 - psh) / pst for comp, fs, psh, pst in
-                          zip(image_size, filter_shape, pool_shape, pool_stride)]
-            self.image_shapes.append((self.batch_size, n_feature_maps,
+        for n_feat_maps, filter_shape, pool_shape, pool_stride, pad in zipped:
+            image_size = []
+            sub_zipped = zip(image_size, filter_shape, pool_shape, pool_stride)
+            for comp, fs, psh, pst in sub_zipped:
+                image_size.append(2*pad + 1 + (comp - fs + 1 - psh) / pst)
+            self.image_shapes.append((self.batch_size, n_feat_maps,
                                       image_size[0], image_size[1]))
 
     def _init_pars(self):
@@ -202,7 +203,6 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
         self.parameters = ParameterSet(**spec)
 
     def _init_pool_shifts(self):
-        self.pool_shifts = []
         for sh, st in zip(self.pool_shapes, self.pool_strides):
             pool_shift = [[0], [0]]
             i, j = st
@@ -220,9 +220,9 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
             'target': T.matrix('target')
         }
         P = self.parameters
-
         hidden_conv_to_hidden_conv = [getattr(P,
-                                              'hidden_conv_to_hidden_conv_%i' % i)
+                                              'hidden_conv_to_hidden_conv_%i'
+                                              % i)
                                       for i in range(len(self.n_hidden_conv) - 1)]
         hidden_full_to_hidden_full = [getattr(P,
                                               'hidden_full_to_hidden_full_%i' % i)
@@ -239,8 +239,7 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
             hidden_conv_bias, hidden_full_bias, self.hidden_conv_transfers,
             self.hidden_full_transfers, self.out_transfer, self.loss,
             self.image_shapes, self.filter_shapes_comp, self.n_inpt,
-            self.pool_shapes, self.pool_shifts, self.pool_strides,
-            self.padding, self.lrnorm))
+            self.pool_shapes, self.pool_shifts, self.padding, self.lrnorm))
 
     def _init_weights(self, seed=314):
         rng = np.random.RandomState(seed)
@@ -259,12 +258,11 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
         weight_order.append('hidden_to_out')
         bias_order.append('out_bias')
         for i, (weight, bias) in enumerate(zip(weight_order, bias_order)):
-
             if self.init_weigths_stdev[i] == 0:
                 weight_data = np.zeros(self.parameters[weight].shape)
             else:
                 weight_data = rng.normal(0, self.init_weigths_stdev[i],
-                                     self.parameters[weight].shape)
+                                         self.parameters[weight].shape)
             self.parameters[weight] = weight_data
             if self.init_biases_stdev[i] == 0:
                 bias_data = np.zeros(self.parameters[bias].shape)

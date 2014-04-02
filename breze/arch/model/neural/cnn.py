@@ -8,6 +8,7 @@ from ...component import transfer, loss as loss_
 
 import mlp
 
+
 def pad(inpt_to_pad, pad_to_add):
     if pad_to_add == 0:
         return inpt_to_pad
@@ -15,6 +16,7 @@ def pad(inpt_to_pad, pad_to_add):
     padded_output = T.concatenate([dim2, inpt_to_pad, dim2], axis=2)
     dim3 = T.zeros_like(padded_output[:, :, :, :pad_to_add])
     return T.concatenate([dim3, padded_output, dim3], axis=3)
+
 
 def perform_pooling(tensor, shift, pool_shape, limits):
     if pool_shape[0] == 1 and pool_shape[1] == 1:
@@ -39,17 +41,17 @@ def perform_pooling(tensor, shift, pool_shape, limits):
 
 def perform_lrnorm(inpt, lrnorm):
     alpha, beta, N = lrnorm
-    limit = N/2
+    limit = N / 2
     squared_inpt = T.sqr(inpt)
     final_result = squared_inpt.copy()
-    for i in range(limit+1):
-        for j in range(limit+1):
+    for i in range(limit + 1):
+        for j in range(limit + 1):
             if i == 0 and j == 0:
                 continue
             elif i == 0:
                 final_result = T.inc_subtensor(final_result[:, :, :, :-j],
                                                squared_inpt[:, :, :, j:])
-                final_result = T.inc_subtensor(final_result[:, :, :,  j:],
+                final_result = T.inc_subtensor(final_result[:, :, :, j:],
                                                squared_inpt[:, :, :, :-j])
             elif j == 0:
                 final_result = T.inc_subtensor(final_result[:, :, :-i, :],
@@ -65,9 +67,10 @@ def perform_lrnorm(inpt, lrnorm):
                                                squared_inpt[:, :, i:, :-j])
                 final_result = T.inc_subtensor(final_result[:, :, i:, :-j],
                                                squared_inpt[:, :, :-i, j:])
-    final_result *= T.constant((alpha+0.0)/(N*N))
+    final_result *= T.constant((alpha + 0.0) / (N * N))
     final_result += 1
-    return inpt/T.pow(final_result, beta)
+    return inpt / T.pow(final_result, beta)
+
 
 def convolution_part(inpt, padding, image_shapes, weights, filter_shape,
                      pool_shape, pool_shift, bias, transfer_name, lrnom):
@@ -83,6 +86,7 @@ def convolution_part(inpt, padding, image_shapes, weights, filter_shape,
     if lrnom is not None:
         conv_down = perform_lrnorm(conv_down, lrnom)
     return conv_down, f_hidden(conv_down)
+
 
 def parameters(n_inpt, n_hidden_conv, n_hidden_full, n_output,
                resulting_image_size, filter_shapes):
@@ -113,29 +117,29 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
           hidden_full_bias, hidden_conv_transfers,
           hidden_full_transfers, output_transfer, loss,
           image_shapes, filter_shapes_comp, input_shape,
-          pool_shapes, pool_shift, pool_stride, padding, lrnorm):
+          pool_shapes, pool_shift, padding, lrnorm):
     exprs = {}
 
     reshaped_inpt = inpt.reshape(input_shape)
-    conv = convolution_part(reshaped_inpt, padding[:2], image_shapes[:2],
-                            in_to_hidden, filter_shapes_comp[0],
-                            pool_shapes[0], pool_shift[0], hidden_conv_bias[0],
-                            hidden_conv_transfers[0], lrnorm[0]
+    conv_part = convolution_part(
+        reshaped_inpt, padding[:2], image_shapes[:2], in_to_hidden,
+        filter_shapes_comp[0], pool_shapes[0], pool_shift[0],
+        hidden_conv_bias[0], hidden_conv_transfers[0], lrnorm[0]
     )
-    exprs['hidden_in_0'], exprs['hidden_0'] = conv
+    exprs['hidden_in_0'], exprs['hidden_0'] = conv_part
     hidden = exprs['hidden_0']
 
     zipped = zip(hidden_conv_to_hidden_conv, hidden_conv_bias[1:],
                  hidden_conv_transfers[1:], filter_shapes_comp[1:],
-                 pool_shapes[1:], pool_shift[1:], pool_stride[1:])
-    for i, (w, b, t, fs,  psh, psf, pst) in enumerate(zipped):
-        conv = convolution_part(
-            hidden, padding[i+1:i+3], image_shapes[i+1:i+3],
-            w, fs, psh, psf, b, t, lrnorm[i+1]
+                 pool_shapes[1:], pool_shift[1:])
+    for i, (w, b, t, fs, psh, psf) in enumerate(zipped):
+        conv_part = convolution_part(
+            hidden, padding[i + 1:i + 3], image_shapes[i + 1:i + 3],
+            w, fs, psh, psf, b, t, lrnorm[i + 1]
         )
-        exprs['conv-hidden_in_%i' % (i + 1)] = conv[0]
-        exprs['conv-hidden_%i' % (i + 1)] = conv[1]
-        hidden = conv[1]
+        exprs['conv-hidden_in_%i' % (i + 1)] = conv_part[0]
+        exprs['conv-hidden_%i' % (i + 1)] = conv_part[1]
+        hidden = conv_part[1]
 
     # Mlp part
     hidden_middle = hidden.flatten(2)
