@@ -51,12 +51,12 @@ def pdf(sample, location=0, scale=1):
     >>> np.allclose(ps,  [0.21840613,  0.33129956,  0.25094786])
     True
     """
-    #location = T.cast(location, theano.config.floatX)
+    location = T.cast(location, theano.config.floatX)
     SQRT_2_PI = np.sqrt(2 * PI)
-    #SQRT_2_PI = T.cast(SQRT_2_PI, theano.config.floatX)
+    SQRT_2_PI = T.cast(SQRT_2_PI, theano.config.floatX)
 
     divisor = 2 * scale ** 2 # + epsilon,
-    #divisor = T.cast(divisor, theano.config.floatX)
+    divisor = T.cast(divisor, theano.config.floatX)
     if isinstance(location, T.TensorVariable) and location.ndim == 0:
         location = location.dimshuffle('x')
 
