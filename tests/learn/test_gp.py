@@ -25,6 +25,20 @@ def test_gp_fit():
     gp.fit(X, Z)
 
 
+def test_gp_fit_linear():
+    X = np.arange(-2, 2, .01)[:, np.newaxis].astype(theano.config.floatX)
+    X, = theano_floatx(X)
+    idxs = range(X.shape[0])
+    idxs = random.sample(idxs, 200)
+    X = X[idxs]
+    Z = np.sin(X)
+
+    X, Z = theano_floatx(X, Z)
+
+    gp = GaussianProcess(1, max_iter=10, kernel='linear')
+    gp.fit(X, Z)
+
+
 def test_gp_iter_fit():
     X = np.arange(-2, 2, .01)[:, np.newaxis].astype(theano.config.floatX)
     idxs = range(X.shape[0])
