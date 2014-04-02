@@ -76,6 +76,11 @@ Architectures, Components
    arch/component/layer
    arch/component/common
 
+For variance propagation:
+
+.. toctree::
+   arch/component/varprop/common
+
 
 Implementation Notes
 --------------------
