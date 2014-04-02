@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Module containing expression buildes for the multivariate normal."""
+
 
 import numpy as np
 import theano.tensor as T
@@ -9,8 +11,36 @@ det = Det()
 minv = MatrixInverse()
 
 
+# TODO add examples that also work as tests.
+
+
 def pdf(sample, mean, cov):
-    dim = sample.shape[0]
+    """Return a theano expression representing the values of the probability
+    density function of the multivariate normal.
+
+    Parameters
+    ----------
+
+    sample : Theano variable
+        Array of shape ``(n, d)`` where ``n`` is the number of samples and
+        ``d`` the dimensionality of the data.
+
+    mean : Theano variable
+        Array of shape ``(d,)`` representing the mean of the distribution.
+
+    cov : Theano variable
+        Array of shape ``(d, d)`` representing the covariance of the
+        distribution.
+
+
+    Returns
+    -------
+
+    l : Theano variable
+        Array of shape ``(n,)`` where each entry represents the density of the
+        corresponding sample.
+    """
+    dim = sample.shape[1]
     psd(cov)
     inv_cov = minv(cov)
 
@@ -24,6 +54,23 @@ def pdf(sample, mean, cov):
 
 
 def logpdf(sample, mean, cov):
+    """Return a theano expression representing the values of the log probability
+    density function of the multivariate normal.
+
+    Parameters
+    ----------
+
+    sample : Theano variable
+        Array of shape ``(n, d)`` where ``n`` is the number of samples and
+        ``d`` the dimensionality of the data.
+
+    mean : Theano variable
+        Array of shape ``(d,)`` representing the mean of the distribution.
+
+    cov : Theano variable
+        Array of shape ``(d, d)`` representing the covariance of the
+        distribution.
+    """
     psd(cov)
     inv_cov = minv(cov)
 
