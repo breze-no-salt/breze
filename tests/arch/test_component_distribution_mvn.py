@@ -16,8 +16,10 @@ def test_pdf_compare_logpdf():
     mean.tag.test_value = np.empty(5).astype(theano.config.floatX)
 
     cov = T.matrix()
-    cov.tag.test_value = np.random.random((5, 5)).astype(theano.config.floatX)
 
+    r = np.random.random((5, 5))
+    c = np.dot(r, r.T) + np.eye(5)
+    cov.tag.test_value = c.astype(theano.config.floatX)
 
     density = mvn.pdf(sample, mean, cov)
     log_density = mvn.logpdf(sample, mean, cov)
