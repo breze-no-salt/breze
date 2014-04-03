@@ -131,7 +131,7 @@ class Trainer(object):
         self._score = score
         self.pause = pause
         self.stop = stop
-        self.interrupt = never
+        self.interrupt = interrupt
         self.report = report
 
         self.best_pars = None
