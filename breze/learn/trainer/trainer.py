@@ -147,11 +147,8 @@ class Trainer(object):
         return self._score(self.model.score, *data)
 
     def handle_update(self, fit_data):
-        update_losses = {
-            'loss': ma.scalar(self.score(*fit_data))
-        }
         for key, data in self.eval_data.items():
-            update_losses['%s_loss' % key] = self.score(*data)
+            update_losses['%s_loss' % key] = ma.scalar(self.score(*data))
         return update_losses
 
     def fit(self, *fit_data):
