@@ -4,7 +4,6 @@
 
 import time
 
-import numpy as np
 from climin import mathadapt as ma
 from climin.stops import never, always
 from climin.util import clear_info
