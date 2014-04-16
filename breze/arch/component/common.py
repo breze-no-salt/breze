@@ -47,13 +47,20 @@ def supervised_loss(target, prediction, loss, coord_axis=1, prefix=''):
     >>> loss_dict = supervised_loss(target, prediction, squared,
     ...   prefix='mymodel-')
     >>> sorted(loss_dict.items())
-    [('mymodel-loss', Elemwise{true_div,no_inplace}.0), ('mymodel-loss_coord_wise', Elemwise{pow,no_inplace}.0), ('mymodel-loss_sample_wise', Sum{1}.0), ('mymodel-prediction', prediction), ('mymodel-target', target)]
+    [('mymodel-loss', Elemwise{true_div,no_inplace}.0),
+    ('mymodel-loss_coord_wise', Elemwise{pow,no_inplace}.0),
+    ('mymodel-loss_sample_wise', Sum{1}.0),
+    ('mymodel-prediction', prediction),
+    ('mymodel-target', target)]
     """
     f_loss = lookup(loss, loss_)
     loss_coord_wise = f_loss(target, prediction)
-    loss_sample_wise = loss_coord_wise.sum(axis=coord_axis)
+    try:
+        loss_sample_wise = loss_coord_wise.sum(axis=coord_axis)
+    except ValueError:
+        #We do not have enough dimensions, the loss is not coordinate-wise
+        loss_sample_wise = loss_coord_wise
     loss = loss_sample_wise.mean()
-
     return get_named_variables(locals(), prefix=prefix)
 
 

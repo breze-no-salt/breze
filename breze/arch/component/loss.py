@@ -42,6 +42,36 @@ from misc import distance_matrix
 # TODO add hinge loss
 # TODO add huber loss
 
+def fmeasure(target, prediction, alpha=0.5):
+    """Return the approximated f-measure loss between the `target` and
+    the `prediction`. This is an overall loss, not a sample-wise one,
+    that is, the loss is computed for all the samples at once.
+
+    Jansche, Martin. "Maximum expected F-measure training of logistic
+    regression models." Proceedings of the conference on Human Language
+    Technology and Empirical Methods in Natural Language Processing.
+    Association for Computational Linguistics, 2005.
+
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of arbitrary shape representing representing the targets.
+
+    prediction : Theano variable
+        An array of arbitrary shape representing representing the predictions.
+
+    Returns
+    -------
+
+    res : Theano variable
+        An array of the same columns as ``target`` and ``prediction``
+        representing the overall f-measure loss."""
+    n_pos = target.sum(axis=0)
+    m_pos = prediction.sum(axis=0)
+    true_positives_approx = target*prediction
+    A = true_positives_approx.sum(axis=0)
+    return 1-A/(alpha*n_pos+(1-alpha)*m_pos)
 
 def squared(target, prediction):
     """Return the element wise squared loss between the `target` and
