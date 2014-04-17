@@ -2,7 +2,7 @@
 
 """Module that contains various functionality for trainers."""
 
-import time
+import datetime
 
 from climin import mathadapt as ma
 from climin.stops import never, always
@@ -184,7 +184,6 @@ class Trainer(object):
         The values yielded from this function will be climin info dictionaries
         stripped from any numpy or gnumpy arrays.
         """
-        start = time.time()
         for info in self.model.iter_fit(*fit_data, info_opt=self.current_info):
             interrupt = self.interrupt(info)
             if self.pause(info) or interrupt:
@@ -200,7 +199,7 @@ class Trainer(object):
                 info['best_pars'] = self.best_pars
 
                 info.update({
-                    'time': time.time() - start,
+                    'datetime': datetime.datetime.now(),
                 })
 
                 filtered_info = clear_info(info)
