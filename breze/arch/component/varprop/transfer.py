@@ -163,7 +163,10 @@ def sigmoid(mean, var):
     var_ : Theano variable
         Theano variable of the shape ``r``.
     """
-    make_mean = lambda m, s2: T.nnet.sigmoid(m / (T.sqrt(1 + PI * s2 / 8)))
+    def make_mean(m, s2):
+        # If we do not cast, PI will be float64 in all cases.
+        pre_sig = m / (T.sqrt(1 + T.cast(PI, theano.config.floatX) * s2 / 8))
+        return T.nnet.sigmoid(pre_sig)
 
     a = 4 - 2 * SQRT_2
     b = -np.log(SQRT_2 - 1)
