@@ -421,14 +421,13 @@ class Model(object):
         if isinstance(exprs, (str, unicode)):
             # We are only being given a single string expression.
             exprs = self.exprs[exprs]
-        elif isinstance(exprs, theano.tensor.basic.TensorVariable):
-            # TODO: does this work in case of the GPU?
-            exprs = exprs
-        else:
+        elif isinstance(exprs, list):
             # We have several, either string or variable, thus make it a list
             # and substitute the strings.
             exprs = list(exprs)
             exprs = [self.exprs[i] if isinstance(i, str) else i for i in exprs]
+        else:
+            exprs = exprs
 
         return exprs
 
