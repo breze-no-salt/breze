@@ -421,7 +421,7 @@ class Model(object):
         if isinstance(exprs, (str, unicode)):
             # We are only being given a single string expression.
             exprs = self.exprs[exprs]
-        elif isinstance(exprs, list):
+        elif isinstance(exprs, list) or isinstance(exprs, tuple):
             # We have several, either string or variable, thus make it a list
             # and substitute the strings.
             exprs = list(exprs)
