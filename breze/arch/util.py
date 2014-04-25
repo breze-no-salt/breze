@@ -133,6 +133,9 @@ def cpu_expr_to_gpu(expr, unsafe=False):
     If unsafe is set to True, subsequent function calls evaluating the
     expression might return arrays pointing at the same memory region.
     """
+    if isinstance(expr, theano.sandbox.cuda.var.CudaNdarrayVariable):
+        return expr
+
     expr_ = T.cast(expr, 'float32')
     expr_ = theano.Out(theano.sandbox.cuda.basic_ops.gpu_from_host(expr),
                        borrow=unsafe)
@@ -421,14 +424,13 @@ class Model(object):
         if isinstance(exprs, (str, unicode)):
             # We are only being given a single string expression.
             exprs = self.exprs[exprs]
-        elif isinstance(exprs, theano.tensor.basic.TensorVariable):
-            # TODO: does this work in case of the GPU?
-            exprs = exprs
-        else:
+        elif isinstance(exprs, list):
             # We have several, either string or variable, thus make it a list
             # and substitute the strings.
             exprs = list(exprs)
             exprs = [self.exprs[i] if isinstance(i, str) else i for i in exprs]
+        else:
+            exprs = exprs
 
         return exprs
 
