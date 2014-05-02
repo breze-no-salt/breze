@@ -49,10 +49,10 @@ def unpack_mean_var(arr):
 
 
 def discard_var_loss(loss):
-    def inner(target, prediction):
+    def inner_discard_var_loss(target, prediction):
         mean, var = unpack_mean_var(prediction)
         return loss(target, mean)
-    return inner
+    return inner_discard_var_loss
 
 
 squared = discard_var_loss(loss.squared)
