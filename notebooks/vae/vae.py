@@ -48,7 +48,7 @@ def exprs(inpt,
     noise = rng.normal(size=latent_mean.shape)
     #noise = T.cast(noise, theano.config.floatX)
 
-    sample = latent_mean + T.sqrt(latent_var + 1e-4) * noise
+    sample = latent_mean + T.sqrt(latent_var + 1e-8) * noise
 
     decoder_exprs = mlp.exprs(
         sample, latent_to_dec, hidden_to_hidden_dec, hidden_to_output,
