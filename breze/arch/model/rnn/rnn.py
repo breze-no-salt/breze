@@ -12,7 +12,7 @@ from ...component import transfer
 from pooling import pooling_layer
 
 
-def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False):
+def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False, prefix=''):
     spec = dict(in_to_hidden=(n_inpt, n_hiddens[0]),
                 hidden_to_out=(n_hiddens[-1], n_output),
                 hidden_bias_0=n_hiddens[0],
@@ -33,7 +33,7 @@ def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False):
             # Only do for all but the last layer.
             spec['hidden_%i_to_out' % i] = (h, n_output)
 
-    print spec
+    spec = dict(('%s%s'% (prefix, k), v)  for k, v in spec.items())
 
     return spec
 
