@@ -110,7 +110,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                              TransformBrezeWrapperMixin,
                              ReconstructBrezeWrapperMixin):
 
-    def __init__(self, n_inpt, n_hiddens_enc, n_hiddens_dec,
+    def __init__(self, n_inpt, n_hiddens_enc, n_latent, n_hiddens_dec,
                  enc_transfers, dec_transfers,
                  visible,
                  latent_prior='white_gaussian',
@@ -119,6 +119,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                  max_iter=1000, verbose=False):
         self.n_inpt = n_inpt
         self.n_hiddens_enc = n_hiddens_enc
+        self.n_latent = n_latent
         self.n_hiddens_dec = n_hiddens_dec
         self.enc_transfers = enc_transfers
         self.dec_transfers = dec_transfers
@@ -134,10 +135,33 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
         super(VariationalAutoEncoder, self).__init__()
 
+    def _layer_size_by_dist(self, n_units, dist):
+        if dist == 'diag_gauss':
+            return 2 * n_units
+        elif dist == 'bern':
+            return n_units
+        raise ValueError('unknown distribution in this case: %s'
+                            % dist)
+
     def _init_pars(self):
-        spec = parameters(
-            self.n_inpt, self.n_hiddens_enc, self.n_hiddens_dec,
-            self.visible, self.latent_posterior)
+        n_output = self._layer_size_by_dist(self.n_inpt, self.visible)
+        n_code_units = self._layer_size_by_dist(
+            self.n_latent, self.latent_posterior)
+
+        encoder_spec = mlp.parameters(self.n_inpt, self.n_hiddens_enc,
+                                      n_code_units)
+        decoder_spec = mlp.parameters(self.n_latent, self.hiddens_dec,
+                                      n_output)
+
+        encoder_spec = get_named_variables(encoder_spec, overwrite=True,
+                                           prefix='enc')
+        decoder_spec = get_named_variables(decoder_spec, overwrite=True,
+                                           prefix='dec')
+
+        spec = {}
+        spec.update(encoder_spec)
+        spec.update(decoder_spec)
+
         self.parameters = ParameterSet(**spec)
         self.parameters.data[:] = np.random.standard_normal(
             self.parameters.data.shape).astype(theano.config.floatX)
