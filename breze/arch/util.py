@@ -621,3 +621,70 @@ class WarnNaNMode(theano.Mode):
             [theano.gof.OpWiseCLinker()], [print_eval])
         super(WarnNaNMode, self).__init__(
             wrap_linker, optimizer='fast_compile')
+
+
+# TODO document
+def dictlist_get(dictlist, path):
+    item = dictlist
+    for key in path:
+        item = item[key]
+    return item
+
+
+def dictlist_set(dictlist, path, value):
+    item = dictlist
+    for key in list(path[:-1]):
+        item = item[key]
+    item[path[-1]] = value
+
+
+def dictlist_dfs(dictlist):
+    to_visit = [()]
+    visited = set()
+
+    while True:
+        if len(to_visit) == 0:
+            break
+        this = to_visit.pop()
+        visited.add(this)
+
+        item = dictlist_get(dictlist, this)
+        if isinstance(item, list):
+            nxts = xrange(len(item))
+        elif isinstance(item, dict):
+            nxts = item.keys()
+        else:
+            yield (this, item)
+            continue
+
+        for nxt in nxts:
+            nxt = tuple(list(this) + [nxt])        # Lists are not hashable.
+            if nxt in visited:
+                continue
+
+            to_visit.append(nxt)
+
+
+def array_views(array, partition):
+    views = partition.copy()
+    pathsshapes = sorted(list(dictlist_dfs(partition)))
+
+    n_used = 0
+    for path, shape in pathsshapes:
+        print path
+        item = dictlist_get(partition, path)
+        shape = (item,) if isinstance(item, int) else item
+        size = np.prod(shape)
+        dictlist_set(views, path, array[n_used:n_used + size].reshape(shape))
+        n_used += size
+
+    return views
+
+
+def n_pars_by_partition(partition):
+    n = 0
+    for _, shape in dictlist_dfs(partition):
+        shape = (shape,) if isinstance(shape, int) else shape
+        n += np.prod(shape)
+
+    return n
