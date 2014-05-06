@@ -14,7 +14,7 @@ from breze.learn.trainer.score import MinibatchScore
 
 def check_infos(info1, info2):
     for key in info1:
-        if key == 'time':
+        if key in ('time', 'datetime'):
             continue
         if isinstance(info1[key], np.ndarray):
             assert np.allclose(info1[key], info2[key])
@@ -25,7 +25,7 @@ def check_infos(info1, info2):
                 else:
                     assert e1 == e2
         else:
-            assert info1[key] == info2[key]
+            assert info1[key] == info2[key], '%s != %s (%s)' % (info1[key], info2[key], key)
 
 
 def test_minibatch_score_trainer():
