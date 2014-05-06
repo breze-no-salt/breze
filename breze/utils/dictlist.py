@@ -41,5 +41,25 @@ def leafs(dl):
 
 
 def replace(dl, func):
-    for path, item in dfs(dl):
-        dictlist.set_(dl, path, func(item))
+    for path, item in leafs(dl):
+        set_(dl, path, func(item))
+
+
+def copy(dl, dct_maker=dict, lst_maker=list, deep=False):
+    if isinstance(dl, dict):
+        cp = dct_maker()
+        for key in dl:
+            cp[key] = copy(dl[key], dct_maker=dct_maker, lst_maker=lst_maker,
+                           deep=deep)
+    elif isinstance(dl, list):
+        cp = lst_maker()
+        for item in dl:
+            cp.append(copy(item, dct_maker=dct_maker, lst_maker=lst_maker,
+                           deep=deep))
+    else:
+        if deep:
+            cp = copy.deepcopy(dl)
+        else:
+            cp = dl
+
+    return cp

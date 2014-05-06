@@ -9,7 +9,7 @@ import theano.tensor as T
 import math
 
 import breze.arch.util
-from breze.arch.util import (ParameterSet, Model, array_views,
+from breze.arch.util import (ParameterSet, Model, array_partition_views,
                              n_pars_by_partition)
 
 
@@ -141,9 +141,19 @@ def test_nested_pars():
     assert ps.data.size == 2 + 3 + 10 * 10 + 2
 
 
-def test_array_views():
+def test_array_partition_views():
     flat = np.arange(14).astype('float64')
-    partition = {
+    partition = make_dictlist()
+
+    views = array_partition_views(flat, partition)
+
+    assert np.allclose(views['bar'], np.arange(4).reshape((2, 2)))
+    assert np.allclose(views['fank']['fenk'][0], 4.)
+    assert np.allclose(views['fank']['funk'], np.array([6, 7]).reshape((2, 1)))
+
+
+def make_dictlist():
+    return {
         'bar': (2, 2),
         'fank': {
             'fenk': [1, 1],
@@ -153,16 +163,10 @@ def test_array_views():
         'fink': [1, 1],
     }
 
-    views = array_views(flat, partition)
-
-    assert np.allclose(views['bar'], np.arange(4).reshape((2, 2)))
-    assert np.allclose(views['fank']['fenk'][0], 4.)
-    assert np.allclose(views['fank']['funk'], np.array([6, 7]).reshape((2, 1)))
-
 
 def test_n_pars_by_partition():
     tree = make_dictlist()
-    assert n_pars_by_partition(tree) == 30
+    assert n_pars_by_partition(tree) == 14
 
 
 def test_nested_parameter_set():
@@ -173,4 +177,4 @@ def test_nested_parameter_set():
     assert p.bar.ndim == 2
 
     assert p.fank.fenk[0].ndim == 1
-    assert p['fank']['fenk'][1].shape == (2, 1)
+    assert p['fank']['funk'].shape == (2, 1)

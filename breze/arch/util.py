@@ -9,7 +9,9 @@ import theano.tensor as T
 import theano.sandbox.cuda
 import theano.misc.gnumpy_utils as gput
 
-from breze.util import dictlist
+from breze.utils import dictlist
+
+import attrdict
 
 
 try:
@@ -260,7 +262,6 @@ class ParameterSet(object):
     a parameter variable (with concrete values) while a (parameter)
     tensor/variable refers to the symbolic Theano variable.
 
-
     Initialization takes a variable amount of keyword arguments, where each has
     to be a single integer or a tuple of arbitrary length containing only
     integers. For each of the keyword argument keys a tensor of the shape given
@@ -289,14 +290,8 @@ class ParameterSet(object):
     """
 
     def __init__(self, **kwargs):
-        # Make sure all size specifications are tuples.
-        kwargs = dict((k, v if isinstance(v, tuple) else (v,))
-                      for k, v in kwargs.iteritems())
-
-        # Find out total size of needed parameters and create memory for it.
-        sizes = [np.prod(i) for i in kwargs.values()]
-
-        self.n_pars = sum(sizes)
+        dictlist.replace(kwargs, lambda x: (x,) if isinstance(x, int) else x)
+        self.n_pars = n_pars_by_partition(kwargs)
 
         # Create two representations of the parameters of the object. The first
         # is the symbolic theano variable (of which the type is GPU/CPU
@@ -311,28 +306,23 @@ class ParameterSet(object):
 
         self.flat.tag.test_value = self.data
 
-        # Go through parameters and assign space and variable.
-        self.views = {}
-        n_used = 0 	# Number of used parameters.
 
-        for (key, shape), size in zip(kwargs.items(), sizes):
-            # Make sure the key is legit -- that it does not overwrite
-            # anything.
+        # Go through parameters and assign space and variable.
+        print '-' * 20
+        print kwargs
+        self.views = array_partition_views(self.data, kwargs)
+        print '-' * 20
+        print kwargs
+
+        # Make sure the keys are legit -- that they do not overwrite
+        # anything.
+        for key in kwargs:
             if hasattr(self, key):
                 raise ValueError("%s is an illegal name for a variable")
 
-            # Get the region from the big flat array.
-            region = self.data[n_used:n_used + size]
-            # Then shape it correctly and make it accessible from the outside.
-            region = region.reshape(shape)
-            self.views[key] = region
-
-            # Get the right variable as a subtensor.
-            var = self.flat[n_used:n_used + size].reshape(shape)
-            var.name = key
-            setattr(self, key, var)
-
-            n_used += size
+        variables = array_partition_views(self.flat, kwargs)
+        variables = dictlist.copy(variables, dct_maker=attrdict.AttrDict)
+        self.__dict__.update(variables)
 
     def __contains__(self, key):
         return key in self.views
@@ -625,37 +615,20 @@ class WarnNaNMode(theano.Mode):
             wrap_linker, optimizer='fast_compile')
 
 
-            yield (this, item)
-            continue
-
-        for nxt in nxts:
-            nxt = tuple(list(this) + [nxt])        # Lists are not hashable.
-            if nxt in visited:
-                continue
-
-            to_visit.append(nxt)
-
-
-def array_views(array, partition):
-    views = partition.copy()
+def array_partition_views(array, partition):
+    views = dictlist.copy(partition)
     pathsshapes = sorted(list(dictlist.leafs(partition)))
 
     n_used = 0
     for path, shape in pathsshapes:
-        print path
-        item = dictlist_get(partition, path)
+        item = dictlist.get(partition, path)
         shape = (item,) if isinstance(item, int) else item
-        size = np.prod(shape)
-        dictlist_set(views, path, array[n_used:n_used + size].reshape(shape))
+        print path, shape
+        size = int(np.prod(shape))
+        dictlist.set_(views, path, array[n_used:n_used + size].reshape(shape))
         n_used += size
 
     return views
-
-
-def dictlist_int_to_tuple(dl):
-    for path, item in dictlist.leafs(dl):
-        if isinstance(item, .nt):
-            dictlist.set(dictlist, path, (item,))
 
 
 def n_pars_by_partition(partition):
@@ -664,4 +637,4 @@ def n_pars_by_partition(partition):
         shape = (shape,) if isinstance(shape, int) else shape
         n += np.prod(shape)
 
-    return n
+    return int(n)

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from breze.utils import dictlist
+from attrdict import AttrDict
 
 
 def make_dictlist():
@@ -30,3 +31,10 @@ def test_dictlist_get():
     tree = make_dictlist()
     assert dictlist.get(tree, ('blu', 'far', 0)) == 1
     assert dictlist.get(tree, ('blu', 'foo')) == (2, 4)
+
+
+def test_copy():
+    tree = make_dictlist()
+    tree2 = dictlist.copy(tree, dct_maker=AttrDict)
+
+    print tree2
