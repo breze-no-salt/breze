@@ -7,6 +7,7 @@ import numpy as np
 import theano
 import theano.tensor as T
 import theano.sandbox.cuda
+import theano.sandbox.cuda.var
 import theano.misc.gnumpy_utils as gput
 
 from breze.utils import dictlist
@@ -399,7 +400,10 @@ class Model(object):
         pass
 
     def _lookup(self, container, ident):
-        if isinstance(ident, theano.tensor.basic.TensorVariable):
+        tensor_types = (theano.tensor.basic.TensorVariable,
+                        theano.sandbox.cuda.var.CudaNdarrayVariable)
+
+        if isinstance(ident, tensor_types):
             res = ident
         elif isinstance(ident, tuple):
             res = dictlist.get(container, ident)
