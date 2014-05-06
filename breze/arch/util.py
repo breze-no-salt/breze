@@ -9,6 +9,8 @@ import theano.tensor as T
 import theano.sandbox.cuda
 import theano.misc.gnumpy_utils as gput
 
+from breze.util import dictlist
+
 
 try:
     gpu_environ = os.environ['BREZE_PARAMETERSET_DEVICE']
@@ -623,37 +625,6 @@ class WarnNaNMode(theano.Mode):
             wrap_linker, optimizer='fast_compile')
 
 
-# TODO document
-def dictlist_get(dictlist, path):
-    item = dictlist
-    for key in path:
-        item = item[key]
-    return item
-
-
-def dictlist_set(dictlist, path, value):
-    item = dictlist
-    for key in list(path[:-1]):
-        item = item[key]
-    item[path[-1]] = value
-
-
-def dictlist_dfs(dictlist):
-    to_visit = [()]
-    visited = set()
-
-    while True:
-        if len(to_visit) == 0:
-            break
-        this = to_visit.pop()
-        visited.add(this)
-
-        item = dictlist_get(dictlist, this)
-        if isinstance(item, list):
-            nxts = xrange(len(item))
-        elif isinstance(item, dict):
-            nxts = item.keys()
-        else:
             yield (this, item)
             continue
 
@@ -667,7 +638,7 @@ def dictlist_dfs(dictlist):
 
 def array_views(array, partition):
     views = partition.copy()
-    pathsshapes = sorted(list(dictlist_dfs(partition)))
+    pathsshapes = sorted(list(dictlist.leafs(partition)))
 
     n_used = 0
     for path, shape in pathsshapes:
@@ -681,9 +652,15 @@ def array_views(array, partition):
     return views
 
 
+def dictlist_int_to_tuple(dl):
+    for path, item in dictlist.leafs(dl):
+        if isinstance(item, .nt):
+            dictlist.set(dictlist, path, (item,))
+
+
 def n_pars_by_partition(partition):
     n = 0
-    for _, shape in dictlist_dfs(partition):
+    for _, shape in dictlist.leafs(partition):
         shape = (shape,) if isinstance(shape, int) else shape
         n += np.prod(shape)
 
