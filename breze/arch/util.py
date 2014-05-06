@@ -359,6 +359,15 @@ class Model(object):
     and will lead to unexpected behaviour with functionality building upon
     this.
 
+    Lookup of variables and expressions is typically done in the following ways.
+
+      - as the variable/expression itself,
+      - as a string which is the attribute/key to look for in the ParameterSet
+      object/expression dictinary,
+      - as a path along theese, e.g. the tuple ``('foo', 'bar', 0)`` will
+      identify ``.parameters.foo.bar[0]`` or ``.parameters['foo']['bar'][0]``
+      depending on the context.
+
 
     Attributes
     ----------
@@ -389,16 +398,23 @@ class Model(object):
     def _init_exprs(self):
         pass
 
+    def _lookup(self, container, ident):
+        if isinstance(ident, theano.tensor.basic.TensorVariable):
+            res = ident
+        elif isinstance(ident, tuple):
+            res = dictlist.get(container, ident)
+        elif isinstance(ident, str):
+            res = container[ident]
+        else:
+            raise ValueError('unrecognized way of pointing to expr')
+
+        return res
+
     def _unify_variables(self, variables):
         """Given a list of variables where each identifier given as a string
         is repaced by the corresponding variable from the .exprs
         dictionary."""
-        def lookup(varname):
-            res = getattr(self.parameters, varname, None)
-            if res is None:
-                res = self.exprs[i]
-            return res
-        variables = [lookup(i) if isinstance(i, str) else i
+        variables = [self._lookup(i) if isinstance(i, str) else i
                      for i in variables]
         return variables
 
@@ -423,6 +439,16 @@ class Model(object):
             exprs = [self.exprs[i] if isinstance(i, str) else i for i in exprs]
 
         return exprs
+
+    def _gpu_and_random(self, exprs):
+        """Tell whether the GPU is used the expressions contain a random number
+        generator."""
+        if not GPU:
+            return False
+        if not all(tell_deterministic(i) for i in exprs):
+            return True
+
+        return False
 
     def function(self, variables, exprs, mode=None, explicit_pars=False,
                  givens=None,
@@ -466,39 +492,39 @@ class Model(object):
             If set to True, a numpy array is always returned, even if the
             computation is done on the GPU and a gnumpy array was more natural.
         """
-        variables = self._unify_variables(variables)
-        exprs = self._unify_exprs(exprs)
+        # Get variables and expressions into a canonical form first that is
+        # assumed below.
+        variables = [self._lookup(self.exprs, i) for i in variables]
 
-        if GPU:
-            back_out = False
-            if isinstance(exprs, list):
-                if not all(tell_deterministic(i) for i in exprs):
-                    back_out = True
-            else:
-                if not tell_deterministic(exprs):
-                    back_out = True
-            if back_out:
-                raise NotImplementedError(
-                    'cannot use random variables in Breze for GPU due to Theano '
-                    'issue #1467')
+        if not isinstance(exprs, list):
+            # We memorize whether exprs originall was a list. If it was, we
+            # need to undo this later for the returned function.
+            exprs_not_list = True
+            exprs = [exprs]
+        else:
+            exprs_not_list = False
+        exprs = [self._lookup(self.exprs, i) for i in exprs]
+
+        # If we are using the GPU, we cannot work with random number generators
+        # due to Theano issue #1467. We check that this is not the case here.
+        if self._gpu_and_random(exprs):
+            raise NotImplementedError(
+                'cannot use random variables in Breze for GPU due to Theano '
+                'issue #1467')
 
         # We need to clone instead of using the givens parameter of
-        # theano.function, because otherwise we might get an theano error
+        # theano.function, because otherwise we might get a theano error
         # with conflicting replacements. (See theano/compile/pfunc.py:162,
         # rebuild_collect_shared.)
         if givens is not None:
-            if isinstance(exprs, list):
-                exprs = [theano.clone(e, givens) for e in exprs]
-            else:
-                exprs = theano.clone(exprs, givens)
+            exprs = [theano.clone(e, givens) for e in exprs]
         else:
             givens = {}
 
         # Build update dictionary.
         updates = collections.defaultdict(lambda: {})
         if isinstance(exprs, (list, tuple)):
-            flat_exprs = flatten(exprs)
-            for expr in flat_exprs:
+            for expr in exprs:
                 # TODO: last takes all, maybe should throw an error.
                 updates.update(self.updates[expr])
         else:
@@ -511,8 +537,10 @@ class Model(object):
 
         variables = [self.parameters.flat] + variables
 
-        f = theano_function_with_nested_exprs(
-            variables, exprs, givens=givens, mode=mode,
+        f = theano.function(
+            variables,
+            exprs[0] if exprs_not_list else exprs,
+            givens=givens, mode=mode,
             on_unused_input=on_unused_input, updates=updates)
 
         if GPU:
@@ -521,7 +549,7 @@ class Model(object):
         if not explicit_pars:
             def f_implicit_pars(*args, **kwargs):
                 return f(self.parameters.data, *args, **kwargs)
-            f_implicit_pars.theano_func = f.theano_func
+            f_implicit_pars.theano_func = f
             f_implicit_pars.breze_func = True
             return f_implicit_pars
 

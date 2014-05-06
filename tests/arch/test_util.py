@@ -178,3 +178,44 @@ def test_nested_parameter_set():
 
     assert p.fank.fenk[0].ndim == 1
     assert p['fank']['funk'].shape == (2, 1)
+
+
+def test_nested_exprs():
+    ma = T.matrix()
+    m = Model()
+    m.parameters = ParameterSet(bla=2)
+    m.parameters['bla'][...] = 1, 2
+    m.exprs = {
+        'norms': {
+            'l1': abs(ma).sum(),
+            'l2': T.sqrt((ma ** 2).sum()),
+        },
+        'ma_multiplied': [ma, 2 * ma],
+        'bla': m.parameters.bla,
+        'blubb': 1,
+    }
+
+    f = m.function([], 'bla', explicit_pars=False, on_unused_input='ignore')
+    assert np.allclose(f(), [1, 2])
+
+    f = m.function([ma], ('norms', 'l1'),
+                   explicit_pars=False,
+                   on_unused_input='ignore')
+
+    assert f([[-1, 1]]) == 2
+
+    f = m.function([ma], ('norms', 'l2'),
+                   explicit_pars=False,
+                   on_unused_input='ignore')
+
+    assert np.allclose(f([[-1, 1]]), np.sqrt(2.))
+
+    f = m.function([ma], ('ma_multiplied', 0),
+                   explicit_pars=False,
+                   on_unused_input='ignore')
+    assert np.allclose(f([[-1, 1]]), [-1, 1])
+
+    f = m.function([ma], ('ma_multiplied', 1),
+                   explicit_pars=False,
+                   on_unused_input='ignore')
+    assert np.allclose(f([[-1, 1]]), [-2, 2])
