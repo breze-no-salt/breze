@@ -307,13 +307,8 @@ class ParameterSet(object):
 
         self.flat.tag.test_value = self.data
 
-
         # Go through parameters and assign space and variable.
-        print '-' * 20
-        print kwargs
         self.views = array_partition_views(self.data, kwargs)
-        print '-' * 20
-        print kwargs
 
         # Make sure the keys are legit -- that they do not overwrite
         # anything.
@@ -655,7 +650,6 @@ def array_partition_views(array, partition):
     for path, shape in pathsshapes:
         item = dictlist.get(partition, path)
         shape = (item,) if isinstance(item, int) else item
-        print path, shape
         size = int(np.prod(shape))
         dictlist.set_(views, path, array[n_used:n_used + size].reshape(shape))
         n_used += size
