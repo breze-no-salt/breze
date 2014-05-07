@@ -30,6 +30,7 @@ Learning representations, clustering:
    tsne
    kmeans
    rim
+   sgvb
    :maxdepth: 1
 
 Denoising:

@@ -142,3 +142,30 @@ def project_into_l2_ball(arr, radius=1):
         arr = arr[0]
 
     return arr
+
+
+def inter_gauss_kl(mean, var):
+    """Function returning a theano tensor representing the Kullback-Leibler
+    divergence between Gaussian distributed random variables and a white
+    Gaussian.
+
+    Parameters
+    ----------
+
+    mean : Theano variable
+        Representation of the mean of the input.
+
+    var : Theano variable
+        Representation of the variance of the input. Has to have the same shape
+        as ``mean``. Needs to be positive.
+
+
+    Returns
+    -------
+
+    kl : Theano variable
+        Same shape as ``mean`` and ``var``. Each point represents the KL
+        divergence between the a standard normal and the Gaussian given by
+        ``mean`` and ``var``.
+    """
+    return 1 + T.log(var + 1e-8) - mean ** 2 - var
