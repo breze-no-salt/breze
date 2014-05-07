@@ -164,7 +164,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
     _f_dloss = None
 
     def _make_loss_functions(self, mode=None, givens=None,
-                             on_unused_input='raise'):
+                             on_unused_input='raise', weights=False):
         """Return pair (f_loss, f_d_loss) of functions.
 
          - f_loss returns the current loss,
@@ -175,32 +175,46 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
         d_loss = self._d_loss()
         givens = {} if givens is None else givens
-
-        f_loss = self.function(['inpt', 'target'], 'loss', explicit_pars=True,
+        inpts = ['inpt', 'target']
+        if weights:
+            inpts += ['weights']
+        f_loss = self.function(inpts, 'loss', explicit_pars=True,
                                mode=mode, givens=givens,
                                on_unused_input=on_unused_input)
         f_d_loss = self.function(
-            ['inpt', 'target'], d_loss, explicit_pars=True, mode=mode,
+            inpts, d_loss, explicit_pars=True, mode=mode,
             givens=givens, on_unused_input=on_unused_input)
 
         return f_loss, f_d_loss
 
-    def _make_args(self, X, Z):
+    def _make_args(self, X, Z, weights=None):
         batch_size = getattr(self, 'batch_size', None)
         if batch_size is None:
             X, Z = cast_array_to_local_type(X), cast_array_to_local_type(Z)
-            data = itertools.repeat([X, Z])
+            if weights is not None:
+                weights = cast_array_to_local_type(weights)
+                data = itertools.repeat([X, Z, weights])
+            else:
+                data = itertools.repeat([X, Z])
         elif batch_size < 1:
             raise ValueError('need strictly positive batch size')
         else:
-            data = iter_minibatches([X, Z], self.batch_size, self.sample_dim)
-            data = ((cast_array_to_local_type(x), cast_array_to_local_type(z))
-                    for x, z in data)
+            if weights is not None:
+                data = iter_minibatches([X, Z, weights], self.batch_size,
+                                        list(self.sample_dim) + [self.sample_dim[0]])
+                data = ((cast_array_to_local_type(x),
+                         cast_array_to_local_type(z),
+                         cast_array_to_local_type(w)) for x, z, w in data)
+            else:
+                data = iter_minibatches([X, Z], self.batch_size,
+                                        self.sample_dim)
 
+                data = ((cast_array_to_local_type(x),
+                         cast_array_to_local_type(z)) for x, z in data)
         args = ((i, {}) for i in data)
         return args
 
-    def iter_fit(self, X, Z, info_opt=None):
+    def iter_fit(self, X, Z, weights=None, info_opt=None):
         """Iteratively fit the parameters of the model to the given data with
         the given error function.
 
@@ -214,22 +228,23 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         :param Z: Array representing the outputs.
         """
         if self._f_loss is None or self._f_dloss is None:
-            self._f_loss, self._f_dloss = self._make_loss_functions()
+            self._f_loss, self._f_dloss = self._make_loss_functions(
+                weights=(weights is not None))
 
-        args = self._make_args(X, Z)
+        args = self._make_args(X, Z, weights)
         opt = self._make_optimizer(self._f_loss, self._f_dloss, args, info=info_opt)
 
         for i, info in enumerate(opt):
             yield info
 
-    def fit(self, X, Z):
+    def fit(self, X, Z, weights=None):
         """Fit the parameters of the model to the given data with the
         given error function.
 
         :param X: Array representing the inputs.
         :param Z: Array representing the outputs.
         """
-        itr = self.iter_fit(X, Z)
+        itr = self.iter_fit(X, Z, weights)
         if self.verbose:
             print 'Optimizing for %i iterations.' % self.max_iter
         for i, info in enumerate(itr):
@@ -267,12 +282,15 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
         return Y
 
-    def _make_score_function(self):
+    def _make_score_function(self, weights=False):
         """Return a function to predict targets from input sequences."""
         key = 'true_loss' if 'true_loss' in self.exprs else 'loss'
-        return self.function(['inpt', 'target'], key)
+        inpts = ['inpt', 'target']
+        if weights:
+            inpts += ['weights']
+        return self.function(inpts, key)
 
-    def score(self, X, Z):
+    def score(self, X, Z, weights=None):
         """Return the score of the model given the input and targets.
 
         Parameters
@@ -292,11 +310,14 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         """
         X = cast_array_to_local_type(X)
         Z = cast_array_to_local_type(Z)
+        if weights is not None:
+            weights = cast_array_to_local_type(weights)
         if self.f_score is None:
-            self.f_score = self._make_score_function()
-        l = self.f_score(X, Z)
-
-        return l
+            self.f_score = self._make_score_function(weights=(weights is not
+                                                              None))
+        if weights is None:
+            return self.f_score(X, Z)
+        return self.f_score(X, Z, weights)
 
 
 class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):

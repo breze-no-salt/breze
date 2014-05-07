@@ -10,6 +10,37 @@ import numpy as np
 from breze.learn.utils import JsonForgivingEncoder
 
 
+class OneLinePrinter(object):
+    """OneLinePrinter class.
+
+    Attributes
+    ----------
+
+    keys : list of strings
+        For each entry in this list, the corresponding key will be taken from
+        the info dictionary and printed to stdout.
+    """
+
+    def __init__(self, keys):
+        """Create OneLinePrinter object.
+
+        Parameters
+        ----------
+
+        keys : list of strings
+            For each entry in this list, the corresponding key will be taken
+            from the info dictionary and printed to stdout.
+        """
+        self.keys = keys
+        self.printed_header = False
+
+    def __call__(self, info):
+        if not self.printed_header:
+            print '\t'.join(self.keys)
+            print
+            self.printed_header = True
+        print '\t'.join([str(info.get(key, '?')) for key in self.keys])
+
 class KeyPrinter(object):
     """KeyPrinter class.
 
@@ -18,7 +49,7 @@ class KeyPrinter(object):
     ----------
 
     keys : list of strings
-        For each entry in this list, the corresponding key will be taken from\
+        For each entry in this list, the corresponding key will be taken from
         the info dictionary and printed to stdout.
     """
 
@@ -69,6 +100,7 @@ class JsonPrinter(object):
     def __call__(self, info):
         dct = dict((k, info[k]) for k in self.keys)
         print json.dumps(dct, cls=JsonForgivingEncoder)
+
 
 
 def point_print(info):
