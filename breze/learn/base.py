@@ -178,7 +178,8 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
         f_loss = self.function(['inpt', 'target'], 'loss', explicit_pars=True,
                                mode=mode, givens=givens,
-                               on_unused_input=on_unused_input)
+                               on_unused_input=on_unused_input,
+                               numpy_result=True)
         f_d_loss = self.function(
             ['inpt', 'target'], d_loss, explicit_pars=True, mode=mode,
             givens=givens, on_unused_input=on_unused_input)
@@ -367,7 +368,8 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
         givens = {} if givens is None else givens
 
         f_loss = self.function(['inpt'], 'loss', explicit_pars=True, mode=mode,
-                               givens=givens, on_unused_input=on_unused_input)
+                               givens=givens, on_unused_input=on_unused_input,
+                               numpy_result=True)
         f_d_loss = self.function(
             ['inpt'], d_loss, explicit_pars=True, givens=givens, mode=mode,
             on_unused_input=on_unused_input)
