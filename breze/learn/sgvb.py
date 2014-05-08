@@ -265,7 +265,6 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
         if self.latent_posterior == 'diag_gauss' and self.latent_prior == 'white_gauss':
             kl_coord_wise = -inter_gauss_kl(E['latent_mean'], E['latent_var'])
-            kl_coord_wise /= 2.
             kl_sample_wise = kl_coord_wise.sum(axis=1)
             kl = kl_sample_wise.mean()
         else:

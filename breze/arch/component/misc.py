@@ -168,4 +168,4 @@ def inter_gauss_kl(mean, var):
         divergence between the a standard normal and the Gaussian given by
         ``mean`` and ``var``.
     """
-    return 1 + T.log(var + 1e-8) - mean ** 2 - var
+    return .5 * (1 + T.log(var + 1e-8) - mean ** 2 - var)
