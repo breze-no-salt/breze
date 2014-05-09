@@ -25,6 +25,7 @@ from breze.arch.component.transfer import sigmoid, diag_gauss
 from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nll
 from breze.arch.model import sgvb
 from breze.arch.model.neural import mlp
+from breze.arch.model.rnn import rnn
 from breze.arch.util import ParameterSet, Model
 from breze.learn.base import (
     UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin,
@@ -159,8 +160,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             return 2 * n_vars
         elif dist == 'bern':
             return n_vars
-        raise ValueError('unknown distribution in this case: %s'
-                         % dist)
+        raise ValueError('unknown distribution in this case: %s' % dist)
 
     def _init_pars(self):
         spec = {
@@ -231,8 +231,14 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
         return exprs
 
+    def _make_inpt(self):
+        i = T.matrix('inpt')
+        i.tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
+        return i
+
     def _init_exprs(self):
-        E = self.exprs = {'inpt': T.matrix('inpt')}
+        E = self.exprs = {'inpt': self._make_inpt()}
+        n_dim = E['inpt'].ndim
 
         # Make the expression of the model.
         E.update(sgvb.exprs(
@@ -250,22 +256,28 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                              % self.visible)
 
         rec_loss = supervised_loss(
-            E['inpt'], E['gen']['output'], loss, prefix='rec_')
+            E['inpt'], E['gen']['output'], loss, prefix='rec_',
+            coord_axis=n_dim - 1)
 
         # Create the KL divergence part of the loss.
-
         if self.latent_posterior == 'diag_gauss':
             output = E['recog']['output']
-            n_output = output.shape[1]
-            E['latent_mean'] = output[:, :n_output // 2]
-            E['latent_var'] = output[:, n_output // 2:]
+            n_output = output.shape[-1]
+            # TODO there is probably a nicer way to do this.
+            if n_dim == 3:
+                E['latent_mean'] = output[:, :, :n_output // 2]
+                E['latent_var'] = output[:, :, n_output // 2:]
+            else:
+                E['latent_mean'] = output[:, :n_output // 2]
+                E['latent_var'] = output[:, n_output // 2:]
         else:
             raise ValueError('unknown latent posterior distribution:%s'
                              % self.latent_posterior)
 
         if self.latent_posterior == 'diag_gauss' and self.latent_prior == 'white_gauss':
             kl_coord_wise = -inter_gauss_kl(E['latent_mean'], E['latent_var'])
-            kl_sample_wise = kl_coord_wise.sum(axis=1)
+            kl_sample_wise = kl_coord_wise.sum(axis=n_dim - 1)
+
             kl = kl_sample_wise.mean()
         else:
             raise ValueError(
@@ -279,12 +291,12 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             'kl': kl})
 
         E.update({
-            'loss_coord_wise': E['kl_coord_wise'] + E['rec_loss_coord_wise'],
             'loss_sample_wise': E['kl_sample_wise'] + E['rec_loss_sample_wise'],
             'loss': E['kl'] + E['rec_loss'],
         })
 
     def _latent_mean(self, X):
+        # TODO this is only necessary for a Gaussian assumption.
         if self.f_latent_mean is None:
             self.f_latent_mean = self.function(['inpt'], 'latent_mean')
         return self.f_latent_mean(X)
@@ -384,3 +396,80 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             nll[i] = self._estimate_one_nll(x, n_samples)
         return nll
 
+
+class VariationalSequenceAE(VariationalAutoEncoder):
+
+    def _recog_par_spec(self):
+        """Return the specification of the recognition model."""
+        n_code_units = self._layer_size_by_dist(
+            self.n_latent, self.latent_posterior)
+        spec = rnn.parameters(self.n_inpt, self.n_hiddens_recog,
+                              n_code_units)
+        return spec
+
+
+    def _recog_exprs(self, inpt):
+        """Return the exprssions of the recognition model."""
+        P = self.parameters.recog
+
+        n_layers = len(self.n_hiddens_recog)
+        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
+                             for i in range(n_layers - 1)]
+        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
+                         for i in range(n_layers)]
+        initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
+                           for i in range(n_layers)]
+        recurrents = [getattr(P, 'recurrent_%i' % i)
+                      for i in range(n_layers)]
+
+        if self.latent_posterior == 'diag_gauss':
+            out_transfer = diag_gauss
+        else:
+            raise ValueError('unknown latent posterior distribution:%s'
+                             % self.latent_posterior)
+
+        exprs = rnn.exprs(
+            inpt, P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
+            hidden_biases, initial_hiddens, recurrents, P.out_bias,
+            self.recog_transfers, out_transfer)
+
+        return exprs
+
+    def _gen_par_spec(self):
+        """Return the parameter specification of the generating model."""
+        n_output = self._layer_size_by_dist(self.n_inpt, self.visible)
+        return rnn.parameters(self.n_latent, self.n_hiddens_recog,
+                              n_output)
+
+    def _gen_exprs(self, inpt):
+        """Return the expression of the generating model."""
+        P = self.parameters.gen
+
+        n_layers = len(self.n_hiddens_gen)
+        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
+                             for i in range(n_layers - 1)]
+        recurrents = [getattr(P, 'recurrent_%i' % i)
+                      for i in range(n_layers)]
+        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
+                         for i in range(n_layers)]
+        initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
+                           for i in range(n_layers)]
+
+        if self.visible == 'diag_gauss':
+            out_transfer = diag_gauss
+        elif self.visible == 'bern':
+            out_transfer = sigmoid
+        else:
+            raise ValueError('unknown visible distribution: %s'
+                             % self.latent_posterior)
+        exprs = rnn.exprs(
+            inpt, P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
+            hidden_biases, initial_hiddens, recurrents, P.out_bias,
+            self.gen_transfers, out_transfer)
+
+        return exprs
+
+    def _make_inpt(self):
+        i = T.tensor3('inpt')
+        i.tag.test_value, = theano_floatx(np.ones((3, 2, self.n_inpt)))
+        return i

@@ -206,16 +206,22 @@ def diag_gauss(inpt):
     ----------
 
     inpt : Theano tensor
-        Array of shape ``(n, d)``.
+        Array of shape ``(n, d)`` or ``(t, n, d)``.
+
     Returns
     -------
 
     output : Theano variable.
         Transformed input. Same shape as ``inpt``.
     """
-    half = inpt.shape[1] // 2
-    mean, var = inpt[:, :half], inpt[:, half:]
-    return T.concatenate([mean, var ** 2], axis=1)
+    half = inpt.shape[-1] // 2
+    if inpt.ndim == 3:
+        mean, var = inpt[:, :, :half], inpt[:, :, half:]
+        res = T.concatenate([mean, var ** 2], axis=2)
+    else:
+        mean, var = inpt[:, :half], inpt[:, half:]
+        res = T.concatenate([mean, var ** 2], axis=1)
+    return res
 
 
 # TODO move this into a different module, e.g. "densities" or so.
