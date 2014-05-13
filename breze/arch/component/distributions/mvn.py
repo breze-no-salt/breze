@@ -136,7 +136,7 @@ def logpdf(sample, mean, cov):
 
     log_part_func = (
         - .5 * T.log(det(cov))
-        - .5 * sample.shape[0] * T.log(2 * np.pi))
+        - .5 * sample.shape[1] * T.log(2 * np.pi))
 
     mean = T.shape_padleft(mean)
     residual = sample - mean
