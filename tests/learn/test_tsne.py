@@ -8,7 +8,7 @@ from breze.learn.utils import theano_floatx
 
 
 def test_tsne():
-    X = np.random.random((100, 3)).astype(theano.config.floatX)
+    X = np.random.random((10, 3)).astype(theano.config.floatX)
     X, = theano_floatx(X)
 
     tsne = Tsne(n_inpt=3, n_lowdim=2, perplexity=40, early_exaggeration=50,
