@@ -34,6 +34,32 @@ from breze.learn.base import (
 from breze.learn.utils import theano_floatx
 
 
+#
+# Plan for making the API better.
+#
+# There are some shortcomings of the current state. More specifically:
+#
+#  A -  It is assumed that the visibles and the latents are of a 2D structure,
+#       i.e. that there is one dimension for samples and one for coordinates.
+#       This does not hold in the case of RNNs.
+#  B  - The assumptions (i.e. q(z|x), p(x|z), p(z)) are given independently of
+#       each other. This is not necessarily good, because they interrelate, e.g.
+#       in the case of KL(q(z|x)|p(z)).
+#  C  - Lots of code of the assumptions is within the main class; i.e. how to
+#       sample from the approximate posterior q(z|x) is here. This should be
+#       encapsulated elsewhere.
+#
+# Here are the operations that need to be performed wrt the assumptions:
+#
+# (1) Sample from q(z|x),
+# (2) Calculate -log p(x|z),
+# (3) Calculate KL(q|p),
+# (4) Calculate -log q(z|x),
+# (5) Calculate -log p(z).
+#
+# where "Calculate" means that we need to be able to build expressions for it.
+
+
 def normal_logpdf(xs, means, vrs):
     residual = xs - means
     divisor = 2 * vrs
