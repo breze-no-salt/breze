@@ -25,6 +25,7 @@ from breze.arch.component.transfer import sigmoid, diag_gauss
 from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nll
 from breze.arch.model import sgvb
 from breze.arch.model.neural import mlp
+from breze.arch.model.varprop import rnn as vprnn
 from breze.arch.model.rnn import rnn
 from breze.arch.util import ParameterSet, Model
 from breze.learn.base import (
@@ -236,30 +237,10 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         i.tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
         return i
 
-    def _init_exprs(self):
-        E = self.exprs = {'inpt': self._make_inpt()}
+    def _make_kl_loss(self):
+        E = self.exprs
         n_dim = E['inpt'].ndim
 
-        # Make the expression of the model.
-        E.update(sgvb.exprs(
-            E['inpt'],
-            self._recog_exprs, self._gen_exprs,
-            self.visible, self.latent_posterior))
-
-        # Create the reconstruction part of the loss.
-        if self.visible == 'diag_gauss':
-            loss = diag_gauss_nll
-        elif self.visible == 'bern':
-            loss = 'bern_ces'
-        else:
-            raise ValueError('unknown distribution for visibles: %s'
-                             % self.visible)
-
-        rec_loss = supervised_loss(
-            E['inpt'], E['gen']['output'], loss, prefix='rec_',
-            coord_axis=n_dim - 1)
-
-        # Create the KL divergence part of the loss.
         if self.latent_posterior == 'diag_gauss':
             output = E['recog']['output']
             n_output = output.shape[-1]
@@ -284,11 +265,41 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                 'unknown combination for latent_prior and latent_posterior:'
                 ' %s, %s' % (self.latent_prior, self.latent_posterior))
 
-        E.update(rec_loss)
-        E.update({
+        return {
+            'kl': kl,
             'kl_coord_wise': kl_coord_wise,
             'kl_sample_wise': kl_sample_wise,
-            'kl': kl})
+        }
+
+    def _init_exprs(self):
+        E = self.exprs = {'inpt': self._make_inpt()}
+        n_dim = E['inpt'].ndim
+
+        # Make the expression of the model.
+        E.update(sgvb.exprs(
+            E['inpt'],
+            self._recog_exprs, self._gen_exprs,
+            self.visible, self.latent_posterior))
+
+        # Create the reconstruction part of the loss.
+        if self.visible == 'diag_gauss':
+            loss = diag_gauss_nll
+        elif self.visible == 'bern':
+            loss = 'bern_ces'
+        else:
+            raise ValueError('unknown distribution for visibles: %s'
+                             % self.visible)
+
+        # TODO this is not going to work with variance propagation.
+        rec_loss = supervised_loss(
+            E['inpt'], E['gen']['output'], loss, prefix='rec_',
+            coord_axis=n_dim - 1)
+
+        # Create the KL divergence part of the loss.
+        kl_loss = self._make_kl_loss()
+
+        E.update(rec_loss)
+        E.update(kl_loss)
 
         E.update({
             'loss_sample_wise': E['kl_sample_wise'] + E['rec_loss_sample_wise'],
@@ -359,10 +370,12 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
         targets = np.concatenate([x[np.newaxis]] * n_samples)
 
+        # TODO this is an implcity Gaussian assumption
         lp_v_given_s = -self._rec_loss_of_sample(targets, s)
         lq_s_given_v = self._mvn_logpdf(s, mean[0], np.diag(var.flatten()))
-        lp_s = self._mvn_logpdf(s, np.zeros(s.shape[1]).astype('float32'),
-                    np.eye(s.shape[1]).astype('float32'))
+        lp_s = self._mvn_logpdf(
+            s, np.zeros(s.shape[1]).astype('float32'),
+            np.eye(s.shape[1]).astype('float32'))
 
         ll = (lp_v_given_s + lp_s - lq_s_given_v).mean()
 
@@ -406,7 +419,6 @@ class VariationalSequenceAE(VariationalAutoEncoder):
         spec = rnn.parameters(self.n_inpt, self.n_hiddens_recog,
                               n_code_units)
         return spec
-
 
     def _recog_exprs(self, inpt):
         """Return the exprssions of the recognition model."""
@@ -473,3 +485,84 @@ class VariationalSequenceAE(VariationalAutoEncoder):
         i = T.tensor3('inpt')
         i.tag.test_value, = theano_floatx(np.ones((3, 2, self.n_inpt)))
         return i
+
+    def _make_kl_loss(self):
+        E = self.exprs
+        n_dim = E['inpt'].ndim
+
+        if self.latent_posterior == 'diag_gauss':
+            output = E['recog']['output']
+            n_output = output.shape[-1]
+            # TODO there is probably a nicer way to do this.
+            if n_dim == 3:
+                E['latent_mean'] = output[:, :, :n_output // 2]
+                E['latent_var'] = output[:, :, n_output // 2:]
+            else:
+                E['latent_mean'] = output[:, :n_output // 2]
+                E['latent_var'] = output[:, n_output // 2:]
+        else:
+            raise ValueError('unknown latent posterior distribution:%s'
+                             % self.latent_posterior)
+
+        if self.latent_posterior == 'diag_gauss' and self.latent_prior == 'slow_white_gauss':
+            d_latent_mean = E['latent_mean'][1:] - E['latent_mean'][:-1]
+            d_latent_var = E['latent_var'][1:] + E['latent_var'][:-1]
+
+            #PI = theano.shared(np.pi)
+            kl_first = inter_gauss_kl(E['latent_mean'][:1], E['latent_var'][:1])
+            kl_diff = inter_gauss_kl(d_latent_mean, d_latent_var, 0, 1)
+            kl_coord_wise = T.concatenate([kl_first, kl_diff])
+            kl_sample_wise = kl_coord_wise.sum(axis=2)
+            kl = kl_sample_wise.mean()
+        elif self.latent_posterior == 'diag_gauss' and self.latent_prior == 'white_gauss':
+            kl_coord_wise = inter_gauss_kl(E['latent_mean'], E['latent_var'])
+            kl_sample_wise = kl_coord_wise.sum(axis=n_dim - 1)
+
+            kl = kl_sample_wise.mean()
+        else:
+            raise ValueError(
+                'unknown combination for latent_prior and latent_posterior:'
+                ' %s, %s' % (self.latent_prior, self.latent_posterior))
+
+        return {
+            'kl': kl,
+            'kl_coord_wise': kl_coord_wise,
+            'kl_sample_wise': kl_sample_wise,
+        }
+
+
+class VariationalFDSequenceAE(VariationalSequenceAE):
+
+    def _recog_par_spec(self):
+        """Return the specification of the recognition model."""
+        spec = rnn.parameters(self.n_inpt, self.n_hiddens_recog,
+                              self.n_latent)
+        return spec
+
+    def _recog_exprs(self, inpt):
+        """Return the exprssions of the recognition model."""
+        P = self.parameters.recog
+
+        n_layers = len(self.n_hiddens_recog)
+        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
+                             for i in range(n_layers - 1)]
+        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
+                         for i in range(n_layers)]
+        initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
+                           for i in range(n_layers)]
+        recurrents = [getattr(P, 'recurrent_%i' % i)
+                      for i in range(n_layers)]
+
+        if self.latent_posterior == 'diag_gauss':
+            out_transfer = 'identity'
+        else:
+            raise ValueError('unknown latent posterior distribution:%s'
+                             % self.latent_posterior)
+
+        exprs = vprnn.exprs(
+            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
+            hidden_biases, [T.ones_like(b) for b in hidden_biases], initial_hiddens, recurrents,
+            P.out_bias, T.ones_like(P.out_bias), self.recog_transfers, out_transfer,
+            p_dropouts=[0.1] + len(self.n_hiddens_recog) * [.2])
+
+        return exprs
