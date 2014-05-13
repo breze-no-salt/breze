@@ -577,7 +577,7 @@ class VariationalSequenceAE(VariationalAutoEncoder):
     def estimate_nll(self, xs, n_samples=10):
         nlls = []
         for x in xs:
-            nlls.append(_estimate_one_nll(self, x[:, np.newaxis], n_samples))
+            nlls.append(self._estimate_one_nll(self, x[:, np.newaxis], n_samples))
         return nlls
 
 
