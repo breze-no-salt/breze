@@ -38,7 +38,7 @@ class Trainer(object):
     yield control back to the user. Determined by the ``.stop`` field.
     Contains a callable, for example see ``climin.stops``.
 
-    Why do we need separate stopping and interrupting criterions? An
+    Why do we need separate stopping and interrupting criteria? An
     optimization might get interrupted (e.g. by a SIGINT of a shared resource
     system). In order to find out whether the trainer thinks optimization has
     actually finished, the ``.stopped`` field is provided.
@@ -153,7 +153,7 @@ class Trainer(object):
         return update_losses
 
     def fit(self, *fit_data):
-        """Run ``.iter_fit()`` until it terminats
+        """Run ``.iter_fit()`` until it terminates
 
         Termination will occur when either stop or interrupt is True. During
         each pause, ``.report(info)`` will be executed."""
@@ -169,8 +169,8 @@ class Trainer(object):
         ``model.iter_fit()`` and ultimately the used loss function of that
         model.
 
-        Each iteration of the fitting constitues to running the optimizer of the
-        model until either interrupt or pause returns True.
+        Each iteration of the fitting constitutes of running the optimizer of
+        the model until either interrupt or pause returns True.
 
         In both cases, the generator will yield to the user. Additionally:
 

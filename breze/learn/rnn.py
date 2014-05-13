@@ -72,6 +72,9 @@ class BaseRnn(Model):
         Flag indicating whether to use skip connections from the input and each
         hidden layer into the output layer.
 
+    imp_weight : boolean
+        Flag indicating whether importance weights are used.
+
     optimizer : string, pair
         Argument is passed to ``climin.util.optimizer`` to construct an
         optimizer.
@@ -87,8 +90,7 @@ class BaseRnn(Model):
     verbose : boolean
         Flag indicating whether to print out information during fitting.
     """
-
-    # TODO: document skip to out
+    # TODO: document imp_weight, ideally with an example.
 
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer='identity',
@@ -98,6 +100,7 @@ class BaseRnn(Model):
                  skip_to_out=False,
                  optimizer='rprop',
                  batch_size=None,
+                 imp_weight=False,
                  max_iter=1000,
                  verbose=False):
         self.n_inpt = n_inpt
@@ -110,6 +113,7 @@ class BaseRnn(Model):
         self.leaky_coeffs = leaky_coeffs
         self.gradient_clip = gradient_clip
         self.skip_to_out = skip_to_out
+        self.imp_weight = imp_weight
         self.optimizer = optimizer
         self.batch_size = batch_size
         self.max_iter = max_iter
@@ -169,7 +173,7 @@ class BaseRnn(Model):
 
         return Hp
 
-    def _make_loss_functions(self, mode=None):
+    def _make_loss_functions(self, mode=None, imp_weight=False):
         """Return pair `f_loss, f_d_loss` of functions.
 
          - f_loss returns the current loss,
@@ -181,6 +185,8 @@ class BaseRnn(Model):
             d_loss = project_into_l2_ball(d_loss, self.gradient_clip)
 
         args = list(self.data_arguments)
+        if imp_weight:
+            args += ['imp_weight']
         f_loss = self.function(args, 'loss', explicit_pars=True, mode=mode)
         f_d_loss = self.function(args, d_loss, explicit_pars=True, mode=mode)
         return f_loss, f_d_loss
@@ -197,12 +203,19 @@ class SupervisedRnn(BaseRnn, SupervisedBrezeWrapperBase):
 
     def _init_exprs(self):
         super(SupervisedRnn, self)._init_exprs()
+
+        if self.imp_weight:
+            self.exprs['imp_weight'] = T.tensor3('imp_weight')
+
         if self.pooling:
             self.exprs['target'] = T.matrix('target')
         else:
             self.exprs['target'] = T.tensor3('target')
+
+        imp_weight = False if not self.imp_weight else self.exprs['imp_weight']
         self.exprs.update(supervised_loss(
-            self.exprs['target'], self.exprs['output'], self.loss, 2))
+            self.exprs['target'], self.exprs['output'], self.loss, 2,
+            imp_weight=imp_weight))
 
 
 class UnsupervisedRnn(BaseRnn, UnsupervisedBrezeWrapperBase):
@@ -378,10 +391,12 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
                  p_dropout_hidden_to_out=None,
                  use_varprop_at=None,
                  hotk_inpt=False,
+                 imp_weight=False,
                  optimizer='rprop',
                  batch_size=None,
                  max_iter=1000,
                  verbose=False):
+
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hiddens = p_dropout_hiddens
         if isinstance(self.p_dropout_hiddens, float):
@@ -403,15 +418,19 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
 
         super(SupervisedFastDropoutRnn, self).__init__(
             n_inpt, n_hiddens, n_output,
-            hidden_transfers, out_transfer, loss, pooling, leaky_coeffs,
-            gradient_clip, skip_to_out,
-            optimizer, batch_size, max_iter, verbose)
+            hidden_transfers, out_transfer, loss, pooling=pooling,
+            leaky_coeffs=leaky_coeffs,
+            gradient_clip=gradient_clip, skip_to_out=skip_to_out,
+            optimizer=optimizer, batch_size=batch_size, max_iter=max_iter,
+            verbose=verbose, imp_weight=imp_weight)
 
     def _init_exprs(self):
         self.exprs = {'inpt': T.tensor3('inpt'),
                       'target': T.tensor3('target')}
-        P = self.parameters
+        if self.imp_weight:
+            self.exprs['imp_weight'] = T.tensor3('imp_weight')
 
+        P = self.parameters
         n_layers = len(self.n_hiddens)
         hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
                              for i in range(n_layers - 1)]
@@ -447,5 +466,8 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
             in_to_out=in_to_out, skip_to_outs=skip_to_outs,
             p_dropouts=p_dropouts, hotk_inpt=False))
 
+
+        imp_weight = False if not self.imp_weight else self.exprs['imp_weight']
         self.exprs.update(varprop_supervised_loss(
-            self.exprs['target'], self.exprs['output'], self.loss, 2))
+            self.exprs['target'], self.exprs['output'],
+            self.loss, 2, imp_weight=imp_weight))

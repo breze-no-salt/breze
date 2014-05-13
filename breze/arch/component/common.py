@@ -7,7 +7,8 @@ import loss as loss_
 from ..util import lookup, get_named_variables
 
 
-def supervised_loss(target, prediction, loss, coord_axis=1, prefix=''):
+def supervised_loss(target, prediction, loss, coord_axis=1, imp_weight=False,
+                    prefix=''):
     """Return a dictionary populated with several expressions for a supervised
     loss and corresponding targets and predictions.
 
@@ -32,6 +33,10 @@ def supervised_loss(target, prediction, loss, coord_axis=1, prefix=''):
     prefix : string, optional [default: '']
         Each key in the resulting dictionary will be prefixed with ``prefix``.
 
+    imp_weight : Theano variable, float or boolean, optional [default: False]
+        Importance weights for the loss. Will be multiplied to the coordinate
+        wise loss.
+
     Returns
     -------
 
@@ -55,12 +60,16 @@ def supervised_loss(target, prediction, loss, coord_axis=1, prefix=''):
     """
     f_loss = lookup(loss, loss_)
     loss_coord_wise = f_loss(target, prediction)
+    loss_coord_wise *= imp_weight if imp_weight else 1
     try:
         loss_sample_wise = loss_coord_wise.sum(axis=coord_axis)
     except ValueError:
         #We do not have enough dimensions, the loss is not coordinate-wise
         loss_sample_wise = loss_coord_wise
-    loss = loss_sample_wise.mean()
+    if imp_weight:
+        loss = loss_coord_wise.sum(axis=None) / imp_weight.sum(axis=None)
+    else:
+        loss = loss_sample_wise.mean()
     return get_named_variables(locals(), prefix=prefix)
 
 
