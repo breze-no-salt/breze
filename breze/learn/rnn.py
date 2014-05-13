@@ -72,6 +72,9 @@ class BaseRnn(Model):
         Flag indicating whether to use skip connections from the input and each
         hidden layer into the output layer.
 
+    weights : boolean
+        Flag indicating whether importance weights are used.
+
     optimizer : string, pair
         Argument is passed to ``climin.util.optimizer`` to construct an
         optimizer.
@@ -87,8 +90,7 @@ class BaseRnn(Model):
     verbose : boolean
         Flag indicating whether to print out information during fitting.
     """
-
-    # TODO: document skip to out
+    # TODO: document weights, ideally with an example.
 
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer='identity',
@@ -98,9 +100,9 @@ class BaseRnn(Model):
                  skip_to_out=False,
                  optimizer='rprop',
                  batch_size=None,
+                 weights=False,
                  max_iter=1000,
-                 verbose=False, weights=False):
-        self.weights = weights
+                 verbose=False):
         self.n_inpt = n_inpt
         self.n_hiddens = n_hiddens
         self.n_output = n_output
@@ -111,6 +113,7 @@ class BaseRnn(Model):
         self.leaky_coeffs = leaky_coeffs
         self.gradient_clip = gradient_clip
         self.skip_to_out = skip_to_out
+        self.weights = weights
         self.optimizer = optimizer
         self.batch_size = batch_size
         self.max_iter = max_iter
@@ -200,12 +203,19 @@ class SupervisedRnn(BaseRnn, SupervisedBrezeWrapperBase):
 
     def _init_exprs(self):
         super(SupervisedRnn, self)._init_exprs()
+
+        if self.weights:
+            self.exprs['weights'] = T.tensor3('weights')
+
         if self.pooling:
             self.exprs['target'] = T.matrix('target')
         else:
             self.exprs['target'] = T.tensor3('target')
+
+        weights = False if not self.weights else self.exprs['weights']
         self.exprs.update(supervised_loss(
-            self.exprs['target'], self.exprs['output'], self.loss, 2))
+            self.exprs['target'], self.exprs['output'], self.loss, 2,
+            weights=weights))
 
 
 class UnsupervisedRnn(BaseRnn, UnsupervisedBrezeWrapperBase):
@@ -381,11 +391,11 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
                  p_dropout_hidden_to_out=None,
                  use_varprop_at=None,
                  hotk_inpt=False,
+                 weights=False,
                  optimizer='rprop',
                  batch_size=None,
                  max_iter=1000,
-                 verbose=False,
-                 weights=False):
+                 verbose=False):
 
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hiddens = p_dropout_hiddens
@@ -408,16 +418,19 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
 
         super(SupervisedFastDropoutRnn, self).__init__(
             n_inpt, n_hiddens, n_output,
-            hidden_transfers, out_transfer, loss, pooling, leaky_coeffs,
-            gradient_clip, skip_to_out,
-            optimizer, batch_size, max_iter, verbose, weights)
+            hidden_transfers, out_transfer, loss, pooling=pooling,
+            leaky_coeffs=leaky_coeffs,
+            gradient_clip=gradient_clip, skip_to_out=skip_to_out,
+            optimizer=optimizer, batch_size=batch_size, max_iter=max_iter,
+            verbose=verbose, weights=weights)
 
     def _init_exprs(self):
         self.exprs = {'inpt': T.tensor3('inpt'),
                       'target': T.tensor3('target')}
-        P = self.parameters
         if self.weights:
             self.exprs['weights'] = T.tensor3('weights')
+
+        P = self.parameters
         n_layers = len(self.n_hiddens)
         hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
                              for i in range(n_layers - 1)]
@@ -454,11 +467,7 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
             p_dropouts=p_dropouts, hotk_inpt=False))
 
 
-        if self.weights:
-            self.exprs.update(varprop_supervised_loss(
-                self.exprs['target'], self.exprs['output'],
-                self.loss, 2, weights=self.exprs['weights']))
-        else:
-
-            self.exprs.update(varprop_supervised_loss(
-                self.exprs['target'], self.exprs['output'], self.loss, 2))
+        weights = False if not self.weights else self.exprs['weights']
+        self.exprs.update(varprop_supervised_loss(
+            self.exprs['target'], self.exprs['output'],
+            self.loss, 2, weights=weights))

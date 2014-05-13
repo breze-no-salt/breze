@@ -17,13 +17,16 @@ from nose.plugins.skip import SkipTest
 def test_srnn_fit():
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
-    X, Z = theano_floatx(X, Z)
+    W = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
+
+    X, Z, W = theano_floatx(X, Z, W)
 
     rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=10)
     rnn.fit(X, Z)
 
-    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], skip_to_out=True, max_iter=10)
-    rnn.fit(X, Z)
+    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], skip_to_out=True,
+        max_iter=10, weights=True)
+    rnn.fit(X, Z, W)
 
 
 def test_srnn_iter_fit():
@@ -56,14 +59,21 @@ def test_srnn_predict():
 def test_fd_srnn_fit():
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
-    X, Z = theano_floatx(X, Z)
+    W = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
+    X, Z, W = theano_floatx(X, Z, W)
     rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'], max_iter=10)
+    print rnn.weights
     rnn.fit(X, Z)
 
     rnn = SupervisedFastDropoutRnn(
         2, [10, 20], 3, hidden_transfers=['rectifier', 'tanh'],
         skip_to_out=True, max_iter=10)
     rnn.fit(X, Z)
+
+    rnn = SupervisedFastDropoutRnn(
+        2, [10, 20], 3, hidden_transfers=['rectifier', 'tanh'],
+        skip_to_out=True, max_iter=10, weights=True)
+    rnn.fit(X, Z, W)
 
 
 def test_fd_srnn_iter_fit():

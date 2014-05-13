@@ -21,6 +21,17 @@ def test_mlp_fit():
     mlp.fit(X, Z)
 
 
+def test_mlp_fit_with_weights():
+    X = np.random.standard_normal((10, 2))
+    Z = np.random.standard_normal((10, 1))
+    W = np.random.random((10, 1)) > 0.5
+
+    X, Z, W = theano_floatx(X, Z, W)
+
+    mlp = Mlp(2, [10], 1, ['tanh'], 'identity', 'squared', max_iter=10, weights=True)
+    mlp.fit(X, Z, W)
+
+
 def test_mlp_iter_fit():
     X = np.random.standard_normal((10, 2))
     Z = np.random.standard_normal((10, 1))

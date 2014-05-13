@@ -64,6 +64,9 @@ class Mlp(Model, SupervisedBrezeWrapperBase):
         Number of examples per batch when calculting the loss
         and its derivatives. None means to use all samples every time.
 
+    weights : boolean
+        Flag indicating whether importance weights are used.
+
     max_iter : int
         Maximum number of optimization iterations to perform. Only respected
         during``.fit()``, not ``.iter_fit()``.
@@ -76,6 +79,7 @@ class Mlp(Model, SupervisedBrezeWrapperBase):
                  hidden_transfers, out_transfer, loss,
                  optimizer='lbfgs',
                  batch_size=None,
+                 weights=False,
                  max_iter=1000, verbose=False):
         self.n_inpt = n_inpt
         self.n_hiddens = n_hiddens
@@ -86,6 +90,7 @@ class Mlp(Model, SupervisedBrezeWrapperBase):
 
         self.optimizer = optimizer
         self.batch_size = batch_size
+        self.weights = weights
 
         self.max_iter = max_iter
         self.verbose = verbose
@@ -105,6 +110,10 @@ class Mlp(Model, SupervisedBrezeWrapperBase):
             'inpt': T.matrix('inpt'),
             'target': T.matrix('target')
         }
+
+        if self.weights:
+            self.exprs['weights'] = T.matrix('weights')
+
         P = self.parameters
 
         n_layers = len(self.n_hiddens)
@@ -119,8 +128,10 @@ class Mlp(Model, SupervisedBrezeWrapperBase):
             hidden_biases, P.out_bias,
             self.hidden_transfers, self.out_transfer))
 
+        weights = False if not self.weights else self.exprs['weights']
         self.exprs.update(supervised_loss(
-            self.exprs['target'], self.exprs['output'], self.loss))
+            self.exprs['target'], self.exprs['output'], self.loss,
+            weights=weights))
 
 
 def dropout_optimizer_conf(

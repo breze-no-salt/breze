@@ -227,6 +227,11 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         :param X: Array representing the inputs.
         :param Z: Array representing the outputs.
         """
+        if weights is None and self.weights:
+            raise ValueError('need to provide ``weights``.')
+        if weights is not None and not self.weights:
+            raise ValueError('do not need ``weights``.')
+
         if self._f_loss is None or self._f_dloss is None:
             self._f_loss, self._f_dloss = self._make_loss_functions(
                 weights=(weights is not None))
