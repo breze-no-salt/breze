@@ -34,6 +34,13 @@ from breze.learn.base import (
 from breze.learn.utils import theano_floatx
 
 
+def normal_logpdf(xs, means, vrs):
+    residual = xs - means
+    divisor = 2 * vrs
+    logz = -np.sqrt(vrs * 2 * np.pi)
+    return -(residual ** 2 / divisor) + logz
+
+
 class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                              TransformBrezeWrapperMixin,
                              ReconstructBrezeWrapperMixin):
@@ -508,9 +515,8 @@ class VariationalSequenceAE(VariationalAutoEncoder):
             d_latent_mean = E['latent_mean'][1:] - E['latent_mean'][:-1]
             d_latent_var = E['latent_var'][1:] + E['latent_var'][:-1]
 
-            #PI = theano.shared(np.pi)
             kl_first = inter_gauss_kl(E['latent_mean'][:1], E['latent_var'][:1])
-            kl_diff = inter_gauss_kl(d_latent_mean, d_latent_var, 0, 1)
+            kl_diff = inter_gauss_kl(d_latent_mean, d_latent_var)
             kl_coord_wise = T.concatenate([kl_first, kl_diff])
             kl_sample_wise = kl_coord_wise.sum(axis=2)
             kl = kl_sample_wise.mean()
@@ -529,6 +535,50 @@ class VariationalSequenceAE(VariationalAutoEncoder):
             'kl_coord_wise': kl_coord_wise,
             'kl_sample_wise': kl_sample_wise,
         }
+
+    def _lp_h(self, latent):
+        """Return the prior log probability of latent sequences."""
+        h_0 = latent[0]
+        d_h1_ht = latent[1:] - latent[:-1]
+
+        lp_h_0 = normal_logpdf(
+            h_0, np.zeros_like(h_0), np.ones_like(h_0)).sum(axis=1)
+        lp_d_h_1_t = normal_logpdf(
+            d_h1_ht, np.zeros_like(d_h1_ht), np.ones_like(d_h1_ht)).sum(axis=2)
+
+        return np.concatenate([lp_h_0[np.newaxis], lp_d_h_1_t])
+
+    def _lq_h_given_v(self, latent, visible):
+        """Return the log propability of latent variables under the recognition
+        model given the visibles."""
+        mean, var = self._latent_mean_var(visible)
+        lp = normal_logpdf(latent, mean, var)
+        return lp.sum(axis=2)
+
+    def _lp_v_given_s(self, visible, latent):
+        """Return the log probability of the visibles given the latent
+        variables."""
+        return -self._rec_loss_of_sample(visible, latent)
+
+    def _estimate_one_nll(self, x, n_samples=10):
+        m, v = self._latent_mean_var(x)
+        lik = 0
+        for i in range(n_samples):
+            s = np.random.standard_normal(m.shape) * np.sqrt(v) + m
+            s, = theano_floatx(s)
+            lp_v_giv_s = self._lp_v_given_s(x, s)
+            lp_s = self._lp_h(s)
+            lq_s_giv_v = self._lq_h_given_v(s, x)
+
+            loglik = lp_v_giv_s + lp_s - lq_s_giv_v
+            lik += np.exp(loglik)
+        return -np.log(lik / n_samples)
+
+    def estimate_nll(self, xs, n_samples=10):
+        nlls = []
+        for x in xs:
+            nlls.append(_estimate_one_nll(self, x[:, np.newaxis], n_samples))
+        return nlls
 
 
 class VariationalFDSequenceAE(VariationalSequenceAE):
