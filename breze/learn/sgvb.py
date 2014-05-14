@@ -347,10 +347,10 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                              % self.visible)
 
         # TODO this is not going to work with variance propagation.
-        imp_weight = False if not self.imp_weight else self.exprs['imp_weight']
+        imp_weight = False if not self.imp_weight else self._fix_imp_weights(n_dim)
         rec_loss = supervised_loss(
             E['inpt'], E['gen']['output'], loss, prefix='rec_',
-            coord_axis=n_dim - 1, imp_weight=self._fix_imp_weights(n_dim))
+            coord_axis=n_dim - 1, imp_weight=imp_weight)
 
         # Create the KL divergence part of the loss.
         kl_loss = self._make_kl_loss()
