@@ -307,7 +307,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                 ' %s, %s' % (self.latent_prior, self.latent_posterior))
 
         if self.imp_weight:
-            kl_coord_wise *= self._fix_imp_weights(n_dim)
+            kl_coord_wise *= self._fix_imp_weight(n_dim)
         kl_sample_wise = kl_coord_wise.sum(axis=n_dim - 1)
         kl = kl_sample_wise.mean()
 
@@ -317,7 +317,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             'kl_sample_wise': kl_sample_wise,
         }
 
-    def _fix_imp_weights(self, ndim):
+    def _fix_imp_weight(self, ndim):
         # For the VAE, the importance weights cannot be coordinate
         # wise, but have to be sample wise. In numpy, we can just use an
         # array where the last dimensionality is 1 and the broadcasting
@@ -347,7 +347,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                              % self.visible)
 
         # TODO this is not going to work with variance propagation.
-        imp_weight = False if not self.imp_weight else self._fix_imp_weights(n_dim)
+        imp_weight = False if not self.imp_weight else self._fix_imp_weight(n_dim)
         rec_loss = supervised_loss(
             E['inpt'], E['gen']['output'], loss, prefix='rec_',
             coord_axis=n_dim - 1, imp_weight=imp_weight)
@@ -574,17 +574,17 @@ class VariationalSequenceAE(VariationalAutoEncoder):
             kl_first = inter_gauss_kl(E['latent_mean'][:1], E['latent_var'][:1])
             kl_diff = inter_gauss_kl(d_latent_mean, d_latent_var)
             kl_coord_wise = T.concatenate([kl_first, kl_diff])
-            kl_sample_wise = kl_coord_wise.sum(axis=2)
-            kl = kl_sample_wise.mean()
         elif self.latent_posterior == 'diag_gauss' and self.latent_prior == 'white_gauss':
             kl_coord_wise = inter_gauss_kl(E['latent_mean'], E['latent_var'])
-            kl_sample_wise = kl_coord_wise.sum(axis=n_dim - 1)
-
-            kl = kl_sample_wise.mean()
         else:
             raise ValueError(
                 'unknown combination for latent_prior and latent_posterior:'
                 ' %s, %s' % (self.latent_prior, self.latent_posterior))
+
+        if self.imp_weight:
+            kl_coord_wise *= self._fix_imp_weight(n_dim)
+        kl_sample_wise = kl_coord_wise.sum(axis=n_dim - 1)
+        kl = kl_sample_wise.mean()
 
         return {
             'kl': kl,

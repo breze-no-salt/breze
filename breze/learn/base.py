@@ -338,6 +338,8 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
     data_arguments = 'inpt',
     sample_dim = 0,
     f_score = None
+    _f_loss = None
+    _f_dloss = None
 
     def iter_fit(self, X, W=None, info_opt=None):
         """Iteratively fit the parameters of the model to the given data.
@@ -350,17 +352,20 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
 
         :param X: Array representing the samples.
         """
-        f_loss, f_d_loss = self._make_loss_functions(
-            imp_weight=W is not None)
+        use_imp_weight = W is not None
+
+        if self._f_loss is None or self._f_dloss is None:
+            self._f_loss, self._f_dloss = self._make_loss_functions(
+                imp_weight=use_imp_weight)
 
         if W is None and self.imp_weight:
-            raise ValueError('need to provide ``imp_weight``.')
+            raise ValueError('need to provide ``W``.')
         if W is not None and not self.imp_weight:
-            raise ValueError('do not need ``imp_weight``.')
+            raise ValueError('do not need ``W``.')
 
-        arg_args = [X] if W is None else [X, W]
+        arg_args = [X, W] if use_imp_weight else [X]
         args = self._make_args(*arg_args)
-        opt = self._make_optimizer(f_loss, f_d_loss, args, info=info_opt)
+        opt = self._make_optimizer(self._f_loss, self._f_dloss, args, info=info_opt)
 
         for i, info in enumerate(opt):
             yield info
@@ -386,13 +391,24 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
 
     def _make_args(self, X, W=None):
         batch_size = getattr(self, 'batch_size', None)
-        item = [X] if W is None else [X, W]
+        use_imp_weight = W is not None
+        if self.imp_weight != use_imp_weight:
+            raise ValueError('need to give ``W`` in accordinace to '
+                             '``self.imp_weight``')
+        item = [X, W] if use_imp_weight else [X]
+
+        # If importance weights are used, we need to append the sample
+        # dimensionality of it, which will be the same as for that data.
+        sample_dim = list(self.sample_dim)
+        if use_imp_weight:
+            sample_dim.append(sample_dim[0])
+
         if batch_size is None:
             data = itertools.repeat(item)
         elif batch_size < 1:
             raise ValueError('need strictly positive batch size')
         else:
-            data = iter_minibatches(item, self.batch_size, self.sample_dim)
+            data = iter_minibatches(item, self.batch_size, sample_dim)
         args = ((i, {}) for i in data)
         return args
 
@@ -410,7 +426,6 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
         givens = {} if givens is None else givens
 
         args = ['inpt'] if not imp_weight else ['inpt', 'imp_weight']
-        print args
 
         f_loss = self.function(args, 'loss', explicit_pars=True, mode=mode,
                                givens=givens, on_unused_input=on_unused_input)
