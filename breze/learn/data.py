@@ -139,7 +139,7 @@ def interpolate(X, n_intermediates, kind='linear'):
 def n_windows(X, size, offset):
     """Given an array `X` representing a sequence along its first axis, return
     the number of windows of `size` with `offset` that fit into it."""
-    return int(math.ceil((X.shape[0] - size + 1.) / offset))
+    return max(int(math.ceil((X.shape[0] - size + 1.) / offset)), 0)
 
 
 def windowify(X, size, offset=1):
