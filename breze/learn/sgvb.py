@@ -52,6 +52,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                  visible,
                  latent_prior='white_gauss',
                  latent_posterior='diag_gauss',
+                 imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
         """Create a VariationalAutoEncoder object.
@@ -91,6 +92,9 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         latent_prior : {'white_gauss'}
             Prior distribution of the latents.
 
+        imp_weight : boolean
+            Flag indicating whether importance weights are used.
+
         batch_size : int
             Size of each mini batch during training.
 
@@ -119,6 +123,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         self.latent_prior = latent_prior
         self.latent_posterior = latent_posterior
 
+        self.imp_weight = imp_weight
         self.batch_size = batch_size
         self.optimizer = optimizer
         self.max_iter = max_iter
@@ -231,8 +236,66 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
         return exprs
 
+    def _make_start_exprs(self):
+        exprs = {
+            'inpt': T.matrix('inpt')
+        }
+        exprs['inpt'].tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
+        if self.imp_weight:
+            exprs['imp_weight'] = T.matrix('imp_weight')
+            exprs['imp_weight'].tag.test_value, = theano_floatx(np.ones((3, 1)))
+
+        return exprs
+
+    def _make_kl_loss(self):
+        E = self.exprs
+        n_dim = E['inpt'].ndim
+
+        if self.latent_posterior == 'diag_gauss':
+            output = E['recog']['output']
+            n_output = output.shape[-1]
+            # TODO there is probably a nicer way to do this.
+            if n_dim == 3:
+                E['latent_mean'] = output[:, :, :n_output // 2]
+                E['latent_var'] = output[:, :, n_output // 2:]
+            else:
+                E['latent_mean'] = output[:, :n_output // 2]
+                E['latent_var'] = output[:, n_output // 2:]
+        else:
+            raise ValueError('unknown latent posterior distribution:%s'
+                             % self.latent_posterior)
+
+        if self.latent_posterior == 'diag_gauss' and self.latent_prior == 'white_gauss':
+            kl_coord_wise = inter_gauss_kl(E['latent_mean'], E['latent_var'])
+        else:
+            raise ValueError(
+                'unknown combination for latent_prior and latent_posterior:'
+                ' %s, %s' % (self.latent_prior, self.latent_posterior))
+
+        if self.imp_weight:
+            kl_coord_wise *= self._fix_imp_weights(n_dim)
+        kl_sample_wise = kl_coord_wise.sum(axis=n_dim - 1)
+        kl = kl_sample_wise.mean()
+
+        return {
+            'kl': kl,
+            'kl_coord_wise': kl_coord_wise,
+            'kl_sample_wise': kl_sample_wise,
+        }
+
+    def _fix_imp_weights(self, ndim):
+        # For the VAE, the importance weights cannot be coordinate
+        # wise, but have to be sample wise. In numpy, we can just use an
+        # array where the last dimensionality is 1 and the broadcasting
+        # rules will make this work as one would expect. In theano's case,
+        # we have to be explicit about whether broadcasting along that
+        # dimension is allowed though, since normal tensor3s do not allow
+        # it. The following code achieves this.
+        return T.addbroadcast(self.exprs['imp_weight'], ndim - 1)
+
     def _init_exprs(self):
-        E = self.exprs = {'inpt': T.matrix('inpt')}
+        E = self.exprs = self._make_start_exprs()
+        n_dim = E['inpt'].ndim
 
         # Make the expression of the model.
         E.update(sgvb.exprs(
@@ -249,8 +312,11 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             raise ValueError('unknown distribution for visibles: %s'
                              % self.visible)
 
+        # TODO this is not going to work with variance propagation.
+        imp_weight = False if not self.imp_weight else self._fix_imp_weights(n_dim)
         rec_loss = supervised_loss(
-            E['inpt'], E['gen']['output'], loss, prefix='rec_')
+            E['inpt'], E['gen']['output'], loss, prefix='rec_',
+            coord_axis=n_dim - 1, imp_weight=imp_weight)
 
         # Create the KL divergence part of the loss.
 
@@ -279,7 +345,6 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             'kl': kl})
 
         E.update({
-            'loss_coord_wise': E['kl_coord_wise'] + E['rec_loss_coord_wise'],
             'loss_sample_wise': E['kl_sample_wise'] + E['rec_loss_sample_wise'],
             'loss': E['kl'] + E['rec_loss'],
         })
