@@ -538,10 +538,16 @@ class VariationalSequenceAE(VariationalAutoEncoder):
 
         return exprs
 
-    def _make_inpt(self):
-        i = T.tensor3('inpt')
-        i.tag.test_value, = theano_floatx(np.ones((3, 2, self.n_inpt)))
-        return i
+    def _make_start_exprs(self):
+        exprs = {
+            'inpt': T.tensor3('inpt')
+        }
+        exprs['inpt'].tag.test_value, = theano_floatx(np.ones((3, 2, self.n_inpt)))
+
+        if self.imp_weight:
+            exprs['imp_weight'] = T.tensor3('imp_weight')
+            exprs['imp_weight'].tag.test_value, = theano_floatx(np.ones((3, 2, 1)))
+        return exprs
 
     def _make_kl_loss(self):
         E = self.exprs

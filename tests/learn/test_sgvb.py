@@ -53,7 +53,7 @@ def test_vae_imp_weight():
 
 
 def test_sequential_vae():
-    theano.config.compute_test_value = 'warn'
+    theano.config.compute_test_value = 'raise'
     X = np.random.random((2, 5, 10))
     X, = theano_floatx(X)
 
@@ -65,6 +65,9 @@ def test_sequential_vae():
         visible='bern',
         optimizer='rprop', batch_size=None,
         max_iter=3)
+
+    m._init_pars()
+    m._init_exprs()
 
     m.fit(X)
     m.score(X)
