@@ -87,6 +87,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                  visible,
                  latent_prior='white_gauss',
                  latent_posterior='diag_gauss',
+                 imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
         """Create a VariationalAutoEncoder object.
@@ -126,6 +127,9 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         latent_prior : {'white_gauss'}
             Prior distribution of the latents.
 
+        imp_weight : boolean
+            Flag indicating whether importance weights are used.
+
         batch_size : int
             Size of each mini batch during training.
 
@@ -154,6 +158,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         self.latent_prior = latent_prior
         self.latent_posterior = latent_posterior
 
+        self.imp_weight = imp_weight
         self.batch_size = batch_size
         self.optimizer = optimizer
         self.max_iter = max_iter
@@ -265,10 +270,16 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
         return exprs
 
-    def _make_inpt(self):
-        i = T.matrix('inpt')
-        i.tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
-        return i
+    def _make_start_exprs(self):
+        exprs = {
+            'inpt': T.matrix('inpt')
+        }
+        exprs['inpt'].tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
+        if self.imp_weight:
+            exprs['imp_weight'] = T.matrix('imp_weight')
+            exprs['imp_weight'].tag.test_value, = theano_floatx(np.ones((3, 1)))
+
+        return exprs
 
     def _make_kl_loss(self):
         E = self.exprs
@@ -289,14 +300,16 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                              % self.latent_posterior)
 
         if self.latent_posterior == 'diag_gauss' and self.latent_prior == 'white_gauss':
-            kl_coord_wise = -inter_gauss_kl(E['latent_mean'], E['latent_var'])
-            kl_sample_wise = kl_coord_wise.sum(axis=n_dim - 1)
-
-            kl = kl_sample_wise.mean()
+            kl_coord_wise = inter_gauss_kl(E['latent_mean'], E['latent_var'])
         else:
             raise ValueError(
                 'unknown combination for latent_prior and latent_posterior:'
                 ' %s, %s' % (self.latent_prior, self.latent_posterior))
+
+        if self.imp_weight:
+            kl_coord_wise *= self._fix_imp_weights(n_dim)
+        kl_sample_wise = kl_coord_wise.sum(axis=n_dim - 1)
+        kl = kl_sample_wise.mean()
 
         return {
             'kl': kl,
@@ -304,8 +317,18 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             'kl_sample_wise': kl_sample_wise,
         }
 
+    def _fix_imp_weights(self, ndim):
+        # For the VAE, the importance weights cannot be coordinate
+        # wise, but have to be sample wise. In numpy, we can just use an
+        # array where the last dimensionality is 1 and the broadcasting
+        # rules will make this work as one would expect. In theano's case,
+        # we have to be explicit about whether broadcasting along that
+        # dimension is allowed though, since normal tensor3s do not allow
+        # it. The following code achieves this.
+        return T.addbroadcast(self.exprs['imp_weight'], ndim - 1)
+
     def _init_exprs(self):
-        E = self.exprs = {'inpt': self._make_inpt()}
+        E = self.exprs = self._make_start_exprs()
         n_dim = E['inpt'].ndim
 
         # Make the expression of the model.
@@ -324,9 +347,10 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
                              % self.visible)
 
         # TODO this is not going to work with variance propagation.
+        imp_weight = False if not self.imp_weight else self.exprs['imp_weight']
         rec_loss = supervised_loss(
             E['inpt'], E['gen']['output'], loss, prefix='rec_',
-            coord_axis=n_dim - 1)
+            coord_axis=n_dim - 1, imp_weight=self._fix_imp_weights(n_dim))
 
         # Create the KL divergence part of the loss.
         kl_loss = self._make_kl_loss()
