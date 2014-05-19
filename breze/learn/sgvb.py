@@ -16,6 +16,7 @@ References
 
 import theano
 import theano.tensor as T
+import theano.tensor.nnet
 import numpy as np
 
 from breze.arch.component.common import supervised_loss
@@ -469,14 +470,6 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
 class VariationalSequenceAE(VariationalAutoEncoder):
 
-    def _recog_par_spec(self):
-        """Return the specification of the recognition model."""
-        n_code_units = self._layer_size_by_dist(
-            self.n_latent, self.latent_posterior)
-        spec = rnn.parameters(self.n_inpt, self.n_hiddens_recog,
-                              n_code_units)
-        return spec
-
     def _recog_exprs(self, inpt):
         """Return the exprssions of the recognition model."""
         P = self.parameters.recog
@@ -643,6 +636,13 @@ class VariationalFDSequenceAE(VariationalSequenceAE):
         """Return the specification of the recognition model."""
         spec = rnn.parameters(self.n_inpt, self.n_hiddens_recog,
                               self.n_latent)
+
+        spec['p_dropout'] = {
+            'inpt': 1,
+            'hiddens': [1 for _ in self.n_hiddens_recog],
+            'hidden_to_out': 1,
+        }
+
         return spec
 
     def _recog_exprs(self, inpt):
@@ -659,6 +659,13 @@ class VariationalFDSequenceAE(VariationalSequenceAE):
         recurrents = [getattr(P, 'recurrent_%i' % i)
                       for i in range(n_layers)]
 
+        p_dropouts = (
+            [P.p_dropout.inpt] + P.p_dropout.hiddens
+            + [P.p_dropout.hidden_to_out])
+
+        # Reparametrize to assert the rates lie in (0.025, 1-0.025).
+        p_dropouts = [T.nnet.sigmoid(i) * 0.95 + 0.025 for i in p_dropouts]
+
         if self.latent_posterior == 'diag_gauss':
             out_transfer = 'identity'
         else:
@@ -669,6 +676,49 @@ class VariationalFDSequenceAE(VariationalSequenceAE):
             inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
             hidden_biases, [T.ones_like(b) for b in hidden_biases], initial_hiddens, recurrents,
             P.out_bias, T.ones_like(P.out_bias), self.recog_transfers, out_transfer,
-            p_dropouts=[0.1] + len(self.n_hiddens_recog) * [.2])
+            p_dropouts=p_dropouts)
+
+        return exprs
+
+
+class VariationalFDFDSequenceAE(VariationalFDSequenceAE):
+
+    def _gen_par_spec(self):
+        """Return the parameter specification of the generating model."""
+        n_output = self._layer_size_by_dist(self.n_inpt, self.visible)
+        return rnn.parameters(self.n_latent, self.n_hiddens_gen,
+                              n_output)
+
+    def _gen_exprs(self, inpt):
+        """Return the expression of the generating model."""
+        P = self.parameters.gen
+
+        n_layers = len(self.n_hiddens_gen)
+        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
+                             for i in range(n_layers - 1)]
+        recurrents = [getattr(P, 'recurrent_%i' % i)
+                      for i in range(n_layers)]
+        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
+                         for i in range(n_layers)]
+        initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
+                           for i in range(n_layers)]
+
+        if self.visible == 'diag_gauss':
+            out_transfer = 'identity'
+        elif self.visible == 'bern':
+            out_transfer = 'sigmoid'
+        else:
+            raise ValueError('unknown visible distribution: %s'
+                             % self.latent_posterior)
+
+        p_dropouts = [0.1] + [0.1] * len(self.n_hiddens_gen) + [0.1]
+
+        exprs = vprnn.exprs(
+            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
+            hidden_biases, [T.ones_like(b) for b in hidden_biases], initial_hiddens, recurrents,
+            P.out_bias, T.ones_like(P.out_bias), self.recog_transfers, out_transfer,
+            p_dropouts=p_dropouts)
+        exprs['output_uncut'] = exprs['output']
+        exprs['output'] = exprs['output'][:, :, :self.n_inpt]
 
         return exprs
