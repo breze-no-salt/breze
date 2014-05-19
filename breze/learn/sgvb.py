@@ -26,7 +26,7 @@ from breze.arch.component.transfer import sigmoid, diag_gauss
 from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nll
 from breze.arch.model import sgvb
 from breze.arch.model.neural import mlp
-from breze.arch.model.varprop import rnn as vprnn
+from breze.arch.model.varprop import brnn as vpbrnn
 from breze.arch.model.rnn import rnn
 from breze.arch.util import ParameterSet, Model
 from breze.learn.base import (
@@ -634,7 +634,7 @@ class VariationalFDSequenceAE(VariationalSequenceAE):
 
     def _recog_par_spec(self):
         """Return the specification of the recognition model."""
-        spec = rnn.parameters(self.n_inpt, self.n_hiddens_recog,
+        spec = vpbrnn.parameters(self.n_inpt, self.n_hiddens_recog,
                               self.n_latent)
 
         spec['p_dropout'] = {
@@ -654,10 +654,14 @@ class VariationalFDSequenceAE(VariationalSequenceAE):
                              for i in range(n_layers - 1)]
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
-        initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
-                           for i in range(n_layers)]
-        recurrents = [getattr(P, 'recurrent_%i' % i)
-                      for i in range(n_layers)]
+        initial_hiddens_fwd = [getattr(P, 'initial_hiddens_fwd_%i' % i)
+                               for i in range(n_layers)]
+        initial_hiddens_bwd = [getattr(P, 'initial_hiddens_bwd_%i' % i)
+                               for i in range(n_layers)]
+        recurrents_fwd = [getattr(P, 'recurrent_fwd_%i' % i)
+                          for i in range(n_layers)]
+        recurrents_bwd = [getattr(P, 'recurrent_bwd_%i' % i)
+                          for i in range(n_layers)]
 
         p_dropouts = (
             [P.p_dropout.inpt] + P.p_dropout.hiddens
@@ -672,9 +676,11 @@ class VariationalFDSequenceAE(VariationalSequenceAE):
             raise ValueError('unknown latent posterior distribution:%s'
                              % self.latent_posterior)
 
-        exprs = vprnn.exprs(
+        exprs = vpbrnn.exprs(
             inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
-            hidden_biases, [T.ones_like(b) for b in hidden_biases], initial_hiddens, recurrents,
+            hidden_biases, [T.ones_like(b) for b in hidden_biases],
+            initial_hiddens_fwd, initial_hiddens_bwd,
+            recurrents_fwd, recurrents_bwd,
             P.out_bias, T.ones_like(P.out_bias), self.recog_transfers, out_transfer,
             p_dropouts=p_dropouts)
 
@@ -686,7 +692,7 @@ class VariationalFDFDSequenceAE(VariationalFDSequenceAE):
     def _gen_par_spec(self):
         """Return the parameter specification of the generating model."""
         n_output = self._layer_size_by_dist(self.n_inpt, self.visible)
-        return rnn.parameters(self.n_latent, self.n_hiddens_gen,
+        return vpbrnn.parameters(self.n_latent, self.n_hiddens_gen,
                               n_output)
 
     def _gen_exprs(self, inpt):
@@ -696,12 +702,16 @@ class VariationalFDFDSequenceAE(VariationalFDSequenceAE):
         n_layers = len(self.n_hiddens_gen)
         hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
                              for i in range(n_layers - 1)]
-        recurrents = [getattr(P, 'recurrent_%i' % i)
+        recurrents_fwd = [getattr(P, 'recurrent_fwd_%i' % i)
+                          for i in range(n_layers)]
+        recurrents_bwd = [getattr(P, 'recurrent_bwd_%i' % i)
                       for i in range(n_layers)]
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
-        initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
-                           for i in range(n_layers)]
+        initial_hiddens_fwd = [getattr(P, 'initial_hiddens_fwd_%i' % i)
+                               for i in range(n_layers)]
+        initial_hiddens_bwd = [getattr(P, 'initial_hiddens_bwd_%i' % i)
+                               for i in range(n_layers)]
 
         if self.visible == 'diag_gauss':
             out_transfer = 'identity'
@@ -711,14 +721,19 @@ class VariationalFDFDSequenceAE(VariationalFDSequenceAE):
             raise ValueError('unknown visible distribution: %s'
                              % self.latent_posterior)
 
+        # TODO Need to crossvalidate at some point.
         p_dropouts = [0.1] + [0.1] * len(self.n_hiddens_gen) + [0.1]
 
-        exprs = vprnn.exprs(
+        exprs = vpbrnn.exprs(
             inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
-            hidden_biases, [T.ones_like(b) for b in hidden_biases], initial_hiddens, recurrents,
+            hidden_biases, [T.ones_like(b) for b in hidden_biases],
+            initial_hiddens_fwd, initial_hiddens_bwd,
+            recurrents_fwd, recurrents_bwd,
             P.out_bias, T.ones_like(P.out_bias), self.recog_transfers, out_transfer,
             p_dropouts=p_dropouts)
         exprs['output_uncut'] = exprs['output']
+
+        # FD-RNNs have twice as many outputs as we care about here.
         exprs['output'] = exprs['output'][:, :, :self.n_inpt]
 
         return exprs
