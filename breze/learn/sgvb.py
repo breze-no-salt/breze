@@ -635,7 +635,7 @@ class VariationalFDSequenceAE(VariationalSequenceAE):
     def _recog_par_spec(self):
         """Return the specification of the recognition model."""
         spec = vpbrnn.parameters(self.n_inpt, self.n_hiddens_recog,
-                              self.n_latent)
+                                 self.n_latent)
 
         spec['p_dropout'] = {
             'inpt': 1,
@@ -693,7 +693,7 @@ class VariationalFDFDSequenceAE(VariationalFDSequenceAE):
         """Return the parameter specification of the generating model."""
         n_output = self._layer_size_by_dist(self.n_inpt, self.visible)
         return vpbrnn.parameters(self.n_latent, self.n_hiddens_gen,
-                              n_output)
+                                 n_output)
 
     def _gen_exprs(self, inpt):
         """Return the expression of the generating model."""
@@ -705,7 +705,7 @@ class VariationalFDFDSequenceAE(VariationalFDSequenceAE):
         recurrents_fwd = [getattr(P, 'recurrent_fwd_%i' % i)
                           for i in range(n_layers)]
         recurrents_bwd = [getattr(P, 'recurrent_bwd_%i' % i)
-                      for i in range(n_layers)]
+                          for i in range(n_layers)]
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
         initial_hiddens_fwd = [getattr(P, 'initial_hiddens_fwd_%i' % i)
