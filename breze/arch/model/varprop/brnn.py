@@ -4,15 +4,12 @@ recurrent networks.
 """
 
 
-import theano
 import theano.tensor as T
-from theano.tensor.extra_ops import repeat
 
 from ...util import lookup
-from ...component.varprop import transfer, loss as loss_
-import mlp
+from ...component.varprop import transfer
 
-from rnn import flat_time, unflat_time, forward_layer, recurrent_layer
+from rnn import int_forward_layer, forward_layer, recurrent_layer
 
 
 def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False, prefix=''):
@@ -38,9 +35,10 @@ def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False, prefix=''):
             # Only do for all but the last layer.
             spec['hidden_%i_to_out' % i] = (h, n_output)
 
-    spec = dict(('%s%s'% (prefix, k), v)  for k, v in spec.items())
+    spec = dict(('%s%s' % (prefix, k), v) for k, v in spec.items())
 
     return spec
+
 
 def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
           hidden_biases, hidden_var_scales_sqrt,
@@ -167,8 +165,8 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         hmi[::-1], hvi[::-1], recurrents_bwd[0], f_hiddens[0], initial_hiddens_bwd[0],
         p_dropouts[1])
 
-    hmo_rec = (hmo_rec_fwd + hmo_rec_bwd) / 2.
-    hvo_rec = (hvo_rec_fwd + hvo_rec_bwd) / 4.
+    hmo_rec = (hmo_rec_fwd + hmo_rec_bwd[::-1]) / 2.
+    hvo_rec = (hvo_rec_fwd + hvo_rec_bwd[::-1]) / 4.
 
     exprs.update({
         'hidden_in_mean_0_fwd': hmi_rec_fwd,
@@ -184,7 +182,6 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         'hidden_mean_0': hmo_rec,
         'hidden_var_0': hvo_rec,
     })
-
 
     zipped = zip(
         hidden_to_hiddens, hidden_biases[1:], hidden_var_scales_sqrt[1:],
@@ -205,17 +202,16 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         hmi_rec_b, hvi_rec_b, hmo_rec_b, hvo_rec_b = recurrent_layer(
             hmi, hvi, rb, t, jb, d)
 
-        hmo_rec = (hmo_rec_f + hmo_rec_b) / 2.
-        hvo_rec = (hvo_rec_f + hvo_rec_b) / 4.
-
+        hmo_rec = (hmo_rec_f + hmo_rec_b[::-1]) / 2.
+        hvo_rec = (hvo_rec_f + hvo_rec_b[::-1]) / 4.
 
     output_in_mean, output_in_var, _, _ = forward_layer(
         hmo_rec, hvo_rec, hidden_to_out,
         out_bias, hidden_var_scales_sqrt[-1],
-        lambda x,y: (x, y), p_dropouts[-1])
+        lambda x, y: (x, y), p_dropouts[-1])
 
     if in_to_out is not None:
-        output_mean_inc, output_var_inc, _, _= forward_layer(
+        output_mean_inc, output_var_inc, _, _ = forward_layer(
             inpt_mean, inpt_var, in_to_out,
             T.zeros_like(out_bias), T.ones_like(out_bias),
             lambda x, y: (x, y), p_dropouts[0])
@@ -223,7 +219,7 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         output_in_var += output_var_inc
     if skip_to_outs is not None:
         for i, s in enumerate(skip_to_outs):
-            output_mean_inc, output_var_inc, _, _= forward_layer(
+            output_mean_inc, output_var_inc, _, _ = forward_layer(
                 exprs['hidden_mean_%i' % i], exprs['hidden_var_%i' % i], s,
                 T.zeros_like(out_bias), T.ones_like(out_bias),
                 lambda x, y: (x, y), p_dropouts[i + 1])
