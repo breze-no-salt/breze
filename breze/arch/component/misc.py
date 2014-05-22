@@ -172,5 +172,5 @@ def inter_gauss_kl(mean, var, mean_=0, var_=1):
     #std = T.sqrt(var)
     #std_ = T.sqrt(var_)
     m1, s1, m2, s2 = mean, T.sqrt(var), mean_, T.sqrt(var_)
-    return T.log(s2 / s1) + (s1 ** 2 + (m1 - m2) ** 2) / (2 * s2 ** 2) - .5
+    return T.log(s2 / s1 + 1e-4) + (s1 ** 2 + (m1 - m2) ** 2) / (2 * s2 ** 2 + 1e-4) - .5
 

@@ -27,6 +27,7 @@ from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nl
 from breze.arch.model import sgvb
 from breze.arch.model.neural import mlp
 from breze.arch.model.varprop import brnn as vpbrnn
+from breze.arch.model.varprop import rnn as vprnn
 from breze.arch.model.rnn import rnn
 from breze.arch.util import ParameterSet, Model
 from breze.learn.base import (
@@ -82,6 +83,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
     """
 
     transform_expr_name = 'latent'
+    shortcut = None
 
     def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
                  recog_transfers, gen_transfers,
@@ -336,7 +338,8 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         E.update(sgvb.exprs(
             E['inpt'],
             self._recog_exprs, self._gen_exprs,
-            self.visible, self.latent_posterior))
+            self.visible, self.latent_posterior,
+            shortcut_key=self.shortcut))
 
         # Create the reconstruction part of the loss.
         if self.visible == 'diag_gauss':
@@ -641,6 +644,8 @@ class VariationalSequenceAE(VariationalAutoEncoder):
 
 class VariationalFDSequenceAE(VariationalSequenceAE):
 
+    shortcut = 'shortcut'
+
     def _recog_par_spec(self):
         """Return the specification of the recognition model."""
         spec = vpbrnn.parameters(self.n_inpt, self.n_hiddens_recog,
@@ -746,3 +751,118 @@ class VariationalFDFDSequenceAE(VariationalFDSequenceAE):
         exprs['output'] = exprs['output'][:, :, :self.n_inpt]
 
         return exprs
+
+
+class VariationalOneStepPredictor(VariationalAutoEncoder):
+
+    shortcut = 'shortcut'
+
+    def _make_start_exprs(self):
+        exprs = {
+            'inpt': T.tensor3('inpt')
+        }
+        exprs['inpt'].tag.test_value, = theano_floatx(np.ones((3, 2, self.n_inpt)))
+
+        if self.imp_weight:
+            exprs['imp_weight'] = T.tensor3('imp_weight')
+            exprs['imp_weight'].tag.test_value, = theano_floatx(np.ones((3, 2, 1)))
+        return exprs
+
+    def _recog_par_spec(self):
+        """Return the parameter specification of the recognition model."""
+        return rnn.parameters(self.n_inpt, self.n_hiddens_recog, self.n_latent)
+
+    def _recog_exprs(self, inpt):
+        """Return the exprssions of the recognition model."""
+        P = self.parameters.recog
+
+        n_layers = len(self.n_hiddens_recog)
+        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
+                             for i in range(n_layers - 1)]
+        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
+                         for i in range(n_layers)]
+        initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
+                           for i in range(n_layers)]
+        recurrents = [getattr(P, 'recurrent_%i' % i)
+                      for i in range(n_layers)]
+
+        p_dropouts = (len(self.n_hiddens_recog) + 2) * [0.1]
+
+        if self.latent_posterior == 'diag_gauss':
+            out_transfer = 'identity'
+        else:
+            raise ValueError('unknown latent posterior distribution:%s'
+                             % self.latent_posterior)
+
+        exprs = vprnn.exprs(
+            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
+            hidden_biases, [1 for _ in hidden_biases],
+            initial_hiddens, recurrents,
+            P.out_bias, 1, self.recog_transfers, out_transfer,
+            p_dropouts=p_dropouts)
+
+        # TODO also integrate variance!
+        last_hidden_layer = exprs['hidden_mean_%i' % (len(self.n_hiddens_recog) - 1)]
+        shortcut = T.zeros_like(last_hidden_layer)
+        T.set_subtensor(shortcut[1:], last_hidden_layer[:-1], inplace=True)
+        exprs['shortcut'] = shortcut
+
+        return exprs
+
+    def _gen_par_spec(self):
+        """Return the parameter specification of the generating model."""
+        n_output = self._layer_size_by_dist(self.n_inpt, self.visible)
+        return mlp.parameters(
+            self.n_latent + self.n_hiddens_recog[-1], self.n_hiddens_recog,
+            n_output)
+
+    def _gen_exprs(self, inpt):
+        inpt_flat = inpt.reshape((-1, inpt.shape[2]))
+        exprs = super(VariationalOneStepPredictor, self)._gen_exprs(inpt_flat)
+        exprs['output_flat'] = exprs['output']
+        exprs['output'] = exprs['output_flat'].reshape(
+            (inpt.shape[0], inpt.shape[1], -1))
+        return exprs
+
+    def _make_kl_loss(self):
+        E = self.exprs
+        n_dim = E['inpt'].ndim
+
+        if self.latent_posterior == 'diag_gauss':
+            output = E['recog']['output']
+            n_output = output.shape[-1]
+            # TODO there is probably a nicer way to do this.
+            if n_dim == 3:
+                E['latent_mean'] = output[:, :, :n_output // 2]
+                E['latent_var'] = output[:, :, n_output // 2:]
+            else:
+                E['latent_mean'] = output[:, :n_output // 2]
+                E['latent_var'] = output[:, n_output // 2:]
+        else:
+            raise ValueError('unknown latent posterior distribution:%s'
+                             % self.latent_posterior)
+
+        if self.latent_posterior == 'diag_gauss' and self.latent_prior == 'slow_white_gauss':
+            d_latent_mean = E['latent_mean'][1:] - E['latent_mean'][:-1]
+            d_latent_var = E['latent_var'][1:] + E['latent_var'][:-1]
+
+            kl_first = inter_gauss_kl(E['latent_mean'][:1], E['latent_var'][:1])
+            kl_diff = inter_gauss_kl(d_latent_mean, d_latent_var)
+            kl_coord_wise = T.concatenate([kl_first, kl_diff])
+        elif self.latent_posterior == 'diag_gauss' and self.latent_prior == 'white_gauss':
+            kl_coord_wise = inter_gauss_kl(E['latent_mean'], E['latent_var'])
+        else:
+            raise ValueError(
+                'unknown combination for latent_prior and latent_posterior:'
+                ' %s, %s' % (self.latent_prior, self.latent_posterior))
+
+        if self.imp_weight:
+            kl_coord_wise *= self._fix_imp_weight(n_dim)
+        kl_sample_wise = kl_coord_wise.sum(axis=n_dim - 1)
+        kl = kl_sample_wise.mean()
+
+        return {
+            'kl': kl,
+            'kl_coord_wise': kl_coord_wise,
+            'kl_sample_wise': kl_sample_wise,
+        }
