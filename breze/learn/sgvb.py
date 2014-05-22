@@ -678,10 +678,10 @@ class VariationalFDSequenceAE(VariationalSequenceAE):
 
         exprs = vpbrnn.exprs(
             inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
-            hidden_biases, [T.ones_like(b) for b in hidden_biases],
+            hidden_biases, [1 for _ in hidden_biases],
             initial_hiddens_fwd, initial_hiddens_bwd,
             recurrents_fwd, recurrents_bwd,
-            P.out_bias, T.ones_like(P.out_bias), self.recog_transfers, out_transfer,
+            P.out_bias, 1, self.recog_transfers, out_transfer,
             p_dropouts=p_dropouts)
 
         return exprs
@@ -726,10 +726,10 @@ class VariationalFDFDSequenceAE(VariationalFDSequenceAE):
 
         exprs = vpbrnn.exprs(
             inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
-            hidden_biases, [T.ones_like(b) for b in hidden_biases],
+            hidden_biases, [1 for b in hidden_biases],
             initial_hiddens_fwd, initial_hiddens_bwd,
             recurrents_fwd, recurrents_bwd,
-            P.out_bias, T.ones_like(P.out_bias), self.recog_transfers, out_transfer,
+            P.out_bias, 1, self.recog_transfers, out_transfer,
             p_dropouts=p_dropouts)
         exprs['output_uncut'] = exprs['output']
 
