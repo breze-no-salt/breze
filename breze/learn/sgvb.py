@@ -470,10 +470,19 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
 class VariationalSequenceAE(VariationalAutoEncoder):
 
+    def _recog_par_spec(self):
+        """Return the specification of the recognition model."""
+        n_code_units = self._layer_size_by_dist(
+            self.n_latent, self.latent_posterior)
+        spec = rnn.parameters(self.n_inpt, self.n_hiddens_recog,
+                              n_code_units)
+        return spec
+
     def _recog_exprs(self, inpt):
         """Return the exprssions of the recognition model."""
         P = self.parameters.recog
 
+        print P.keys()
         n_layers = len(self.n_hiddens_recog)
         hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
                              for i in range(n_layers - 1)]
