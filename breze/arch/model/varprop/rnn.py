@@ -429,7 +429,7 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
 
     output_in_mean, output_in_var, _, _ = forward_layer(
         hmo_rec, hvo_rec, hidden_to_out,
-        out_bias, hidden_var_scales_sqrt[-1],
+        out_bias, out_var_scale_sqrt,
         lambda x,y: (x, y), p_dropouts[-1])
 
     if in_to_out is not None:
