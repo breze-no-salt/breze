@@ -18,6 +18,7 @@ In that case, we will talk of a "flat sequence tensor".
 import theano
 import theano.tensor as T
 from theano.tensor.extra_ops import repeat
+from breze.arch.model.rnn.pooling import pooling_layer
 
 from ...util import lookup
 from ...component.varprop import transfer, loss as loss_
@@ -295,7 +296,7 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
           hidden_biases, hidden_var_scales_sqrt, initial_hiddens, recurrents,
           out_bias, out_var_scale_sqrt, hidden_transfers, out_transfer,
           in_to_out=None, skip_to_outs=None, p_dropouts=None,
-          hotk_inpt=False):
+          hotk_inpt=False, pooling=None):
     """Return a dictionary containing Theano expressions for various components
     of a recurrent network with variance propagation.
 
@@ -448,10 +449,18 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
             output_in_mean += output_mean_inc
             output_in_var += output_var_inc
 
+    if pooling is not None:
+        #This is bad
+        output_in_mean = pooling_layer(output_in_mean, pooling)
+        output_in_var = pooling_layer(output_in_var, pooling)
     output_mean, output_var = f_output(output_in_mean, output_in_var)
 
     # TODO: raise not implemented for out scale
 
+    if pooling is None:
+        output = T.concatenate([output_mean, output_var], axis=2)
+    else:
+        output = T.concatenate([output_mean, output_var], axis=1)
     exprs.update({
         'inpt_mean': inpt_mean,
         'inpt_var': inpt_var,
@@ -459,7 +468,7 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         'output_in_var': output_in_var,
         'output_mean': output_mean,
         'output_var': output_var,
-        'output': T.concatenate([output_mean, output_var], axis=2),
+        'output': output,
     })
 
     return exprs

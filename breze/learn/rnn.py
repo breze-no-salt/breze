@@ -201,6 +201,7 @@ class SupervisedRnn(BaseRnn, SupervisedBrezeWrapperBase):
     def _init_exprs(self):
         super(SupervisedRnn, self)._init_exprs()
         if self.pooling:
+            self.sample_dim = 1, 0
             self.exprs['target'] = T.matrix('target')
         else:
             self.exprs['target'] = T.tensor3('target')
@@ -403,7 +404,7 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
         self.use_varprop_at = use_varprop_at
 
         self.hotk_inpt = hotk_inpt
-        if hotk_inpt or leaky_coeffs or pooling:
+        if hotk_inpt or leaky_coeffs:
             raise NotImplementedError('not implemented')
 
         super(SupervisedFastDropoutRnn, self).__init__(
@@ -415,6 +416,11 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
     def _init_exprs(self):
         self.exprs = {'inpt': T.tensor3('inpt'),
                       'target': T.tensor3('target')}
+        if self.pooling:
+            self.sample_dim = 1, 0
+            self.exprs['target'] = T.matrix('target')
+        else:
+            self.exprs['target'] = T.tensor3('target')
         P = self.parameters
         if self.weights:
             self.exprs['weights'] = T.tensor3('weights')
@@ -451,7 +457,7 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
             recurrents, P.out_bias, out_var_scale_sqrt,
             self.hidden_transfers, self.out_transfer,
             in_to_out=in_to_out, skip_to_outs=skip_to_outs,
-            p_dropouts=p_dropouts, hotk_inpt=False))
+            p_dropouts=p_dropouts, hotk_inpt=False, pooling=self.pooling))
 
 
         if self.weights:
