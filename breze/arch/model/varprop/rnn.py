@@ -296,7 +296,7 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
           hidden_biases, hidden_var_scales_sqrt, initial_hiddens, recurrents,
           out_bias, out_var_scale_sqrt, hidden_transfers, out_transfer,
           in_to_out=None, skip_to_outs=None, p_dropouts=None,
-          hotk_inpt=False, pooling=None):
+          hotk_inpt=False, pooling=None, local_mask=None):
     """Return a dictionary containing Theano expressions for various components
     of a recurrent network with variance propagation.
 
@@ -381,6 +381,11 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
 
     f_hiddens = [lookup(i, transfer) for i in hidden_transfers]
     f_output = lookup(out_transfer, transfer)
+
+    if local_mask is not None:
+        in_to_hidden = in_to_hidden*local_mask
+        for i in range(len(hidden_to_hiddens)):
+            hidden_to_hiddens[i] = hidden_to_hiddens[i]*local_mask
 
     if inpt_var.ndim != 3:
         # Scalar

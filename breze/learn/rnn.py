@@ -386,10 +386,12 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
                  batch_size=None,
                  max_iter=1000,
                  verbose=False,
-                 weights=False):
+                 weights=False,
+                 local_mask=None):
 
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hiddens = p_dropout_hiddens
+        self.local_mask = local_mask
         if isinstance(self.p_dropout_hiddens, float):
             self.p_dropout_hiddens = [self.p_dropout_hiddens]
         else:
@@ -457,7 +459,8 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
             recurrents, P.out_bias, out_var_scale_sqrt,
             self.hidden_transfers, self.out_transfer,
             in_to_out=in_to_out, skip_to_outs=skip_to_outs,
-            p_dropouts=p_dropouts, hotk_inpt=False, pooling=self.pooling))
+            p_dropouts=p_dropouts, hotk_inpt=False, pooling=self.pooling,
+            local_mask=self.local_mask))
 
 
         if self.weights:
