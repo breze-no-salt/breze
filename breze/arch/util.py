@@ -8,7 +8,6 @@ import theano
 import theano.tensor as T
 import theano.sandbox.cuda
 import theano.sandbox.cuda.var
-import theano.misc.gnumpy_utils as gput
 
 from breze.utils import dictlist
 
@@ -29,6 +28,7 @@ except KeyError:
 
 if GPU:
     import gnumpy
+    import theano.misc.gnumpy_utils as gput
 
 
 def flatten(nested):
