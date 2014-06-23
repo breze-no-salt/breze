@@ -644,7 +644,7 @@ class VariationalSequenceAE(VariationalAutoEncoder):
 
 class VariationalFDSequenceAE(VariationalSequenceAE):
 
-    shortcut = 'shortcut'
+    shortcut = None
 
     def _recog_par_spec(self):
         """Return the specification of the recognition model."""
