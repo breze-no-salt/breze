@@ -4,8 +4,8 @@
 import theano.tensor as T
 
 
-def exprs(inpt, recog_exprs_func, gen_exprs_func, visible_dist,
-          latent_posterior_dist,
+def exprs(inpt, recog_exprs_func, gen_exprs_func,
+          latent_sample,
           latent_key='output', visible_key='output',
           shortcut_key=None):
     """Function returning an expression dictionary.
@@ -24,9 +24,6 @@ def exprs(inpt, recog_exprs_func, gen_exprs_func, visible_dist,
         Callable that returns the expression dictionary for the generating
         model given a sample from the recognition model. (I.e. it has one
         argument.)
-
-    visible_dist : {'diag_gauss', 'bern'}
-        Identifier of the distribution of the visibles given the latents.
 
     latent_posterior_dist : {'diag_gauss'}
         Identifier of the distribution of the latents given the visibles.
@@ -58,31 +55,8 @@ def exprs(inpt, recog_exprs_func, gen_exprs_func, visible_dist,
     recog_exprs = recog_exprs_func(inpt)
     latent = recog_exprs[latent_key]
 
-    # Latent variables might be of ndim 3 in the case of RNNs and 2 in the case
-    # of mlps. We need to make them 2D so the following code works by
-    # flattening out the time dimension.
-    if latent.ndim == 3:
-        n_time_steps, n_samples, n_latent_stats = latent.shape
-        latent_flat = latent.reshape(
-            (n_time_steps * n_samples, n_latent_stats))
-    else:
-        _, n_latent_stats = latent.shape
-        latent_flat = latent
-
-    if latent_posterior_dist == 'diag_gauss':
-        n_latent = n_latent_stats // 2
-        latent_mean = latent_flat[:, :n_latent]
-        latent_var = latent_flat[:, n_latent:]
-        rng = T.shared_randomstreams.RandomStreams()
-        noise = rng.normal(size=latent_mean.shape)
-        sample = latent_mean + T.sqrt(latent_var + 1e-8) * noise
-    else:
-        raise ValueError('unknown latent posterior distribution %s' %
-                         latent_posterior_dist)
-
-    # Undo the flattening out of the time dimension.
-    if latent.ndim == 3:
-        sample = sample.reshape((n_time_steps, n_samples, n_latent))
+    rng = T.shared_randomstreams.RandomStreams()
+    sample = latent_sample(latent, rng)
 
     if shortcut_key is None:
         gen_inpt = sample

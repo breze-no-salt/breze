@@ -2,10 +2,44 @@
 
 """Module for learning models with stochastic gradient variational Bayes (SGVB).
 
-The method has been introduced in parallel by [SGVB]_ and [DLGM]_.
+The method has been introduced in parallel by [SGVB]_ and [DLGM]_. The general
+idea is to optimize a variational upper bound on the negative log-likelihood of
+the data with stochastic gradient descent. The user is urged to review these
+papers before using the models.
 
-The general idea is to optimize a variational upper bound on the negative
-log-likelihood of the data with stochastic gradient descent.
+
+Methodological review
+---------------------
+
+We will give a short review for notation here. We consider the problem of
+estimating a model for the data density :math:`p(x)`, where we assume it to be
+driven by a set of latent variables :math:`z`. The data negative log likelihood
+can then be bounded from above
+
+.. math::
+   -\\log p(x) \\le {\\text{KL}}(q(z|x)|p(z)) - \mathbb{E}_{z \\sim q}[\\log p(x|z)].
+
+We will refer to :math:`q(z)` as the recognition model or approxiamte posterior.
+:math:`p(x|z)` is the generating model. :math:`p(z)` is the prior over the
+latent variables.
+The first term is the Kullback-Leibler divergence between the approximate
+posterior and the prior.
+The second term is the expected negative log-likelihood of the data given the
+recognition model.
+
+Training of the model is performed by stochastic gradient descent. In practice,
+we will select a mini batch of the data for which we can obtain :math:`q(z|x)`.
+This can directly be used to calculate the first term. By sampling from that
+model and putting it through the generating model we can approximate the second
+term.
+
+
+Implementation details
+----------------------
+
+In order to allow different incarnations of the general SGVB principle, we will
+now describe the API.
+
 
 References
 ----------
@@ -13,6 +47,11 @@ References
 .. [SGVB] Kingma, Diederik P., and Max Welling. "Auto-encoding variational bayes." arXiv preprint arXiv:1312.6114 (2013).
 .. [DLGM] Rezende, Danilo Jimenez, Shakir Mohamed, and Daan Wierstra. "Stochastic Back-propagation and Variational Inference in Deep Latent Gaussian Models." arXiv preprint arXiv:1401.4082 (2014).
 """
+
+# TODO rename denois to map denoise
+# TODO fix estimation of nll
+# TODO rename recurrent models to the ones used in the paper
+# TODO make function for missing value imputation
 
 import theano
 import theano.tensor as T
@@ -24,6 +63,7 @@ from breze.arch.component.distributions.mvn import logpdf
 from breze.arch.component.misc import inter_gauss_kl
 from breze.arch.component.transfer import sigmoid, diag_gauss
 from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nll
+from breze.arch.component.loss import bern_ces
 from breze.arch.model import sgvb
 from breze.arch.model.neural import mlp
 from breze.arch.model.varprop import brnn as vpbrnn
@@ -62,11 +102,143 @@ from breze.learn.utils import theano_floatx
 # where "Calculate" means that we need to be able to build expressions for it.
 
 
+def assert_no_time(X):
+    if X.ndim == 2:
+        return X
+    if X.ndim != 3:
+        raise ValueError('ndim must be 2 or 3, but it is %i' % X.ndim)
+    return X.reshape((-1, X.shape[2]))
+
+
+def recover_time(X, time_steps):
+    return X.reshape((time_steps, -1, X.shape[1]))
+
+
 def normal_logpdf(xs, means, vrs):
     residual = xs - means
     divisor = 2 * vrs
     logz = -np.sqrt(vrs * 2 * np.pi)
     return -(residual ** 2 / divisor) + logz
+
+
+class Assumptions(object):
+
+    def sample_latents(self, stt, rng):
+        """Given the output statistis of the recognition model, return samples
+        from that distribution."""
+        # TODO docstring
+        raise NotImplemented()
+
+    def kl_recog_prior(self, stt):
+        """Given the output statistics of the recogition model, return the KL
+        divergence to the prior."""
+        # TODO docstring
+        raise NotImplemented()
+
+    def nll_prior(self, X):
+        """Given some X, calculate the negative log likelihood of that X under
+        the prior."""
+        # TODO docstring
+        raise NotImplemented()
+
+    def nll_recog_model(self, stt, Z):
+        """Given the output statistics of the recognition model, return the
+        probability of latent variables Z."""
+        # TODO docstring
+        raise NotImplemented()
+
+    def nll_gen_model(self, stt, X):
+        """Given the output statistics of the generating model, return the
+        probability of observed variables X."""
+        # TODO docstring
+        raise NotImplemented()
+
+    def statify_latent(self, X):
+        """Given values X, transform them into valid sufficient statistics for
+        the latent distribution."""
+        # TODO docstring
+        raise NotImplemented()
+
+    def statify_visible(self, X):
+        """Given values X, transform them into valid sufficient statistics for
+        the visible distribution."""
+        # TODO docstring
+        raise NotImplemented()
+
+
+class DiagGaussLatentAssumption(object):
+
+    def statify_latent(self, X):
+        return diag_gauss(X)
+
+    def nll_recog_model(self, stt, Z):
+        return diag_gauss_nll(Z, stt)
+
+    def kl_recog_prior(self, stt):
+        if stt.ndim == 3:
+            stt_flat = stt.reshape((-1, stt.shape[2]))
+        else:
+            stt_flat = stt
+
+        mean, var = stt_flat[:, :stt_flat.shape[1] // 2], stt_flat[:, stt_flat.shape[1] // 2:]
+        return inter_gauss_kl(mean, var)
+
+    def latent_layer_size(self, n_latents):
+        """Return the cardinality of the sufficient statistics given we want to
+        model ``n_latents`` variables.
+
+        For example, a diagonal Gaussian needs two sufficient statistics for a
+        single random variable, the mean and the variance. A Bernoulli only
+        needs one, which is the probability of it being 0 or 1."""
+        return n_latents * 2
+
+    def sample_latents(self, stt, rng):
+        stt_flat = assert_no_time(stt)
+        n_latent = stt_flat.shape[1] // 2
+        latent_mean = stt_flat[:, :n_latent]
+        latent_var = stt_flat[:, n_latent:]
+        noise = rng.normal(size=latent_mean.shape)
+        sample = latent_mean + T.sqrt(latent_var + 1e-8) * noise
+        if stt.ndim == 3:
+            return recover_time(sample, stt.shape[0])
+        else:
+            return sample
+
+
+class DiagGaussVisibleAssumption(object):
+
+    def statify_visible(self, X):
+        return diag_gauss(X)
+
+    def nll_gen_model(self, stt, X):
+        return diag_gauss_nll(X, stt)
+
+    def latent_layer_size(self, n_latents):
+        """Return the cardinality of the sufficient statistics given we want to
+        model ``n_latents`` variables.
+
+        For example, a diagonal Gaussian needs two sufficient statistics for a
+        single random variable, the mean and the variance. A Bernoulli only
+        needs one, which is the probability of it being 0 or 1."""
+        return n_latents * 2
+
+
+class BernoulliVisibleAssumption(object):
+
+    def statify_visible(self, X):
+        return sigmoid(X)
+
+    def nll_gen_model(self, stt, X):
+        return bern_ces(X, stt)
+
+    def visible_layer_size(self, n_visibles):
+        """Return the cardinality of the sufficient statistics given we want to
+        model ``n_visibles`` variables.
+
+        For example, a diagonal Gaussian needs two sufficient statistics for a
+        single random variable, the mean and the variance. A Bernoulli only
+        needs one, which is the probability of it being 0 or 1."""
+        return n_visibles
 
 
 class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
@@ -87,9 +259,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
     def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
                  recog_transfers, gen_transfers,
-                 visible,
-                 latent_prior='white_gauss',
-                 latent_posterior='diag_gauss',
+                 assumptions,
                  imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
@@ -120,15 +290,8 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             List containing the transfer cuntions for the hidden layers of the
             generating model.
 
-        visible : {'bern', 'diag_gauss'}
-            String identifiying the distribution of the visibles given the
-            latents.
-
-        latent_posterior : {'diag_gauss'}
-            Distribution of the latent given the visibles.
-
-        latent_prior : {'white_gauss'}
-            Prior distribution of the latents.
+        assumptions : Assumptions object
+            Object encoding the assumptions about the data.
 
         imp_weight : boolean
             Flag indicating whether importance weights are used.
@@ -157,9 +320,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         self.recog_transfers = recog_transfers
         self.gen_transfers = gen_transfers
 
-        self.visible = visible
-        self.latent_prior = latent_prior
-        self.latent_posterior = latent_posterior
+        self.assumptions = assumptions
 
         self.imp_weight = imp_weight
         self.batch_size = batch_size
@@ -175,35 +336,6 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         self.f_rec_loss_of_sample = None
         self.f_mvn_logpdf = None
 
-    def _layer_size_by_dist(self, n_vars, dist):
-        """Return the cardinality of the sufficient statistics given we want to
-        model ``n_units`` variables of distribution ``dist``.
-
-        For example, a diagonal Gaussian needs two sufficient statistics for a
-        single random variable, the mean and the variance. A Bernoulli only
-        needs one, which is the probability of it being 0 or 1.
-
-        Parameters
-        ----------
-
-        n_vars : int
-            Number of variables.
-
-        dist : {'diag_gauss', 'bern'}
-            Distribution of the variables.
-
-        Returns
-        -------
-
-        n : int
-            Number of components of the sufficient statistics.
-        """
-        if dist == 'diag_gauss':
-            return 2 * n_vars
-        elif dist == 'bern':
-            return n_vars
-        raise ValueError('unknown distribution in this case: %s' % dist)
-
     def _init_pars(self):
         spec = {
             'recog': self._recog_par_spec(),
@@ -215,8 +347,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
     def _recog_par_spec(self):
         """Return the specification of the recognition model."""
-        n_code_units = self._layer_size_by_dist(
-            self.n_latent, self.latent_posterior)
+        n_code_units = self.assumptions.latent_layer_size(self.n_latent)
         return mlp.parameters(self.n_inpt, self.n_hiddens_recog,
                               n_code_units)
 
@@ -230,22 +361,16 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
 
-        if self.latent_posterior == 'diag_gauss':
-            out_transfer = diag_gauss
-        else:
-            raise ValueError('unknown latent posterior distribution:%s'
-                             % self.latent_posterior)
-
         exprs = mlp.exprs(
             inpt, P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
             hidden_biases, P.out_bias,
-            self.recog_transfers, out_transfer)
+            self.recog_transfers, self.assumptions.statify_latent)
 
         return exprs
 
     def _gen_par_spec(self):
         """Return the parameter specification of the generating model."""
-        n_output = self._layer_size_by_dist(self.n_inpt, self.visible)
+        n_output = self.assumptions.visible_layer_size(self.n_inpt)
         return mlp.parameters(self.n_latent, self.n_hiddens_recog,
                               n_output)
 
@@ -259,17 +384,10 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
 
-        if self.visible == 'diag_gauss':
-            out_transfer = diag_gauss
-        elif self.visible == 'bern':
-            out_transfer = sigmoid
-        else:
-            raise ValueError('unknown visible distribution: %s'
-                             % self.latent_posterior)
         exprs = mlp.exprs(
             inpt, P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
             hidden_biases, P.out_bias,
-            self.recog_transfers, out_transfer)
+            self.recog_transfers, self.assumptions.statify_visible)
 
         return exprs
 
@@ -285,29 +403,8 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         return exprs
 
     def _make_kl_loss(self):
-        E = self.exprs
-        n_dim = E['inpt'].ndim
-
-        if self.latent_posterior == 'diag_gauss':
-            output = E['recog']['output']
-            n_output = output.shape[-1]
-            # TODO there is probably a nicer way to do this.
-            if n_dim == 3:
-                E['latent_mean'] = output[:, :, :n_output // 2]
-                E['latent_var'] = output[:, :, n_output // 2:]
-            else:
-                E['latent_mean'] = output[:, :n_output // 2]
-                E['latent_var'] = output[:, n_output // 2:]
-        else:
-            raise ValueError('unknown latent posterior distribution:%s'
-                             % self.latent_posterior)
-
-        if self.latent_posterior == 'diag_gauss' and self.latent_prior == 'white_gauss':
-            kl_coord_wise = inter_gauss_kl(E['latent_mean'], E['latent_var'])
-        else:
-            raise ValueError(
-                'unknown combination for latent_prior and latent_posterior:'
-                ' %s, %s' % (self.latent_prior, self.latent_posterior))
+        n_dim = self.exprs['inpt'].ndim
+        kl_coord_wise = self.assumptions.kl_recog_prior(self.exprs['latent'])
 
         if self.imp_weight:
             kl_coord_wise *= self._fix_imp_weight(n_dim)
@@ -338,23 +435,14 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         E.update(sgvb.exprs(
             E['inpt'],
             self._recog_exprs, self._gen_exprs,
-            self.visible, self.latent_posterior,
+            self.assumptions.sample_latents,
             shortcut_key=self.shortcut))
-
-        # Create the reconstruction part of the loss.
-        if self.visible == 'diag_gauss':
-            loss = diag_gauss_nll
-        elif self.visible == 'bern':
-            loss = 'bern_ces'
-        else:
-            raise ValueError('unknown distribution for visibles: %s'
-                             % self.visible)
 
         # TODO this is not going to work with variance propagation.
         imp_weight = False if not self.imp_weight else self._fix_imp_weight(n_dim)
         rec_loss = supervised_loss(
-            E['inpt'], E['gen']['output'], loss, prefix='rec_',
-            coord_axis=n_dim - 1, imp_weight=imp_weight)
+            E['inpt'], E['gen']['output'], self.assumptions.nll_gen_model,
+            prefix='rec_', coord_axis=n_dim - 1, imp_weight=imp_weight)
 
         # Create the KL divergence part of the loss.
         kl_loss = self._make_kl_loss()
