@@ -81,12 +81,14 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
     def __init__(self, n_inpt, n_hidden_conv, n_hidden_full, n_output,
                  hidden_conv_transfers, hidden_full_transfers, out_transfer,
                  loss, image_height=None, image_width=None, n_image_channel=1,
-                 pool_size=(2, 2), filter_shapes=None,
+                 pool_shapes=None, filter_shapes=None,
                  optimizer='lbfgs', batch_size=None, max_iter=1000, recurrent_layers=None,
                  verbose=False):
 
         if filter_shapes is None:
             filter_shapes = [[5, 5] for _ in range(len(n_hidden_conv))]
+        if pool_shapes is None:
+            pool_shapes = [[2, 2] for _ in range(len(n_hidden_conv))]
         if len(n_hidden_conv) != len(hidden_conv_transfers):
             raise ValueError('n_hidden_conv and hidden_conv_transfers have to '
                              'be of the same length')
@@ -117,7 +119,7 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
         self.loss = loss
         self.image_shapes = []
         self.filter_shapes_comp = []
-        self.pool_size = pool_size
+        self.shapes = pool_shapes
         self.filter_shapes = filter_shapes
         self._init_image_shapes()
         self._init_filter_shapes()
@@ -156,7 +158,7 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
     def _init_pars(self):
         spec = rcnn.parameters(
             self.n_inpt, self.n_hidden_conv, self.n_hidden_full, self.n_output,
-            self.filter_shapes, self.image_shapes)
+            self.filter_shapes, self.image_shapes, self.recurrent_layers)
 
         self.parameters = ParameterSet(**spec)
         self.parameters.data[:] = np.random.standard_normal(
