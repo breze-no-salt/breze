@@ -20,15 +20,15 @@ def parameters(n_inpt, n_hidden_conv, n_hidden_full, n_output,
     spec = dict(in_to_hidden=(n_hidden_conv[0], n_inpt[1],
                 filter_shapes[0][0], filter_shapes[0][1]),
                 hidden_to_out=(n_hidden_full[-1], n_output),
-                hidden_conv_to_hidden_full=(n_hidden_conv[-1] * np.prod(image_shapes[-1][-2:]),
-                                            n_hidden_full[0]),
                 hidden_conv_bias_0=n_hidden_conv[0],
                 hidden_full_bias_0=n_hidden_full[0],
                 out_bias=n_output)
-    if recurrency[len(n_hidden_conv)-1]:
-        size_hidden = n_hidden_conv[-1] * np.prod(image_shapes[-1][-2:])
-        spec['recurrent_%i' % len(n_hidden_conv)] = (size_hidden, size_hidden)
-        spec['initial_hiddens_%i' % len(n_hidden_conv)] = size_hidden
+    current_layer = len(n_hidden_conv)-1
+    if recurrency[current_layer]:
+        size_hidden = np.prod(image_shapes[-1][-3:])
+        spec['recurrent_%i' % current_layer] = (size_hidden, size_hidden)
+        spec['initial_hiddens_%i' % current_layer] = size_hidden
+        spec['hidden_conv_to_hidden_full'] = (size_hidden, n_hidden_full[0])
     zipped = zip(n_hidden_conv[:-1], n_hidden_conv[1:], filter_shapes[1:],
                  image_shapes[:-1], recurrency[:len(n_hidden_conv)])
     for i, (inlayer, outlayer, filter_shape, image_shape, rec) in enumerate(zipped):
@@ -46,8 +46,8 @@ def parameters(n_inpt, n_hidden_conv, n_hidden_full, n_output,
         spec['hidden_full_bias_%i' % (i + 1)] = outlayer
         if rec:
             size_hidden = inlayer * np.prod(image_shape[-2:])
-            spec['recurrent_%i' % i] = (size_hidden, size_hidden)
-            spec['initial_hiddens_%i' % i] = size_hidden
+            spec['recurrent_%i' % (i+len(n_hidden_conv))] = (size_hidden, size_hidden)
+            spec['initial_hiddens_%i' % (i+len(n_hidden_conv))] = size_hidden
     return spec
 
 
@@ -78,10 +78,10 @@ def recurrent_layer(hidden_inpt, hidden_to_hidden, f, initial_hidden,
     return hidden_in_rec
 
 
-def conv_part(inpt, params):
-    w, b, fs, ims, ps = params
+def conv_part(inpt, params, img_shape):
+    w, b, fs, ps = params
     hidden_in = conv.conv2d(inpt, w, filter_shape=fs,
-                            image_shape=ims)
+                            image_shape=img_shape)
     hidden_in_predown = downsample.max_pool_2d(
         hidden_in, ps, ignore_border=True)
     hidden_in_down = hidden_in_predown + b.dimshuffle('x', 0, 'x', 'x')
@@ -96,7 +96,7 @@ def feedforward_layer(inpt, weights, bias):
     n_output = weights.shape[1]
 
     inpt_flat = inpt.reshape((n_time_steps * n_samples, n_inpt))
-    output_flat = T.dot(inpt_flat, weight)
+    output_flat = T.dot(inpt_flat, weights)
     output = output_flat.reshape((n_time_steps, n_samples, n_output))
     output += bias.dimshuffle('x', 'x', 0)
     return output
@@ -106,9 +106,9 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
           hidden_conv_to_hidden_full, hidden_conv_to_hidden_conv,
           hidden_full_to_hidden_full, hidden_conv_bias,
           hidden_full_bias, hidden_conv_transfers,
-          hidden_full_transfers, output_transfer,
-          image_shapes, filter_shapes_comp, input_shape, pool_shapes,
-          recurrents, initial_hiddens, conv_time):
+          hidden_full_transfers, output_transfer, loss,
+          image_shapes, filter_shapes_comp,
+          pool_shapes, recurrents, initial_hiddens, conv_time):
 
     #input shape = n_time_steps, n_samples, channels, n_frames_to_take, n_output
     #conv part: reshape to n_time_step * n_samples, channels, n_frames_to_take, n_output
@@ -116,23 +116,24 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
     exprs = {}
 
     # Convolutional part
-    zipped = zip(input_shapes[1:], hidden_conv_transfers,
+    zipped = zip(image_shapes[1:], hidden_conv_transfers,
                  recurrents, initial_hiddens, conv_time,
                  [in_to_hidden] + hidden_conv_to_hidden_conv, hidden_conv_bias,
-                 filter_shapes_comp, image_shapes, pool_shapes)
+                 filter_shapes_comp, pool_shapes)
 
-    conv_shape = [np.prod(input_shape[:2])] + input_shape[2:]
+    conv_shape = [np.prod(image_shapes[0][:2])] + image_shapes[0][2:]
     hidden = inpt.reshape(conv_shape)
     for i, params in enumerate(zipped):
-        inpt_shape, ft, rec, ih, ct = params[:5]
+        image_shape, ft, rec, ih, ct = params[:5]
+        conv_shape = [np.prod(image_shapes[:2])] + image_shapes[2:]
         f = lookup(ft, transfer)
-        hidden_in_down = conv_part(hidden, params[5:])
+        hidden_in_down = conv_part(hidden, params[5:], conv_shape)
         if rec is not None:
-            rec_shape = input_shape[:2] + [np.prod(input_shape[2:])]
-            conv_shape = [np.prod(input_shape[:2])] + input_shape[2:]
-            reshaped_hidden_in_conv_down = hidden_in_conv_down.reshape(inpt_shape).reshape(rec_shape)
+            rec_shape = image_shapes[:2] + [np.prod(image_shapes[2:])]
+
+            reshaped_hidden_in_conv_down = hidden.reshape(image_shape).reshape(rec_shape)
             hidden_in_rec = recurrent_layer(reshaped_hidden_in_conv_down, rec, f, ih, rec_shape, ct)
-            hidden_in_down = hidden_in_rec.reshape(input_shape).reshape(conv_shape)
+            hidden_in_down = hidden_in_rec.reshape(image_shape).reshape(conv_shape)
         exprs['conv-hidden_in_%i' % i] = hidden_in_down
         hidden = exprs['conv-hidden_%i' % i] = f(hidden_in_down)
 
@@ -140,15 +141,15 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
     offset = len(hidden_conv_to_hidden_conv)+1
     zipped = zip([hidden_conv_to_hidden_full] + hidden_full_to_hidden_full,
                  hidden_full_bias, hidden_full_transfers, recurrents[offset:],
-                 initial_hiddens[offset:], input_shape[offset+1:], conv_time[offset:])
-    input_shape = inpt_shape[offset]
-    rec_shape = input_shape[:2] + [np.prod(input_shape[2:])]
+                 initial_hiddens[offset:], image_shapes[offset:], conv_time[offset:])
+    image_shape = image_shapes[offset-1]
+    rec_shape = image_shape[:2] + [np.prod(image_shape[2:])]
     hidden = hidden.reshape(rec_shape)
-    for i, (w, b, t, rec, ih, inpt_shape, ct) in enumerate(zipped):
+    for i, (w, b, t, rec, ih, image_shape, ct) in enumerate(zipped):
         hidden_in = feedforward_layer(hidden, w, b)
         f = lookup(t, transfer)
         if rec is not None:
-            hidden_in = recurrent_layer(hidden_in, rec, f, ih, inpt_shape, ct)
+            hidden_in = recurrent_layer(hidden_in, rec, f, ih, image_shape, ct)
         hidden = f(hidden_in)
         exprs['hidden_in_%i' % (i + offset)] = hidden_in
         exprs['hidden_%i' % (i + offset)] = hidden
@@ -159,12 +160,13 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
 
     output = f_output(output_in)
 
+    f_loss = lookup(loss, loss_)
     loss_samplewise = f_loss(target, output).sum(axis=2)
-    loss = loss_rowwise.mean()
+    overall_loss = loss_samplewise.mean()
 
     exprs.update({
         'loss_samplewise': loss_samplewise,
-        'loss': loss,
+        'loss': overall_loss,
         'inpt': inpt,
         'target': target,
         'output_in': output_in,

@@ -83,12 +83,14 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
                  loss, image_height=None, image_width=None, n_image_channel=1,
                  pool_shapes=None, filter_shapes=None,
                  optimizer='lbfgs', batch_size=None, max_iter=1000, recurrent_layers=None,
-                 verbose=False):
+                 verbose=False, conv_time=None, n_time_steps=1):
 
         if filter_shapes is None:
             filter_shapes = [[5, 5] for _ in range(len(n_hidden_conv))]
         if pool_shapes is None:
             pool_shapes = [[2, 2] for _ in range(len(n_hidden_conv))]
+        if conv_time is None:
+            conv_time = [False]*(len(n_hidden_conv)+len(n_hidden_full))
         if len(n_hidden_conv) != len(hidden_conv_transfers):
             raise ValueError('n_hidden_conv and hidden_conv_transfers have to '
                              'be of the same length')
@@ -106,7 +108,7 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
                            image_height, image_width)
 
         if recurrent_layers is None:
-            self.recurrent_layers = [False]*(n_hidden_conv+n_hidden_full)
+            self.recurrent_layers = [False]*(len(n_hidden_conv)+len(n_hidden_full))
         else:
             self.recurrent_layers = recurrent_layers
 
@@ -119,14 +121,15 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
         self.loss = loss
         self.image_shapes = []
         self.filter_shapes_comp = []
-        self.shapes = pool_shapes
+        self.pool_shapes = pool_shapes
         self.filter_shapes = filter_shapes
+        self.conv_time = conv_time
         self._init_image_shapes()
         self._init_filter_shapes()
 
         self.optimizer = optimizer
         self.batch_size = batch_size
-
+        self.n_time_steps = n_time_steps
         self.max_iter = max_iter
         self.verbose = verbose
 
@@ -148,12 +151,16 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
                              ' please use MultilayerPerceptron.')
         image_size = [self.n_inpt[2], self.n_inpt[3]]
         self.image_shapes.append(self.n_inpt)
-        zipped = zip(self.n_hidden_conv, self.filter_shapes)
-        for n_feature_maps, filter_shape in zipped:
+        #input shape = n_time_steps, n_samples, channels, n_frames_to_take, n_output
+        zipped = zip(self.n_hidden_conv, self.filter_shapes, self.pool_shapes)
+        for n_feature_maps, filter_shape, pool_shape in zipped:
             image_size = [(comp - fs + 1) / ps for comp, fs, ps in
-                          zip(image_size, filter_shape, self.pool_size)]
-            self.image_shapes.append((self.batch_size, n_feature_maps,
-                                      image_size[0], image_size[1]))
+                          zip(image_size, filter_shape, pool_shape)]
+            self.image_shapes.append((self.batch_size, self.n_time_steps,
+                                      n_feature_maps, image_size[0],
+                                      image_size[1]))
+        for n_units in self.n_hidden_full:
+            self.image_shapes.append((self.batch_size, self.n_time_steps, n_units))
 
     def _init_pars(self):
         spec = rcnn.parameters(
@@ -166,8 +173,8 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
 
     def _init_exprs(self):
         self.exprs = {
-            'inpt': T.matrix('inpt'),
-            'target': T.matrix('target')
+            'inpt': T.tensor3('inpt'),
+            'target': T.tensor3('target')
         }
         P = self.parameters
 
@@ -181,15 +188,26 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
                             for i in range(len(self.n_hidden_conv))]
         hidden_full_bias = [getattr(P, 'hidden_full_bias_%i' % i)
                             for i in range(len(self.n_hidden_full))]
+        recurrents = []
+        initial_hiddens = []
+        for i in range(len(self.n_hidden_conv) + len(self.n_hidden_full)):
+            attribute = 'recurrent_%i' % i
+            if hasattr(P, attribute):
+                recurrents.append(getattr(P, attribute))
+                initial_hiddens.append(getattr(P, 'initial_hiddens_%i' % i))
+            else:
+                recurrents.append(None)
+                initial_hiddens.append(None)
+
         self.exprs.update(rcnn.exprs(
-            self.exprs['inpt'], self.exprs['target'],
-            P.in_to_hidden, P.hidden_to_out,
-            P.out_bias, P.hidden_conv_to_hidden_full,
-            hidden_conv_to_hidden_conv, hidden_full_to_hidden_full,
-            hidden_conv_bias, hidden_full_bias, self.hidden_conv_transfers,
+            self.exprs['inpt'], self.exprs['target'], P.in_to_hidden, P.hidden_to_out,
+            P.out_bias, P.hidden_conv_to_hidden_full, hidden_conv_to_hidden_conv,
+            hidden_full_to_hidden_full, hidden_conv_bias,
+            hidden_full_bias, self.hidden_conv_transfers,
             self.hidden_full_transfers, self.out_transfer, self.loss,
-            self.image_shapes[:-1], self.filter_shapes_comp, self.n_inpt,
-            self.pool_size))
+            self.image_shapes, self.filter_shapes_comp,
+            self.pool_shapes, recurrents, initial_hiddens, self.conv_time)
+        )
 
     def apply_minibatches_function(self, f, X, Z):
         """Apply a function to batches of the input.
