@@ -157,14 +157,11 @@ def n_windows(X, size, offset):
 def windowify(X, size, offset=1):
     """Return a static array that represents a sliding window dataset of size
     `size` given by the list of arrays `."""
-    # Calculate the amount of windows that fit into one array.
-    n_items = sum(n_windows(i, size, offset) for i in X)
-    dim = X[0].shape[1]
-    X_ = scipy.empty((n_items, size, dim))
+    windows = []
     for i, window in enumerate(iter_windows(X, size, offset)):
-        X_[i] = window
+        windows.append(window[np.newaxis])
 
-    return X_
+    return np.concatenate(windows)
 
 
 def iter_windows(X, size, offset=1):
