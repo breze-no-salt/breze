@@ -34,13 +34,6 @@ model and putting it through the generating model we can approximate the second
 term.
 
 
-Implementation details
-----------------------
-
-In order to allow different incarnations of the general SGVB principle, we will
-now describe the API.
-
-
 References
 ----------
 
@@ -48,7 +41,8 @@ References
 .. [DLGM] Rezende, Danilo Jimenez, Shakir Mohamed, and Daan Wierstra. "Stochastic Back-propagation and Variational Inference in Deep Latent Gaussian Models." arXiv preprint arXiv:1401.4082 (2014).
 """
 
-# TODO rename denois to map denoise
+# TODO assumption classes
+# TODO rename denoise to map denoise
 # TODO fix estimation of nll
 # TODO rename recurrent models to the ones used in the paper
 # TODO make function for missing value imputation
@@ -117,7 +111,7 @@ def recover_time(X, time_steps):
 def normal_logpdf(xs, means, vrs):
     residual = xs - means
     divisor = 2 * vrs
-    logz = -np.sqrt(vrs * 2 * np.pi)
+    logz = -(vrs * 2 * np.pi) ** 0.5
     return -(residual ** 2 / divisor) + logz
 
 
@@ -141,13 +135,13 @@ class Assumptions(object):
         # TODO docstring
         raise NotImplemented()
 
-    def nll_recog_model(self, stt, Z):
+    def nll_recog_model(self, Z, stt):
         """Given the output statistics of the recognition model, return the
         probability of latent variables Z."""
         # TODO docstring
         raise NotImplemented()
 
-    def nll_gen_model(self, stt, X):
+    def nll_gen_model(self, X, stt):
         """Given the output statistics of the generating model, return the
         probability of observed variables X."""
         # TODO docstring
@@ -171,7 +165,7 @@ class DiagGaussLatentAssumption(object):
     def statify_latent(self, X):
         return diag_gauss(X)
 
-    def nll_recog_model(self, stt, Z):
+    def nll_recog_model(self, Z, stt):
         return diag_gauss_nll(Z, stt)
 
     def kl_recog_prior(self, stt):
@@ -182,6 +176,11 @@ class DiagGaussLatentAssumption(object):
 
         mean, var = stt_flat[:, :stt_flat.shape[1] // 2], stt_flat[:, stt_flat.shape[1] // 2:]
         return inter_gauss_kl(mean, var)
+
+    def nll_prior(self, X):
+        X_flat = X.flatten()
+        nll = normal_logpdf(X_flat, T.zeros_like(X_flat), T.ones_like(X_flat))
+        return nll.reshape(X.shape)
 
     def latent_layer_size(self, n_latents):
         """Return the cardinality of the sufficient statistics given we want to
@@ -210,7 +209,7 @@ class DiagGaussVisibleAssumption(object):
     def statify_visible(self, X):
         return diag_gauss(X)
 
-    def nll_gen_model(self, stt, X):
+    def nll_gen_model(self, X, stt):
         return diag_gauss_nll(X, stt)
 
     def latent_layer_size(self, n_latents):
@@ -228,7 +227,7 @@ class BernoulliVisibleAssumption(object):
     def statify_visible(self, X):
         return sigmoid(X)
 
-    def nll_gen_model(self, stt, X):
+    def nll_gen_model(self, X, stt):
         return bern_ces(X, stt)
 
     def visible_layer_size(self, n_visibles):
