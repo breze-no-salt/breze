@@ -99,7 +99,7 @@ expected_squared_hinge_1 = make_expected_squared_hinge(1)
 def diag_gaussian_nll(target, prediction):
     mean, var = unpack_mean_var(prediction)
     residuals = target - mean
-    weighted_squares = -(residuals ** 2) / (2 * var + 1e-4)
-    normalization = T.log(T.sqrt(2 * np.pi * var + 1e-4))
+    weighted_squares = -(residuals ** 2) / (2 * var)
+    normalization = T.log(T.sqrt(2 * np.pi * var))
     ll = weighted_squares - normalization
     return -ll
