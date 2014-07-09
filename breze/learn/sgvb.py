@@ -70,31 +70,7 @@ from breze.learn.base import (
 from breze.learn.utils import theano_floatx
 
 
-#
-# Plan for making the API better.
-#
-# There are some shortcomings of the current state. More specifically:
-#
-#  A -  It is assumed that the visibles and the latents are of a 2D structure,
-#       i.e. that there is one dimension for samples and one for coordinates.
-#       This does not hold in the case of RNNs.
-#  B  - The assumptions (i.e. q(z|x), p(x|z), p(z)) are given independently of
-#       each other. This is not necessarily good, because they interrelate, e.g.
-#       in the case of KL(q(z|x)|p(z)).
-#  C  - Lots of code of the assumptions is within the main class; i.e. how to
-#       sample from the approximate posterior q(z|x) is here. This should be
-#       encapsulated elsewhere.
-#
-# Here are the operations that need to be performed wrt the assumptions:
-#
-# (1) Sample from q(z|x),
-# (2) Calculate -log p(x|z),
-# (3) Calculate KL(q|p),
-# (4) Calculate -log q(z|x),
-# (5) Calculate -log p(z).
-#
-# where "Calculate" means that we need to be able to build expressions for it.
-
+# TODO find a better home for the following functions.
 
 def assert_no_time(X):
     if X.ndim == 2:
@@ -112,7 +88,32 @@ def normal_logpdf(xs, means, vrs):
     residual = xs - means
     divisor = 2 * vrs
     logz = -(vrs * 2 * np.pi) ** 0.5
-    return -(residual ** 2 / divisor) + logz
+    return -(residual ** 2 / divisor) - logz
+
+
+# Taken from osdfutils.
+def logsumexp(array, axis):
+    """Compute the log of a sum of exps of ``array`` along some ``axis``.
+
+    If _axis_ is not zero, caller must transform result in suitable shape."""
+    arr = np.rollaxis(array, axis)
+    axis_max = np.max(arr, axis=0)
+    return axis_max + np.log(np.sum(np.exp(arr - axis_max), axis=0))
+
+
+# TODO document
+def estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
+                f_sample_z_given_x, n_samples):
+    d = np.empty((n_samples, X.shape[0]))
+    for i in range(n_samples):
+        Z = f_sample_z_given_x(X)
+        loga = -f_nll_z(Z)
+        logb = -f_nll_x_given_z(X, Z)
+        logc = -f_nll_z_given_x(Z, X)
+        d[i] = loga + logb - logc
+
+    ll = logsumexp(d, 0) - np.log(n_samples)
+    return -ll
 
 
 class Assumptions(object):
@@ -212,7 +213,7 @@ class DiagGaussVisibleAssumption(object):
     def nll_gen_model(self, X, stt):
         return diag_gauss_nll(X, stt)
 
-    def latent_layer_size(self, n_latents):
+    def visible_layer_size(self, n_latents):
         """Return the cardinality of the sufficient statistics given we want to
         model ``n_latents`` variables.
 
@@ -334,6 +335,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         self.f_out_from_sample = None
         self.f_rec_loss_of_sample = None
         self.f_mvn_logpdf = None
+        self.f_estimate_nll = None
 
     def _init_pars(self):
         spec = {
@@ -508,27 +510,6 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         H = self._latent_mean(X)
         return self._output_from_sample(H)
 
-    def _estimate_one_nll(self, x, n_samples):
-        mean, var = self._latent_mean_var(x[np.newaxis])
-
-        s = np.random.standard_normal((n_samples, mean.shape[1]))
-        s *= np.sqrt(var)
-        s += mean
-        s, = theano_floatx(s)
-
-        targets = np.concatenate([x[np.newaxis]] * n_samples)
-
-        # TODO this is an implcity Gaussian assumption
-        lp_v_given_s = -self._rec_loss_of_sample(targets, s)
-        lq_s_given_v = self._mvn_logpdf(s, mean[0], np.diag(var.flatten()))
-        lp_s = self._mvn_logpdf(
-            s, np.zeros(s.shape[1]).astype('float32'),
-            np.eye(s.shape[1]).astype('float32'))
-
-        ll = (lp_v_given_s + lp_s - lq_s_given_v).mean()
-
-        return -ll
-
     def estimate_nll(self, X, n_samples=10):
         """Return an estimate of the negative log-likelihood of ``X``.
 
@@ -552,10 +533,33 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             Array of shape ``(n,)`` where each entry corresponds to the nll of
             corresponding sample in ``X``.
         """
-        nll = np.empty(X.shape[0])
-        for i, x in enumerate(X):
-            nll[i] = self._estimate_one_nll(x, n_samples)
-        return nll
+        if self.f_estimate_nll is None:
+            self.f_estimate_nll = self._make_f_estimate_nll()
+        return self.f_estimate_nll(X, n_samples)
+
+    def _make_f_estimate_nll(self):
+        latent_sample = T.matrix()
+
+        # Map a sample s to the prior log probability p(z)
+        nll_z = self.assumptions.nll_prior(latent_sample).sum(axis=1)
+        f_nll_z = theano.function([latent_sample], nll_z)
+
+        # Map a given visible x and a sample z to the generating probability p(x|z).
+        nll_x_given_z = self.assumptions.nll_gen_model(self.exprs['inpt'], self.exprs['output']).sum(axis=1)
+        f_nll_x_given_z = self.function(['inpt', 'sample'], nll_x_given_z)
+
+        # Map a given visible x and a sample z to the recognition probability q(z|x).
+        nll_z_given_x = self.assumptions.nll_recog_model(
+            latent_sample, self.exprs['latent']).sum(axis=1)
+        f_nll_z_given_x = self.function([latent_sample, self.exprs['inpt']], nll_z_given_x)
+
+        # Sample some z from q(z|x).
+        f_sample_z_given_x = self.function(['inpt'], 'sample')
+
+        def inner(X, n):
+            return estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x, f_sample_z_given_x, n)
+
+        return inner
 
 
 class VariationalSequenceAE(VariationalAutoEncoder):
@@ -707,26 +711,6 @@ class VariationalSequenceAE(VariationalAutoEncoder):
         """Return the log probability of the visibles given the latent
         variables."""
         return -self._rec_loss_of_sample(visible, latent)
-
-    def _estimate_one_nll(self, x, n_samples=10):
-        m, v = self._latent_mean_var(x)
-        lik = 0
-        for i in range(n_samples):
-            s = np.random.standard_normal(m.shape) * np.sqrt(v) + m
-            s, = theano_floatx(s)
-            lp_v_giv_s = self._lp_v_given_s(x, s)
-            lp_s = self._lp_h(s)
-            lq_s_giv_v = self._lq_h_given_v(s, x)
-
-            loglik = lp_v_giv_s + lp_s - lq_s_giv_v
-            lik += np.exp(loglik)
-        return -np.log(lik / n_samples)
-
-    def estimate_nll(self, xs, n_samples=10):
-        nlls = []
-        for x in xs:
-            nlls.append(self._estimate_one_nll(self, x[:, np.newaxis], n_samples))
-        return nlls
 
 
 class VariationalFDSequenceAE(VariationalSequenceAE):
