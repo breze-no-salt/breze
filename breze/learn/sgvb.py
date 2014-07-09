@@ -58,6 +58,7 @@ from breze.arch.component.misc import inter_gauss_kl
 from breze.arch.component.transfer import sigmoid, diag_gauss
 from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nll
 from breze.arch.component.loss import bern_ces
+from breze.arch.component.varprop.loss import unpack_mean_var
 from breze.arch.model import sgvb
 from breze.arch.model.neural import mlp
 from breze.arch.model.varprop import brnn as vpbrnn
@@ -199,6 +200,55 @@ class DiagGaussLatentAssumption(object):
         latent_var = stt_flat[:, n_latent:]
         noise = rng.normal(size=latent_mean.shape)
         sample = latent_mean + T.sqrt(latent_var + 1e-8) * noise
+        if stt.ndim == 3:
+            return recover_time(sample, stt.shape[0])
+        else:
+            return sample
+
+
+class WienerLatentAssumption(object):
+
+    def statify_latent(self, mean, var):
+        # TODO this will not work for non-FD Wieners.
+        return mean, var
+
+    def nll_recog_model(self, Z, stt):
+        return diag_gauss_nll(Z, stt)
+
+    def kl_recog_prior(self, stt):
+        mean, var = unpack_mean_var(stt)
+        d_latent_mean = mean[1:] - mean[:-1]
+        d_latent_var = var[1:] + var[:-1]
+
+        kl_first = inter_gauss_kl(mean[:1], var[:1])
+        kl_diff = inter_gauss_kl(d_latent_mean, d_latent_var)
+        kl_coord_wise = T.concatenate([kl_first, kl_diff])
+        return kl_coord_wise
+
+    def nll_prior(self, Z):
+        d_Z = Z[1:] - Z[:-1]
+
+        nll_first = -normal_logpdf(Z[:1], 0, 1)
+        nll_diff = -normal_logpdf(d_Z, 0, 1)
+        nll_coord_wise = T.concatenate([nll_first, nll_diff])
+        return nll_coord_wise
+
+    def latent_layer_size(self, n_latents):
+        """Return the cardinality of the sufficient statistics given we want to
+        model ``n_latents`` variables.
+
+        For example, a diagonal Gaussian needs two sufficient statistics for a
+        single random variable, the mean and the variance. A Bernoulli only
+        needs one, which is the probability of it being 0 or 1."""
+        return n_latents * 2
+
+    def sample_latents(self, stt, rng):
+        stt_flat = assert_no_time(stt)
+        n_latent = stt_flat.shape[1] // 2
+        latent_mean = stt_flat[:, :n_latent]
+        latent_var = stt_flat[:, n_latent:]
+        noise = rng.normal(size=latent_mean.shape)
+        sample = latent_mean + T.sqrt(latent_var) * noise
         if stt.ndim == 3:
             return recover_time(sample, stt.shape[0])
         else:
@@ -859,17 +909,11 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
 
         p_dropouts = (len(self.n_hiddens_recog) + 2) * [0.1]
 
-        if self.latent_posterior == 'diag_gauss':
-            out_transfer = 'identity'
-        else:
-            raise ValueError('unknown latent posterior distribution:%s'
-                             % self.latent_posterior)
-
         exprs = vprnn.exprs(
             inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
             hidden_biases, [1 for _ in hidden_biases],
             initial_hiddens, recurrents,
-            P.out_bias, 1, self.recog_transfers, out_transfer,
+            P.out_bias, 1, self.recog_transfers, self.assumptions.statify_latent,
             p_dropouts=p_dropouts)
 
         # TODO also integrate variance!
@@ -882,7 +926,7 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
 
     def _gen_par_spec(self):
         """Return the parameter specification of the generating model."""
-        n_output = self._layer_size_by_dist(self.n_inpt, self.visible)
+        n_output = self.assumptions.visible_layer_size(self.n_inpt)
         return mlp.parameters(
             self.n_latent + self.n_hiddens_recog[-1], self.n_hiddens_recog,
             n_output)
@@ -894,46 +938,3 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
         exprs['output'] = exprs['output_flat'].reshape(
             (inpt.shape[0], inpt.shape[1], -1))
         return exprs
-
-    def _make_kl_loss(self):
-        E = self.exprs
-        n_dim = E['inpt'].ndim
-
-        if self.latent_posterior == 'diag_gauss':
-            output = E['recog']['output']
-            n_output = output.shape[-1]
-            # TODO there is probably a nicer way to do this.
-            if n_dim == 3:
-                E['latent_mean'] = output[:, :, :n_output // 2]
-                E['latent_var'] = output[:, :, n_output // 2:]
-            else:
-                E['latent_mean'] = output[:, :n_output // 2]
-                E['latent_var'] = output[:, n_output // 2:]
-        else:
-            raise ValueError('unknown latent posterior distribution:%s'
-                             % self.latent_posterior)
-
-        if self.latent_posterior == 'diag_gauss' and self.latent_prior == 'slow_white_gauss':
-            d_latent_mean = E['latent_mean'][1:] - E['latent_mean'][:-1]
-            d_latent_var = E['latent_var'][1:] + E['latent_var'][:-1]
-
-            kl_first = inter_gauss_kl(E['latent_mean'][:1], E['latent_var'][:1])
-            kl_diff = inter_gauss_kl(d_latent_mean, d_latent_var)
-            kl_coord_wise = T.concatenate([kl_first, kl_diff])
-        elif self.latent_posterior == 'diag_gauss' and self.latent_prior == 'white_gauss':
-            kl_coord_wise = inter_gauss_kl(E['latent_mean'], E['latent_var'])
-        else:
-            raise ValueError(
-                'unknown combination for latent_prior and latent_posterior:'
-                ' %s, %s' % (self.latent_prior, self.latent_posterior))
-
-        if self.imp_weight:
-            kl_coord_wise *= self._fix_imp_weight(n_dim)
-        kl_sample_wise = kl_coord_wise.sum(axis=n_dim - 1)
-        kl = kl_sample_wise.mean()
-
-        return {
-            'kl': kl,
-            'kl_coord_wise': kl_coord_wise,
-            'kl_sample_wise': kl_sample_wise,
-        }
