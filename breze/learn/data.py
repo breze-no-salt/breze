@@ -52,7 +52,7 @@ def shuffle_many(arrays, axes, random_state=None):
             a[old_index], a[new_index] = a[new_index], a[old_index]
 
 
-def padzeros(lst, front=True, return_mask=False):
+def padzeros(lst, front=True, return_mask=False, to_add=0):
     # TODO add docs for ``front``
     """Given a list of arrays, pad every array with up front  zeros until they
     reach unit length.
@@ -80,8 +80,7 @@ def padzeros(lst, front=True, return_mask=False):
         else:
             data[i][:thislength] = lst[i]
             if return_mask:
-                mask[i][:thislength] = 1
-
+                mask[i][to_add:thislength] = 1
     if return_mask:
         return data, scipy.asarray(mask)
     return data
@@ -178,7 +177,7 @@ def iter_windows(X, size, offset=1):
             yield seq[j:j + size]
 
 
-def split(X, maxlength):
+def split(X, maxlength, to_add=0):
     """Return a list of sequences where each sequence has a length of at most
     `maxlength`.
 
@@ -188,8 +187,12 @@ def split(X, maxlength):
         n_new_seqs, rest = divmod(seq.shape[0], maxlength)
         if rest:
             n_new_seqs += 1
-        for i in range(n_new_seqs):
-            new_X.append(seq[i * maxlength:(i + 1) * maxlength])
+        to_add_shape = list(seq.shape)
+        to_add_shape[0] = to_add
+        first_chunk = np.zeros(tuple(to_add_shape))
+        new_X.append(np.concatenate((first_chunk, seq[0:maxlength])))
+        for i in range(1, n_new_seqs):
+            new_X.append(seq[i * maxlength - to_add:(i + 1) * maxlength])
     return new_X
 
 
