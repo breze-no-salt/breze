@@ -53,7 +53,6 @@ import theano.tensor.nnet
 import numpy as np
 
 from breze.arch.component.common import supervised_loss
-from breze.arch.component.distributions.mvn import logpdf
 from breze.arch.component.misc import inter_gauss_kl
 from breze.arch.component.transfer import sigmoid, diag_gauss
 from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nll
@@ -104,14 +103,25 @@ def logsumexp(array, axis):
 
 # TODO document
 def estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
-                f_sample_z_given_x, n_samples):
-    d = np.empty((n_samples, X.shape[0]))
+                 f_sample_z_given_x, n_samples):
+    if X.ndim == 2:
+        loga = np.empty((n_samples, X.shape[0]))
+        logb = np.empty((n_samples, X.shape[0]))
+        logc = np.empty((n_samples, X.shape[0]))
+    elif X.ndim == 3:
+        loga = np.empty((n_samples, X.shape[0], X.shape[1]))
+        logb = np.empty((n_samples, X.shape[0], X.shape[1]))
+        logc = np.empty((n_samples, X.shape[0], X.shape[1]))
+    else:
+        raise ValueError('unexpected ndim for X, can be 2 or 3')
+
     for i in range(n_samples):
         Z = f_sample_z_given_x(X)
-        loga = -f_nll_z(Z)
-        logb = -f_nll_x_given_z(X, Z)
-        logc = -f_nll_z_given_x(Z, X)
-        d[i] = loga + logb - logc
+        loga[i] = -f_nll_z(Z)
+        logb[i] = -f_nll_x_given_z(X, Z)
+        logc[i] = -f_nll_z_given_x(Z, X)
+
+    d = loga + logb - logc
 
     ll = logsumexp(d, 0) - np.log(n_samples)
     return -ll
@@ -506,12 +516,6 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             'loss': E['kl'] + E['rec_loss'],
         })
 
-    def _latent_mean(self, X):
-        # TODO this is only necessary for a Gaussian assumption.
-        if self.f_latent_mean is None:
-            self.f_latent_mean = self.function(['inpt'], 'latent_mean')
-        return self.f_latent_mean(X)
-
     def _output_from_sample(self, S):
         if self.f_out_from_sample is None:
             self.f_out_from_sample = self.function(['sample'], 'output')
@@ -522,43 +526,6 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             self.f_rec_loss_of_sample = self.function(
                 ['inpt', 'sample'], 'rec_loss_sample_wise')
         return self.f_rec_loss_of_sample(X, S)
-
-    def _latent_mean_var(self, X):
-        if self.f_latent_mean_var is None:
-            self.f_latent_mean_var = self.function(
-                ['inpt'], ['latent_mean', 'latent_var'])
-        return self.f_latent_mean_var(X)
-
-    def _mvn_logpdf(self, sample, mean, cov):
-        if self.f_mvn_logpdf is None:
-            s = T.matrix()
-            m = T.vector()
-            c = T.matrix()
-            mvnlogpdf = logpdf(s, m, c)
-            self.f_mvnlogpdf = theano.function([s, m, c], mvnlogpdf)
-        return self.f_mvnlogpdf(sample, mean, cov)
-
-    def denoise(self, X):
-        """Denoise data from the input distribution.
-
-        The denoising is done as follows. The recognition model is used to
-        obtain the posterior of the latent variables. The mode of that is then
-        fed through the generating model, of which the result is returned.
-
-        Parameters
-        ----------
-
-        X : array_like
-            Input to denoise.
-
-        Returns
-        -------
-
-        Y : array_like
-            Denoised input. Same shape as ``X``.
-        """
-        H = self._latent_mean(X)
-        return self._output_from_sample(H)
 
     def estimate_nll(self, X, n_samples=10):
         """Return an estimate of the negative log-likelihood of ``X``.
@@ -588,28 +555,153 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         return self.f_estimate_nll(X, n_samples)
 
     def _make_f_estimate_nll(self):
-        latent_sample = T.matrix()
+        ndim = self.exprs['sample'].ndim
+        if ndim == 3:
+            latent_sample = T.tensor3()
+        elif ndim == 2:
+            latent_sample = T.matrix()
+        else:
+            raise ValueError('unexpected ndim for samples')
 
         # Map a sample s to the prior log probability p(z)
-        nll_z = self.assumptions.nll_prior(latent_sample).sum(axis=1)
+        nll_z = self.assumptions.nll_prior(latent_sample).sum(axis=ndim - 1)
         f_nll_z = theano.function([latent_sample], nll_z)
 
-        # Map a given visible x and a sample z to the generating probability p(x|z).
-        nll_x_given_z = self.assumptions.nll_gen_model(self.exprs['inpt'], self.exprs['output']).sum(axis=1)
+        # Map a given visible x and a sample z to the generating
+        # probability p(x|z).
+        nll_x_given_z = self.assumptions.nll_gen_model(
+            self.exprs['inpt'], self.exprs['output']).sum(axis=ndim - 1)
         f_nll_x_given_z = self.function(['inpt', 'sample'], nll_x_given_z)
 
-        # Map a given visible x and a sample z to the recognition probability q(z|x).
+        # Map a given visible x and a sample z to the recognition
+        # probability q(z|x).
         nll_z_given_x = self.assumptions.nll_recog_model(
-            latent_sample, self.exprs['latent']).sum(axis=1)
-        f_nll_z_given_x = self.function([latent_sample, self.exprs['inpt']], nll_z_given_x)
+            latent_sample, self.exprs['latent']).sum(axis=ndim - 1)
+        f_nll_z_given_x = self.function(
+            [latent_sample, self.exprs['inpt']], nll_z_given_x)
 
         # Sample some z from q(z|x).
         f_sample_z_given_x = self.function(['inpt'], 'sample')
 
         def inner(X, n):
-            return estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x, f_sample_z_given_x, n)
+            return estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
+                                f_sample_z_given_x, n)
 
         return inner
+
+
+class VariationalRecurrentAutoEncoder(VariationalAutoEncoder):
+
+    shortcut = None
+
+    def _make_start_exprs(self):
+        exprs = {
+            'inpt': T.tensor3('inpt')
+        }
+        exprs['inpt'].tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
+        if self.imp_weight:
+            exprs['imp_weight'] = T.tensor3('imp_weight')
+            exprs['imp_weight'].tag.test_value, = theano_floatx(np.ones((3, 1)))
+
+        return exprs
+
+    def _recog_par_spec(self):
+        """Return the specification of the recognition model."""
+        spec = vpbrnn.parameters(self.n_inpt, self.n_hiddens_recog,
+                                 self.n_latent)
+
+        spec['p_dropout'] = {
+            'inpt': 1,
+            'hiddens': [1 for _ in self.n_hiddens_recog],
+            'hidden_to_out': 1,
+        }
+
+        return spec
+
+    def _recog_exprs(self, inpt):
+        """Return the exprssions of the recognition model."""
+        P = self.parameters.recog
+
+        n_layers = len(self.n_hiddens_recog)
+        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
+                             for i in range(n_layers - 1)]
+        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
+                         for i in range(n_layers)]
+        initial_hiddens_fwd = [getattr(P, 'initial_hiddens_fwd_%i' % i)
+                               for i in range(n_layers)]
+        initial_hiddens_bwd = [getattr(P, 'initial_hiddens_bwd_%i' % i)
+                               for i in range(n_layers)]
+        recurrents_fwd = [getattr(P, 'recurrent_fwd_%i' % i)
+                          for i in range(n_layers)]
+        recurrents_bwd = [getattr(P, 'recurrent_bwd_%i' % i)
+                          for i in range(n_layers)]
+
+        p_dropouts = (
+            [P.p_dropout.inpt] + P.p_dropout.hiddens
+            + [P.p_dropout.hidden_to_out])
+
+        # Reparametrize to assert the rates lie in (0.025, 1-0.025).
+        p_dropouts = [T.nnet.sigmoid(i) * 0.95 + 0.025 for i in p_dropouts]
+
+        exprs = vpbrnn.exprs(
+            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
+            hidden_biases, [1 for _ in hidden_biases],
+            initial_hiddens_fwd, initial_hiddens_bwd,
+            recurrents_fwd, recurrents_bwd,
+            P.out_bias, 1, self.recog_transfers, self.assumptions.statify_latent,
+            p_dropouts=p_dropouts)
+
+        return exprs
+
+    def _gen_par_spec(self):
+        """Return the parameter specification of the generating model."""
+        n_output = self.assumptions.visible_layer_size(self.n_inpt)
+        return vpbrnn.parameters(self.n_latent, self.n_hiddens_gen,
+                                 n_output)
+
+    def _gen_exprs(self, inpt):
+        """Return the expression of the generating model."""
+        P = self.parameters.gen
+
+        n_layers = len(self.n_hiddens_gen)
+        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
+                             for i in range(n_layers - 1)]
+        recurrents_fwd = [getattr(P, 'recurrent_fwd_%i' % i)
+                          for i in range(n_layers)]
+        recurrents_bwd = [getattr(P, 'recurrent_bwd_%i' % i)
+                          for i in range(n_layers)]
+        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
+                         for i in range(n_layers)]
+        initial_hiddens_fwd = [getattr(P, 'initial_hiddens_fwd_%i' % i)
+                               for i in range(n_layers)]
+        initial_hiddens_bwd = [getattr(P, 'initial_hiddens_bwd_%i' % i)
+                               for i in range(n_layers)]
+
+        # TODO Need to crossvalidate at some point.
+        p_dropouts = [0.1] + [0.1] * len(self.n_hiddens_gen) + [0.1]
+
+        def out_transfer(m, v):
+            m2 = self.assumptions.statify_visible(m)
+            return m2, v
+
+        exprs = vpbrnn.exprs(
+            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens,
+            P.hidden_to_out,
+            hidden_biases, [1 for b in hidden_biases],
+            initial_hiddens_fwd, initial_hiddens_bwd,
+            recurrents_fwd, recurrents_bwd,
+            P.out_bias, 1, self.recog_transfers,
+            out_transfer,
+            p_dropouts=p_dropouts)
+        exprs['output_uncut'] = exprs['output']
+
+        # FD-RNNs have twice as many outputs as we care about here.
+        # TODO: this does not seem right though, we probably need to fix this
+        # for other assumptions to work.
+
+        exprs['output'] = exprs['output'][:, :, :self.n_inpt]
+
+        return exprs
 
 
 class VariationalSequenceAE(VariationalAutoEncoder):
@@ -626,7 +718,6 @@ class VariationalSequenceAE(VariationalAutoEncoder):
         """Return the exprssions of the recognition model."""
         P = self.parameters.recog
 
-        print P.keys()
         n_layers = len(self.n_hiddens_recog)
         hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
                              for i in range(n_layers - 1)]
@@ -738,141 +829,6 @@ class VariationalSequenceAE(VariationalAutoEncoder):
             'kl_sample_wise': kl_sample_wise,
         }
 
-    def _lp_h(self, latent):
-        """Return the prior log probability of latent sequences."""
-        h_0 = latent[0]
-        d_h1_ht = latent[1:] - latent[:-1]
-
-        lp_h_0 = normal_logpdf(
-            h_0, np.zeros_like(h_0), np.ones_like(h_0)).sum(axis=1)
-        lp_d_h_1_t = normal_logpdf(
-            d_h1_ht, np.zeros_like(d_h1_ht), np.ones_like(d_h1_ht)).sum(axis=2)
-
-        return np.concatenate([lp_h_0[np.newaxis], lp_d_h_1_t])
-
-    def _lq_h_given_v(self, latent, visible):
-        """Return the log propability of latent variables under the recognition
-        model given the visibles."""
-        mean, var = self._latent_mean_var(visible)
-        lp = normal_logpdf(latent, mean, var)
-        return lp.sum(axis=2)
-
-    def _lp_v_given_s(self, visible, latent):
-        """Return the log probability of the visibles given the latent
-        variables."""
-        return -self._rec_loss_of_sample(visible, latent)
-
-
-class VariationalFDSequenceAE(VariationalSequenceAE):
-
-    shortcut = None
-
-    def _recog_par_spec(self):
-        """Return the specification of the recognition model."""
-        spec = vpbrnn.parameters(self.n_inpt, self.n_hiddens_recog,
-                                 self.n_latent)
-
-        spec['p_dropout'] = {
-            'inpt': 1,
-            'hiddens': [1 for _ in self.n_hiddens_recog],
-            'hidden_to_out': 1,
-        }
-
-        return spec
-
-    def _recog_exprs(self, inpt):
-        """Return the exprssions of the recognition model."""
-        P = self.parameters.recog
-
-        n_layers = len(self.n_hiddens_recog)
-        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                             for i in range(n_layers - 1)]
-        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
-                         for i in range(n_layers)]
-        initial_hiddens_fwd = [getattr(P, 'initial_hiddens_fwd_%i' % i)
-                               for i in range(n_layers)]
-        initial_hiddens_bwd = [getattr(P, 'initial_hiddens_bwd_%i' % i)
-                               for i in range(n_layers)]
-        recurrents_fwd = [getattr(P, 'recurrent_fwd_%i' % i)
-                          for i in range(n_layers)]
-        recurrents_bwd = [getattr(P, 'recurrent_bwd_%i' % i)
-                          for i in range(n_layers)]
-
-        p_dropouts = (
-            [P.p_dropout.inpt] + P.p_dropout.hiddens
-            + [P.p_dropout.hidden_to_out])
-
-        # Reparametrize to assert the rates lie in (0.025, 1-0.025).
-        p_dropouts = [T.nnet.sigmoid(i) * 0.95 + 0.025 for i in p_dropouts]
-
-        if self.latent_posterior == 'diag_gauss':
-            out_transfer = 'identity'
-        else:
-            raise ValueError('unknown latent posterior distribution:%s'
-                             % self.latent_posterior)
-
-        exprs = vpbrnn.exprs(
-            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
-            hidden_biases, [1 for _ in hidden_biases],
-            initial_hiddens_fwd, initial_hiddens_bwd,
-            recurrents_fwd, recurrents_bwd,
-            P.out_bias, 1, self.recog_transfers, out_transfer,
-            p_dropouts=p_dropouts)
-
-        return exprs
-
-
-class VariationalFDFDSequenceAE(VariationalFDSequenceAE):
-
-    def _gen_par_spec(self):
-        """Return the parameter specification of the generating model."""
-        n_output = self._layer_size_by_dist(self.n_inpt, self.visible)
-        return vpbrnn.parameters(self.n_latent, self.n_hiddens_gen,
-                                 n_output)
-
-    def _gen_exprs(self, inpt):
-        """Return the expression of the generating model."""
-        P = self.parameters.gen
-
-        n_layers = len(self.n_hiddens_gen)
-        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                             for i in range(n_layers - 1)]
-        recurrents_fwd = [getattr(P, 'recurrent_fwd_%i' % i)
-                          for i in range(n_layers)]
-        recurrents_bwd = [getattr(P, 'recurrent_bwd_%i' % i)
-                          for i in range(n_layers)]
-        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
-                         for i in range(n_layers)]
-        initial_hiddens_fwd = [getattr(P, 'initial_hiddens_fwd_%i' % i)
-                               for i in range(n_layers)]
-        initial_hiddens_bwd = [getattr(P, 'initial_hiddens_bwd_%i' % i)
-                               for i in range(n_layers)]
-
-        if self.visible == 'diag_gauss':
-            out_transfer = 'identity'
-        elif self.visible == 'bern':
-            out_transfer = 'sigmoid'
-        else:
-            raise ValueError('unknown visible distribution: %s'
-                             % self.latent_posterior)
-
-        # TODO Need to crossvalidate at some point.
-        p_dropouts = [0.1] + [0.1] * len(self.n_hiddens_gen) + [0.1]
-
-        exprs = vpbrnn.exprs(
-            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
-            hidden_biases, [1 for b in hidden_biases],
-            initial_hiddens_fwd, initial_hiddens_bwd,
-            recurrents_fwd, recurrents_bwd,
-            P.out_bias, 1, self.recog_transfers, out_transfer,
-            p_dropouts=p_dropouts)
-        exprs['output_uncut'] = exprs['output']
-
-        # FD-RNNs have twice as many outputs as we care about here.
-        exprs['output'] = exprs['output'][:, :, :self.n_inpt]
-
-        return exprs
-
 
 class VariationalOneStepPredictor(VariationalAutoEncoder):
 
@@ -938,3 +894,9 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
         exprs['output'] = exprs['output_flat'].reshape(
             (inpt.shape[0], inpt.shape[1], -1))
         return exprs
+
+    def estimate_nll(self, X):
+        # TODO implement this
+        # The crux is that we need to sample the output as well here. Thus the
+        # framework does not allow this right now.
+        raise NotImplemented()
