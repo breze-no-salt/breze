@@ -146,12 +146,6 @@ class Trainer(object):
     def score(self, *data):
         return self._score(self.model.score, *data)
 
-    def handle_update(self, fit_data):
-        update_losses = {}
-        for key, data in self.eval_data.items():
-            update_losses['%s_loss' % key] = ma.scalar(self.score(*data))
-        return update_losses
-
     def fit(self, *fit_data):
         """Run ``.iter_fit()`` until it terminates
 
@@ -187,8 +181,7 @@ class Trainer(object):
         for info in self.model.iter_fit(*fit_data, info_opt=self.current_info):
             interrupt = self.interrupt(info)
             if self.pause(info) or interrupt:
-                update_losses = self.handle_update(fit_data)
-                info.update(update_losses)
+                info['val_loss'] = ma.scalar(self.score(*self.eval_data[self.val_key]))
 
                 cur_val_loss = info['%s_loss' % self.val_key]
                 if cur_val_loss < self.best_loss:
