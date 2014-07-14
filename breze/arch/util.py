@@ -185,7 +185,6 @@ def gnumpy_func_wrap(f):
             if not isinstance(res, (float, np.ndarray)):
                 res = gput.cudandarray_to_garray(res)
         return res
-    inner.theano_func = f.theano_func
     return inner
 
 
@@ -238,8 +237,14 @@ def theano_expr_bfs(expr):
         if not stack:
             break
         expr = stack.pop()
-        candidates = expr.owner.inputs if hasattr(expr.owner, 'inputs') else []
-        candidates = [i for i in candidates if i not in marked]
+        if hasattr(expr, 'variable'):
+            candidates = [expr.variable]
+        else:
+            candidates = expr.owner.inputs if hasattr(expr.owner, 'inputs') else []
+            candidates = [i for i in candidates if i not in marked]
+
+        if hasattr(expr, 'default_update'):
+            candidates.append(expr.default_update)
 
         stack += candidates
         marked |= set(candidates)
@@ -250,6 +255,13 @@ def theano_expr_bfs(expr):
 def tell_deterministic(expr):
     """Return True iff no random number generator is in the expression graph."""
     return all(not hasattr(i, 'rng') for i in theano_expr_bfs(expr))
+
+
+def tell_variable_in_expr(variable, expr):
+    for i in theano_expr_bfs(expr):
+        if i == variable:
+            return True
+    return False
 
 
 class ParameterSet(object):
@@ -504,12 +516,6 @@ class Model(object):
             exprs_not_list = False
         exprs = [self._lookup(self.exprs, i) for i in exprs]
 
-        # If we are using the GPU, we cannot work with random number generators
-        # due to Theano issue #1467. We check that this is not the case here.
-        if self._gpu_and_random(exprs):
-            raise NotImplementedError(
-                'cannot use random variables in Breze for GPU due to Theano '
-                'issue #1467')
 
         # We need to clone instead of using the givens parameter of
         # theano.function, because otherwise we might get a theano error
@@ -530,9 +536,20 @@ class Model(object):
             updates.update(self.updates[exprs])
 
         if GPU:
+            # This is a workaround for theano issue #1467. After cloning a
+            # graph with random state in it, the cloning will not make the
+            # random state reference the new substitutions but instead have
+            # references to the old variables. The workaround is to silently
+            # add these variables to the givens parameter, and substitute them
+            # with their new references.
             outputs = not numpy_result
+            old_variables, old_exprs = variables, exprs
             variables, exprs = self.var_exp_for_gpu(
                 variables, exprs, outputs=outputs)
+            more_givens = [(old, new) for old, new
+                           in zip(old_variables, variables)
+                           if any(tell_variable_in_expr(old, e) for e in exprs)]
+            givens.update(dict(more_givens))
 
         variables = [self.parameters.flat] + variables
 
