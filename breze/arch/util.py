@@ -185,7 +185,6 @@ def gnumpy_func_wrap(f):
             if not isinstance(res, (float, np.ndarray)):
                 res = gput.cudandarray_to_garray(res)
         return res
-    inner.theano_func = f.theano_func
     return inner
 
 
