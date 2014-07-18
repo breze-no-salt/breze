@@ -104,7 +104,7 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
         self.n_time_steps = n_time_steps
         if image_height is None or image_width is None:
             self.n_inpt = (self.n_time_steps, self.batch_size,
-                           n_image_channel, n_inpt, 1)
+                           n_image_channel, 1, n_inpt)
         else:
             self.n_inpt = (self.n_time_steps, self.batch_size,
                            n_image_channel, image_height,

@@ -168,6 +168,12 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
     #rec part: reshape to n_time_steps, n_samples, channels * n_frames_to_take * n_output
     exprs = {}
 
+    if image_shapes[0][-1] != 1:
+        n_time_steps, n_samples, channels, n_frames, n_features = list(image_shapes[0])
+        inpt = inpt.reshape((n_time_steps, n_samples*channels, 1, n_features))
+        inpt = T.concatenate([inpt[i-n_frames:i, :, :, :] for i in range(n_frames, n_time_steps)], axis=3)
+        inpt.reshape(image_shapes[0])
+
     # Convolutional part
     zipped = zip(image_shapes[1:], hidden_conv_transfers,
                  recurrents, recurrent_types, initial_hiddens,
