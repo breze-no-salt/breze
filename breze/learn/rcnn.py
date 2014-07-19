@@ -85,7 +85,8 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
                  loss, image_height=None, image_width=None, n_image_channel=1,
                  pool_shapes=None, filter_shapes=None,
                  optimizer='lbfgs', batch_size=1, max_iter=1000, recurrent_layers=None,
-                 verbose=False, n_time_steps=1, weights=False):
+                 verbose=False, n_time_steps=1, weights=False, p_dropout_inpt=False,
+                 p_dropout_conv=False, p_dropout_full=False):
 
         if filter_shapes is None:
             filter_shapes = [[5, 5] for _ in range(len(n_hidden_conv))]
@@ -117,6 +118,9 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
         self.n_hidden_conv = n_hidden_conv
         self.n_hidden_full = n_hidden_full
         self.n_output = n_output
+        self.p_dropout_inpt = p_dropout_inpt
+        self.p_dropout_conv = p_dropout_conv
+        self.p_dropout_full = p_dropout_full
         self.hidden_conv_transfers = hidden_conv_transfers
         self.hidden_full_transfers = hidden_full_transfers
         self.out_transfer = out_transfer
@@ -214,8 +218,11 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
             hidden_full_bias, self.hidden_conv_transfers,
             self.hidden_full_transfers, self.out_transfer, self.loss,
             self.image_shapes, self.filter_shapes_comp,
-            self.pool_shapes, recurrents, initial_hiddens, self.exprs['weights'],
-            self.recurrent_layers)
+            self.pool_shapes, recurrents, initial_hiddens,
+            self.exprs['weights'], self.recurrent_layers,
+            p_dropout_inpt=self.p_dropout_inpt,
+            p_dropout_conv=self.p_dropout_conv,
+            p_dropout_full=self.p_dropout_full)
         )
 
     def apply_minibatches_function(self, f, X, Z, weights=None):
@@ -281,3 +288,14 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
         data = minibatches(X, self.batch_size, 0)
         total = np.concatenate([super(Rcnn, self).predict(element) for element in data], axis=0)
         return total
+
+    def get_deterministic_rcnn(self):
+        return Rcnn(1, self.n_hidden_conv, self.n_hidden_full, self.n_output,
+                 self.hidden_conv_transfers, self.hidden_full_transfers, self.out_transfer,
+                 self.loss, image_height=self.n_inpt[-2], image_width=self.n_inpt[-1],
+                 n_image_channel=self.n_inpt[-3],
+                 pool_shapes=self.pool_shapes, filter_shapes=self.filter_shapes,
+                 optimizer=self.optimizer, batch_size=self.batch_size,
+                 max_iter=self.max_iter, recurrent_layers=self.recurrent_layers,
+                 verbose=False, n_time_steps=self.n_time_steps, weights=self.weights, p_dropout_inpt=False,
+                 p_dropout_conv=False, p_dropout_full=False)

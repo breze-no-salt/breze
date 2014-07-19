@@ -1,3 +1,5 @@
+from breze.arch.component import corrupt
+
 __author__ = 'apuigdom'
 # -*- coding: utf-8 -*-
 
@@ -6,6 +8,8 @@ import theano.tensor as T
 from theano.tensor.nnet import conv
 from theano.tensor.extra_ops import repeat
 from theano.tensor.signal import downsample
+from theano.sandbox.neighbours import images2neibs
+
 
 from ...util import lookup
 from ...component import transfer, loss as loss_
@@ -160,7 +164,21 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
           hidden_full_transfers, output_transfer, loss,
           image_shapes, filter_shapes_comp,
           pool_shapes, recurrents, initial_hiddens, weights,
-          recurrent_types):
+          recurrent_types, p_dropout_inpt=False, p_dropout_conv=False,
+          p_dropout_full=False):
+
+
+    if not p_dropout_inpt:
+        p_dropout_inpt = 0
+    if not p_dropout_conv:
+        p_dropout_conv = [0]*len(hidden_conv_bias)
+    if not p_dropout_full:
+        p_dropout_full = [0]*(len(hidden_full_bias)-1)
+    if not isinstance(p_dropout_conv, list):
+        p_dropout_conv = [p_dropout_conv]*len(hidden_conv_bias)
+    if not isinstance(p_dropout_full, list):
+        p_dropout_full = [p_dropout_full]*(len(hidden_full_bias)-1)
+    p_dropout_full += [0]
 
     print image_shapes
     #input shape = n_time_steps, n_samples, channels, n_frames_to_take, n_output
@@ -168,24 +186,33 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
     #rec part: reshape to n_time_steps, n_samples, channels * n_frames_to_take * n_output
     exprs = {}
 
-    if image_shapes[0][-1] != 1:
+    if image_shapes[0][-2] != 1:
         n_time_steps, n_samples, channels, n_frames, n_features = list(image_shapes[0])
-        inpt = inpt.reshape((n_time_steps, n_samples*channels, 1, n_features))
-        inpt = T.concatenate([inpt[i-n_frames:i, :, :, :] for i in range(n_frames, n_time_steps)], axis=3)
-        inpt.reshape(image_shapes[0])
+        hidden = inpt.reshape((n_time_steps+n_frames-1, n_samples*channels*n_features))
+        hidden = hidden.dimshuffle((1, 0))
+        hidden = hidden.reshape((1, n_samples*channels*n_features, 1, n_time_steps+n_frames-1))
+        hidden = images2neibs(hidden, neib_shape=(1, 5), neib_step=(1, 1))
+        hidden.reshape((n_samples*channels*n_frames*n_features, n_time_steps))
+        hidden = hidden.dimshuffle((1, 0))
+        """
+        hidden = T.concatenate([T.concatenate([hidden[j:j+1, :, :, :] for j in range(i-n_frames, i)], axis=2)
+                               for i in range(n_frames, n_time_steps+n_frames)], axis=0)
+        hidden = hidden.reshape(image_shapes[0])"""
+
 
     # Convolutional part
     zipped = zip(image_shapes[1:], hidden_conv_transfers,
-                 recurrents, recurrent_types, initial_hiddens,
+                 recurrents, recurrent_types, initial_hiddens, p_dropout_conv,
                  [in_to_hidden] + hidden_conv_to_hidden_conv, hidden_conv_bias,
                  filter_shapes_comp, pool_shapes)
-
     conv_shape = [np.prod(image_shapes[0][:2])] + list(image_shapes[0][2:])
-    hidden = inpt.reshape(conv_shape)
+    hidden = hidden.reshape(conv_shape)
+    if p_dropout_inpt:
+        hidden = corrupt.mask(hidden, p_dropout_inpt)
     for i, params in enumerate(zipped):
-        image_shape, ft, rec, rec_type, ih = params[:5]
+        image_shape, ft, rec, rec_type, ih, p_dropout = params[:6]
         f = lookup(ft, transfer)
-        hidden_in_down = conv_part(hidden, params[5:], conv_shape)
+        hidden_in_down = conv_part(hidden, params[6:], conv_shape)
         conv_shape = [np.prod(image_shape[:2])] + list(image_shape[2:])
         if rec is not None:
             rec_shape = list(image_shape[:2]) + [np.prod(image_shape[2:])]
@@ -193,24 +220,28 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
             hidden_in_rec = recurrent_layer(reshaped_hidden_in_conv_down, rec, f, ih, rec_shape, rec_type)
             hidden_in_down = (hidden_in_rec.reshape(image_shape)).reshape(conv_shape)
         exprs['conv-hidden_in_%i' % i] = hidden_in_down
-        hidden = exprs['conv-hidden_%i' % i] = f(hidden_in_down)
-
+        hidden = f(hidden_in_down)
+        if p_dropout:
+            hidden = corrupt.mask(hidden, p_dropout)
+        exprs['conv-hidden_%i' % i] = hidden
     # Mlp part
     offset = len(hidden_conv_bias)
     zipped = zip([hidden_conv_to_hidden_full] + hidden_full_to_hidden_full,
                  hidden_full_bias, hidden_full_transfers, recurrents[offset:],
                  recurrent_types[offset:], initial_hiddens[offset:],
-                 image_shapes[offset+1:])
+                 image_shapes[offset+1:], p_dropout_full)
     image_shape = image_shapes[offset]
     rec_shape = list(image_shape[:2]) + [np.prod(image_shape[2:])]
     hidden = hidden.reshape(rec_shape)
-    for i, (w, b, t, rec, rec_type, ih, image_shape) in enumerate(zipped):
+    for i, (w, b, t, rec, rec_type, ih, image_shape, p_dropout) in enumerate(zipped):
         hidden_in = feedforward_layer(hidden, w, b)
         f = lookup(t, transfer)
         if rec is not None:
             hidden_in = recurrent_layer(hidden_in, rec, f, ih, image_shape, rec_type)
         hidden = f(hidden_in)
         exprs['hidden_in_%i' % (i + offset + 1)] = hidden_in
+        if p_dropout:
+            hidden = corrupt.mask(hidden, p_dropout)
         exprs['hidden_%i' % (i + offset + 1)] = hidden
 
     f_output = lookup(output_transfer, transfer)
