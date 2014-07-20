@@ -77,11 +77,11 @@ def assert_no_time(X):
         return X
     if X.ndim != 3:
         raise ValueError('ndim must be 2 or 3, but it is %i' % X.ndim)
-    return X.reshape((-1, X.shape[2]))
+    return wild_reshape(X, (-1, X.shape[2]))
 
 
 def recover_time(X, time_steps):
-    return X.reshape((time_steps, -1, X.shape[1]))
+    return wild_reshape(X, (time_steps, -1, X.shape[1]))
 
 
 def normal_logpdf(xs, means, vrs):
@@ -89,6 +89,19 @@ def normal_logpdf(xs, means, vrs):
     divisor = 2 * vrs
     logz = -(vrs * 2 * np.pi) ** 0.5
     return -(residual ** 2 / divisor) - logz
+
+
+def wild_reshape(tensor, shape):
+    n_m1 = shape.count(-1)
+    if n_m1 > 1:
+        raise ValueError(' only one -1 allowed in shape')
+    elif n_m1 == 1:
+        rest = tensor.size
+        for s in shape:
+            if s != -1:
+                rest = rest // s
+        shape = tuple(i if i != -1 else rest for i in shape)
+    return tensor.reshape(shape)
 
 
 # Taken from osdfutils.
@@ -182,7 +195,7 @@ class DiagGaussLatentAssumption(object):
 
     def kl_recog_prior(self, stt):
         if stt.ndim == 3:
-            stt_flat = stt.reshape((-1, stt.shape[2]))
+            stt_flat = wild_reshape(stt, (-1, stt.shape[2]))
         else:
             stt_flat = stt
 
@@ -888,11 +901,15 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
             n_output)
 
     def _gen_exprs(self, inpt):
-        inpt_flat = inpt.reshape((-1, inpt.shape[2]))
+        inpt_flat = wild_reshape(inpt, (-1, inpt.shape[2]))
         exprs = super(VariationalOneStepPredictor, self)._gen_exprs(inpt_flat)
         exprs['output_flat'] = exprs['output']
-        exprs['output'] = exprs['output_flat'].reshape(
-            (inpt.shape[0], inpt.shape[1], -1))
+
+        output_flat = exprs['output_flat']
+        output_shape = inpt.shape[0], inpt.shape[1], output_flat.size
+
+        exprs['output'] = wild_reshape(exprs['output_flat'],
+                                       (inpt.shape[0], inpt.shape[1], -1))
         return exprs
 
     def estimate_nll(self, X):
