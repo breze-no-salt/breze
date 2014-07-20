@@ -219,6 +219,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
 
                 data = ((cast_array_to_local_type(x),
                          cast_array_to_local_type(z)) for x, z in data)
+
         args = ((i, {}) for i in data)
         return args
 
@@ -409,6 +410,12 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
             raise ValueError('need strictly positive batch size')
         else:
             data = iter_minibatches(item, self.batch_size, sample_dim)
+        if use_imp_weight:
+            data = ((cast_array_to_local_type(x), cast_array_to_local_type(w))
+                    for x, w in data)
+        else:
+            data = ((cast_array_to_local_type(x),)
+                    for x, in data)
         args = ((i, {}) for i in data)
         return args
 
