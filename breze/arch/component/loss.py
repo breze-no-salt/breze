@@ -243,8 +243,8 @@ def bern_ces(target, prediction):
         An array of the same size as ``target`` and ``prediction`` representing
         the pairwise divergences.
     """
-    prediction = prediction + 1e-8       # Add a small constant for stability
-    return -(target * T.log(prediction) + (1 - target) * T.log(1 - prediction))
+    prediction = prediction        # Add a small constant for stability
+    return -(target * T.log(prediction+1e-7) + (1 - target) * T.log(1 + 1e-7 - prediction))
 
 
 def bern_bern_kl(X, Y):

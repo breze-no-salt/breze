@@ -186,19 +186,19 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
     #rec part: reshape to n_time_steps, n_samples, channels * n_frames_to_take * n_output
     exprs = {}
 
+    hidden = inpt
     if image_shapes[0][-2] != 1:
         n_time_steps, n_samples, channels, n_frames, n_features = list(image_shapes[0])
-        hidden = inpt.reshape((n_time_steps+n_frames-1, n_samples*channels*n_features))
+        hidden = hidden.reshape(((n_time_steps+n_frames-1), n_samples, channels, 1, n_features))
+        """hidden = hidden.reshape((n_time_steps+n_frames-1, n_samples*channels*n_features))
         hidden = hidden.dimshuffle((1, 0))
         hidden = hidden.reshape((1, n_samples*channels*n_features, 1, n_time_steps+n_frames-1))
         hidden = images2neibs(hidden, neib_shape=(1, 5), neib_step=(1, 1))
-        hidden.reshape((n_samples*channels*n_frames*n_features, n_time_steps))
+        hidden = hidden.reshape((n_samples*channels*n_frames*n_features, n_time_steps))
         hidden = hidden.dimshuffle((1, 0))
         """
-        hidden = T.concatenate([T.concatenate([hidden[j:j+1, :, :, :] for j in range(i-n_frames, i)], axis=2)
+        hidden = T.concatenate([T.concatenate([hidden[j:j+1, :, :, :, :] for j in range(i-n_frames, i)], axis=3)
                                for i in range(n_frames, n_time_steps+n_frames)], axis=0)
-        hidden = hidden.reshape(image_shapes[0])"""
-
 
     # Convolutional part
     zipped = zip(image_shapes[1:], hidden_conv_transfers,
