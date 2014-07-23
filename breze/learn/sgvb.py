@@ -897,7 +897,7 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
         """Return the parameter specification of the generating model."""
         n_output = self.assumptions.visible_layer_size(self.n_inpt)
         return mlp.parameters(
-            self.n_latent + self.n_hiddens_recog[-1], self.n_hiddens_recog,
+            self.n_latent + self.n_hiddens_recog[-1], self.n_hiddens_gen,
             n_output)
 
     def _gen_exprs(self, inpt):
