@@ -611,10 +611,10 @@ class VariationalRecurrentAutoEncoder(VariationalAutoEncoder):
         exprs = {
             'inpt': T.tensor3('inpt')
         }
-        exprs['inpt'].tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
+        exprs['inpt'].tag.test_value, = theano_floatx(np.ones((3, 2, self.n_inpt)))
         if self.imp_weight:
             exprs['imp_weight'] = T.tensor3('imp_weight')
-            exprs['imp_weight'].tag.test_value, = theano_floatx(np.ones((3, 1)))
+            exprs['imp_weight'].tag.test_value, = theano_floatx(np.ones((3, 2, 1)))
 
         return exprs
 
@@ -790,12 +790,12 @@ class VariationalSequenceAE(VariationalAutoEncoder):
 
     def _make_start_exprs(self):
         exprs = {
-            'inpt': T.tensor3('inpt')
+            'inpt': t.tensor3('inpt')
         }
         exprs['inpt'].tag.test_value, = theano_floatx(np.ones((3, 2, self.n_inpt)))
 
         if self.imp_weight:
-            exprs['imp_weight'] = T.tensor3('imp_weight')
+            exprs['imp_weight'] = t.tensor3('imp_weight')
             exprs['imp_weight'].tag.test_value, = theano_floatx(np.ones((3, 2, 1)))
         return exprs
 
@@ -897,7 +897,7 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
         """Return the parameter specification of the generating model."""
         n_output = self.assumptions.visible_layer_size(self.n_inpt)
         return mlp.parameters(
-            self.n_latent + self.n_hiddens_recog[-1], self.n_hiddens_recog,
+            self.n_latent + self.n_hiddens_recog[-1], self.n_hiddens_gen,
             n_output)
 
     def _gen_exprs(self, inpt):
