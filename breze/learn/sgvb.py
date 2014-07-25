@@ -87,10 +87,9 @@ def recover_time(X, time_steps):
 
 
 def normal_logpdf(xs, means, vrs):
-    residual = xs - means
-    divisor = 2 * vrs
-    logz = -(vrs * 2 * np.pi) ** 0.5
-    return -(residual ** 2 / divisor) - logz
+    energy = -(xs - means) ** 2 / (2 * vrs)
+    partition_func = -T.log(T.sqrt(2 * np.pi * vrs))
+    return partition_func + energy
 
 
 def wild_reshape(tensor, shape):
@@ -196,7 +195,7 @@ class DiagGaussLatentAssumption(object):
 
     def nll_prior(self, X):
         X_flat = X.flatten()
-        nll = normal_logpdf(X_flat, T.zeros_like(X_flat), T.ones_like(X_flat))
+        nll = -normal_logpdf(X_flat, T.zeros_like(X_flat), T.ones_like(X_flat))
         return nll.reshape(X.shape)
 
     def latent_layer_size(self, n_latents):
@@ -925,9 +924,3 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
         exprs['output'] = wild_reshape(exprs['output_flat'],
                                        (inpt.shape[0], inpt.shape[1], -1))
         return exprs
-
-    def estimate_nll(self, X):
-        # TODO implement this
-        # The crux is that we need to sample the output as well here. Thus the
-        # framework does not allow this right now.
-        raise NotImplemented()
