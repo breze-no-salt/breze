@@ -52,6 +52,8 @@ import theano.tensor as T
 import theano.tensor.nnet
 import numpy as np
 
+from scipy.misc import logsumexp
+
 from breze.arch.component.common import supervised_loss
 from breze.arch.component.misc import inter_gauss_kl
 from breze.arch.component.transfer import sigmoid, diag_gauss
@@ -102,16 +104,6 @@ def wild_reshape(tensor, shape):
                 rest = rest // s
         shape = tuple(i if i != -1 else rest for i in shape)
     return tensor.reshape(shape)
-
-
-# Taken from osdfutils.
-def logsumexp(array, axis):
-    """Compute the log of a sum of exps of ``array`` along some ``axis``.
-
-    If _axis_ is not zero, caller must transform result in suitable shape."""
-    arr = np.rollaxis(array, axis)
-    axis_max = np.max(arr, axis=0)
-    return axis_max + np.log(np.sum(np.exp(arr - axis_max), axis=0))
 
 
 # TODO document
