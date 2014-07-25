@@ -110,23 +110,23 @@ def wild_reshape(tensor, shape):
 def estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
                  f_sample_z_given_x, n_samples):
     if X.ndim == 2:
-        loga = np.empty((n_samples, X.shape[0]))
-        logb = np.empty((n_samples, X.shape[0]))
-        logc = np.empty((n_samples, X.shape[0]))
+        log_prior = np.empty((n_samples, X.shape[0]))
+        log_posterior = np.empty((n_samples, X.shape[0]))
+        log_recog = np.empty((n_samples, X.shape[0]))
     elif X.ndim == 3:
-        loga = np.empty((n_samples, X.shape[0], X.shape[1]))
-        logb = np.empty((n_samples, X.shape[0], X.shape[1]))
-        logc = np.empty((n_samples, X.shape[0], X.shape[1]))
+        log_prior = np.empty((n_samples, X.shape[0], X.shape[1]))
+        log_posterior = np.empty((n_samples, X.shape[0], X.shape[1]))
+        log_recog = np.empty((n_samples, X.shape[0], X.shape[1]))
     else:
         raise ValueError('unexpected ndim for X, can be 2 or 3')
 
     for i in range(n_samples):
         Z = f_sample_z_given_x(X)
-        loga[i] = -f_nll_z(Z)
-        logb[i] = -f_nll_x_given_z(X, Z)
-        logc[i] = -f_nll_z_given_x(Z, X)
+        log_prior[i] = -f_nll_z(Z)
+        log_posterior[i] = -f_nll_x_given_z(X, Z)
+        log_recog[i] = -f_nll_z_given_x(Z, X)
 
-    d = loga + logb - logc
+    d = log_prior + log_posterior - log_recog
 
     ll = logsumexp(d, 0) - np.log(n_samples)
     return -ll
