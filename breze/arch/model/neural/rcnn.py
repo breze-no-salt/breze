@@ -10,12 +10,10 @@ from theano.tensor.extra_ops import repeat
 from theano.tensor.signal import downsample
 from theano.sandbox.neighbours import images2neibs
 
-
 from ...util import lookup
 from ...component import transfer, loss as loss_
 import numpy as np
 
-import mlp
 
 # TODO document
 
@@ -23,8 +21,12 @@ import mlp
 
 def define_recurrent_params(spec, current_layer, size_hidden, recurrency):
     if recurrency == 'full':
-        print size_hidden
         spec['recurrent_%i' % current_layer] = (size_hidden, size_hidden)
+    elif recurrency == 'lstm':
+        spec['recurrent_%i' % current_layer] = (size_hidden, size_hidden * 4)
+        spec['ingate_peephole_%i' % current_layer] = (size_hidden,)
+        spec['outgate_peephole_%i' % current_layer] = (size_hidden,)
+        spec['forgetgate_peephole_%i' % current_layer] = (size_hidden,)
     elif recurrency == 'single':
         spec['recurrent_%i' % current_layer] = size_hidden
     elif recurrency[0] == 'double':
@@ -36,13 +38,13 @@ def define_recurrent_params(spec, current_layer, size_hidden, recurrency):
         raise AttributeError('Recurrency format is not correct')
     return spec
 
+
 def parameters(n_inpt, n_hidden_conv, n_hidden_full, n_output,
                filter_shapes, image_shapes, recurrency):
     spec = dict(in_to_hidden=(n_hidden_conv[0], n_inpt[2],
-                filter_shapes[0][0], filter_shapes[0][1]),
+                              filter_shapes[0][0], filter_shapes[0][1]),
                 hidden_to_out=(n_hidden_full[-1], n_output),
                 hidden_conv_bias_0=n_hidden_conv[0],
-                hidden_full_bias_0=n_hidden_full[0],
                 out_bias=n_output)
 
     if recurrency[0]:
@@ -58,46 +60,60 @@ def parameters(n_inpt, n_hidden_conv, n_hidden_full, n_output,
         spec['hidden_conv_bias_%i' % (i + 1)] = outlayer
         if rec:
             size_hidden = np.prod(image_shape[-3:])
-            spec = define_recurrent_params(spec, i+1, size_hidden, rec)
-            spec['initial_hiddens_%i' % (i+1)] = size_hidden
+            spec = define_recurrent_params(spec, i + 1, size_hidden, rec)
+            spec['initial_hiddens_%i' % (i + 1)] = size_hidden
 
-    spec['hidden_conv_to_hidden_full'] = (np.prod(image_shapes[len(n_hidden_conv)][-3:]), n_hidden_full[0])
-    current_layer = len(n_hidden_conv)+1
+    current_layer = len(n_hidden_conv) + 1
+    spec['hidden_conv_to_hidden_full'] = (np.prod(image_shapes[current_layer - 1][-3:]),
+                                          image_shapes[current_layer][-1])
     size_hidden = image_shapes[current_layer][-1]
-    if recurrency[current_layer-1]:
-        spec = define_recurrent_params(spec, current_layer, size_hidden, recurrency[current_layer-1])
-        spec['initial_hiddens_%i' % current_layer] = size_hidden
+    spec['hidden_full_bias_0'] = size_hidden
+    if recurrency[current_layer - 1]:
+        if recurrency[current_layer - 1] == 'lstm':
+            size_hidden /= 4
+            spec['state_%i' % (current_layer-1)] = size_hidden
+        spec = define_recurrent_params(spec, current_layer-1, size_hidden, recurrency[current_layer - 1])
+        spec['initial_hiddens_%i' % (current_layer-1)] = size_hidden
 
 
     zipped = zip(n_hidden_full[:-1], n_hidden_full[1:],
-                 image_shapes[len(n_hidden_conv)+2:],
-                 recurrency[len(n_hidden_conv)+1:])
-    for i, (inlayer, outlayer, image_shape, rec) in enumerate(zipped):
+                 recurrency[len(n_hidden_conv) + 1:])
+    for i, (inlayer, outlayer, rec) in enumerate(zipped):
         spec['hidden_full_to_hidden_full_%i' % i] = (inlayer, outlayer)
         spec['hidden_full_bias_%i' % (i + 1)] = outlayer
         if rec:
-            size_hidden = image_shape[-1]
-            spec = define_recurrent_params(spec, i+len(n_hidden_conv), size_hidden, rec)
-            spec['initial_hiddens_%i' % (i+len(n_hidden_conv))] = size_hidden
+            spec = define_recurrent_params(spec, i + 1 + len(n_hidden_conv), outlayer, rec)
+            spec['initial_hiddens_%i' % (i + 1 + len(n_hidden_conv))] = outlayer
+            if rec == 'lstm':
+                spec['hidden_full_to_hidden_full_%i' % i] = (inlayer, 4 * outlayer)
+                spec['hidden_full_bias_%i' % (i + 1)] = 4 * outlayer
+                spec['state_%i' % (i + 1 + len(n_hidden_conv))] = outlayer
+
 
     print spec
     return spec
 
 
-def recurrent_layer(hidden_inpt, hidden_to_hidden, f, initial_hidden,
-                    rec_shape, rec_type):
+def recurrent_layer(hidden_inpt, hidden_to_hidden, f, initial_hidden, state,
+                    rec_shape, rec_type, ingate_peephole=None,
+                    outgate_peephole=None, forgetgate_peephole=None):
+
+
     def step_full(x, hi_tm1):
         h_tm1 = f(hi_tm1)
         hi = T.dot(h_tm1, hidden_to_hidden) + x
         return hi
+
     def step_single(x, hi_tm1):
         h_tm1 = f(hi_tm1)
         hi = (h_tm1 * hidden_to_hidden) + x
         return hi
+
     def step_double(x, hi_tm1):
         h_tm1 = f(hi_tm1)
         hi = T.dot(T.dot(h_tm1, hidden_to_hidden[0]), hidden_to_hidden[1]) + x
         return hi
+
     def step_conv(x, hi_tm1):
         h_tm1 = f(hi_tm1)
         h_tm1 = h_tm1.reshape((rec_shape[1], 1, rec_shape[2], 1))
@@ -108,27 +124,62 @@ def recurrent_layer(hidden_inpt, hidden_to_hidden, f, initial_hidden,
         hi = h_tm1 + x
         return hi
 
+    def lstm_step(x_t, s_tm1, h_tm1):
+        x_t += T.dot(h_tm1, hidden_to_hidden)
+
+        inpt = T.tanh(x_t[:, :n_hidden_out])
+        gates = x_t[:, n_hidden_out:]
+        inpeep = s_tm1 * ingate_peephole
+        outpeep = s_tm1 * outgate_peephole
+        forgetpeep = s_tm1 * forgetgate_peephole
+
+        ingate = f(gates[:, :n_hidden_out] + inpeep)
+        forgetgate = f(
+            gates[:, n_hidden_out:2 * n_hidden_out] + forgetpeep)
+        outgate = f(gates[:, 2 * n_hidden_out:] + outpeep)
+
+        s_t = inpt * ingate + s_tm1 * forgetgate
+        h_t = f(s_t) * outgate
+        return [s_t, h_t]
+
     if rec_type == 'full':
         step = step_full
     elif rec_type == 'single':
         step = step_single
+    elif rec_type == 'lstm':
+        pass
     elif rec_type[0] == 'double':
         step = step_double
     elif rec_type[0] == 'conv':
         step = step_conv
     else:
         raise AttributeError('Recurrency format is not correct')
-    # Modify the initial hidden state to obtain several copies of
-    # it, one per sample.
-    # TODO check if this is correct; FD-RNNs do it right.
-    initial_hidden_b = repeat(initial_hidden, hidden_inpt.shape[1], axis=0)
-    initial_hidden_b = initial_hidden_b.reshape(
-        (hidden_inpt.shape[1], hidden_inpt.shape[2]))
 
-    hidden_in_rec, _ = theano.scan(
-        step,
-        sequences=hidden_inpt,
-        outputs_info=[initial_hidden_b])
+    if rec_type == 'lstm':
+        n_hidden_out = hidden_to_hidden.shape[0]
+        initial_hidden_b = repeat(initial_hidden, hidden_inpt.shape[1], axis=0)
+        initial_hidden_b = initial_hidden_b.reshape(
+            (hidden_inpt.shape[1], n_hidden_out))
+        initial_state_b = repeat(state, hidden_inpt.shape[1], axis=0)
+        initial_state_b = initial_state_b.reshape(
+            (hidden_inpt.shape[1], n_hidden_out))
+        (_, hidden_in_rec), _ = theano.scan(
+            lstm_step,
+            sequences=hidden_inpt,
+            outputs_info=[initial_state_b, initial_hidden_b]
+            )
+
+    else:
+        # Modify the initial hidden state to obtain several copies of
+        # it, one per sample.
+        # TODO check if this is correct; FD-RNNs do it right.
+        initial_hidden_b = repeat(initial_hidden, hidden_inpt.shape[1], axis=0)
+        initial_hidden_b = initial_hidden_b.reshape(
+            (hidden_inpt.shape[1], hidden_inpt.shape[2]))
+        hidden_in_rec, _ = theano.scan(
+            step,
+            sequences=hidden_inpt,
+            outputs_info=[initial_hidden_b])
 
     return hidden_in_rec
 
@@ -165,23 +216,22 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
           image_shapes, filter_shapes_comp,
           pool_shapes, recurrents, initial_hiddens, weights,
           recurrent_types, p_dropout_inpt=False, p_dropout_conv=False,
-          p_dropout_full=False):
-
-
+          p_dropout_full=False, ingate_peephole=None, outgate_peephole=None,
+          forgetgate_peephole=None, states=None):
     if not p_dropout_inpt:
         p_dropout_inpt = 0
     if not p_dropout_conv:
-        p_dropout_conv = [0]*len(hidden_conv_bias)
+        p_dropout_conv = [0] * len(hidden_conv_bias)
     if not p_dropout_full:
-        p_dropout_full = [0]*(len(hidden_full_bias)-1)
+        p_dropout_full = [0] * (len(hidden_full_bias) - 1)
     if not isinstance(p_dropout_conv, list):
-        p_dropout_conv = [p_dropout_conv]*len(hidden_conv_bias)
+        p_dropout_conv = [p_dropout_conv] * len(hidden_conv_bias)
     if not isinstance(p_dropout_full, list):
-        p_dropout_full = [p_dropout_full]*(len(hidden_full_bias)-1)
+        p_dropout_full = [p_dropout_full] * (len(hidden_full_bias) - 1)
     p_dropout_full += [0]
 
-    print image_shapes
-    #input shape = n_time_steps, n_samples, channels, n_frames_to_take, n_output
+    print image_shapes, states
+    # input shape = n_time_steps, n_samples, channels, n_frames_to_take, n_output
     #conv part: reshape to n_time_step * n_samples, channels, n_frames_to_take, n_output
     #rec part: reshape to n_time_steps, n_samples, channels * n_frames_to_take * n_output
     exprs = {}
@@ -189,20 +239,13 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
     hidden = inpt
     if image_shapes[0][-2] != 1:
         n_time_steps, n_samples, channels, n_frames, n_features = list(image_shapes[0])
-        hidden = hidden.reshape(((n_time_steps+n_frames-1), n_samples, channels, 1, n_features))
-        """hidden = hidden.reshape((n_time_steps+n_frames-1, n_samples*channels*n_features))
-        hidden = hidden.dimshuffle((1, 0))
-        hidden = hidden.reshape((1, n_samples*channels*n_features, 1, n_time_steps+n_frames-1))
-        hidden = images2neibs(hidden, neib_shape=(1, 5), neib_step=(1, 1))
-        hidden = hidden.reshape((n_samples*channels*n_frames*n_features, n_time_steps))
-        hidden = hidden.dimshuffle((1, 0))
-        """
-        hidden = T.concatenate([T.concatenate([hidden[j:j+1, :, :, :, :] for j in range(i-n_frames, i)], axis=3)
-                               for i in range(n_frames, n_time_steps+n_frames)], axis=0)
+        hidden = hidden.reshape(((n_time_steps + n_frames - 1), n_samples, channels, 1, n_features))
+        hidden = T.concatenate([T.concatenate([hidden[j:j + 1, :, :, :, :] for j in range(i - n_frames, i)], axis=3)
+                                for i in range(n_frames, n_time_steps + n_frames)], axis=0)
 
     # Convolutional part
     zipped = zip(image_shapes[1:], hidden_conv_transfers,
-                 recurrents, recurrent_types, initial_hiddens, p_dropout_conv,
+                 recurrents, recurrent_types, initial_hiddens, states, p_dropout_conv,
                  [in_to_hidden] + hidden_conv_to_hidden_conv, hidden_conv_bias,
                  filter_shapes_comp, pool_shapes)
     conv_shape = [np.prod(image_shapes[0][:2])] + list(image_shapes[0][2:])
@@ -210,34 +253,41 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
     if p_dropout_inpt:
         hidden = corrupt.mask(hidden, p_dropout_inpt)
     for i, params in enumerate(zipped):
-        image_shape, ft, rec, rec_type, ih, p_dropout = params[:6]
+        image_shape, ft, rec, rec_type, ih, s, p_dropout = params[:7]
         f = lookup(ft, transfer)
-        hidden_in_down = conv_part(hidden, params[6:], conv_shape)
+        hidden_in_down = conv_part(hidden, params[7:], conv_shape)
         conv_shape = [np.prod(image_shape[:2])] + list(image_shape[2:])
         if rec is not None:
             rec_shape = list(image_shape[:2]) + [np.prod(image_shape[2:])]
             reshaped_hidden_in_conv_down = (hidden_in_down.reshape(image_shape)).reshape(rec_shape)
-            hidden_in_rec = recurrent_layer(reshaped_hidden_in_conv_down, rec, f, ih, rec_shape, rec_type)
+            hidden_in_rec = recurrent_layer(reshaped_hidden_in_conv_down, rec, f, ih, s, rec_shape, rec_type)
             hidden_in_down = (hidden_in_rec.reshape(image_shape)).reshape(conv_shape)
         exprs['conv-hidden_in_%i' % i] = hidden_in_down
         hidden = f(hidden_in_down)
         if p_dropout:
             hidden = corrupt.mask(hidden, p_dropout)
         exprs['conv-hidden_%i' % i] = hidden
-    # Mlp part
+
+
+    # Non-conv part
     offset = len(hidden_conv_bias)
     zipped = zip([hidden_conv_to_hidden_full] + hidden_full_to_hidden_full,
                  hidden_full_bias, hidden_full_transfers, recurrents[offset:],
                  recurrent_types[offset:], initial_hiddens[offset:],
-                 image_shapes[offset+1:], p_dropout_full)
+                 states[offset:],
+                 ingate_peephole, outgate_peephole, forgetgate_peephole,
+                 image_shapes[offset + 1:], p_dropout_full)
     image_shape = image_shapes[offset]
     rec_shape = list(image_shape[:2]) + [np.prod(image_shape[2:])]
     hidden = hidden.reshape(rec_shape)
-    for i, (w, b, t, rec, rec_type, ih, image_shape, p_dropout) in enumerate(zipped):
+    for i, (w, b, t, rec, rec_type, ih, s, ip, op, fp, image_shape, p_dropout) in enumerate(zipped):
         hidden_in = feedforward_layer(hidden, w, b)
         f = lookup(t, transfer)
         if rec is not None:
-            hidden_in = recurrent_layer(hidden_in, rec, f, ih, image_shape, rec_type)
+            print ip, op, fp
+            hidden_in = recurrent_layer(hidden_in, rec, f, ih, s, image_shape, rec_type,
+                                      ingate_peephole=ip, outgate_peephole=op,
+                                      forgetgate_peephole=fp)
         hidden = f(hidden_in)
         exprs['hidden_in_%i' % (i + offset + 1)] = hidden_in
         if p_dropout:
@@ -251,17 +301,23 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
     output = f_output(output_in)
 
     f_loss = lookup(loss, loss_)
-    loss_coordwise = f_loss(target, output)
 
-
-    if weights is not None:
-        loss_coordwise *= weights
-    loss_samplewise = loss_coordwise.sum(axis=2)
-    if weights is not None:
-        weights_samplewise = weights.mean(axis=2)
-        overall_loss = loss_samplewise.sum(axis=None) / weights_samplewise.sum(axis=None)
+    #TODO: Make this pretty
+    if loss == 'fmeasure':
+        loss_coordwise = f_loss(target, output*weights)#
+        loss_samplewise = loss_coordwise
+        overall_loss = loss_samplewise
     else:
-        overall_loss = loss_samplewise.mean()
+        loss_coordwise = f_loss(target, output)#
+
+        if weights is not None:
+            loss_coordwise *= weights
+        loss_samplewise = loss_coordwise.sum(axis=2)
+        if weights is not None:
+            weights_samplewise = weights.mean(axis=2)
+            overall_loss = loss_samplewise.sum(axis=None) / weights_samplewise.sum(axis=None)
+        else:
+            overall_loss = loss_samplewise.mean()
 
     exprs.update({
         'loss_samplewise': loss_samplewise,

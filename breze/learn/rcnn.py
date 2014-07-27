@@ -1,3 +1,5 @@
+from breze.arch.component.misc import project_into_l2_ball
+
 __author__ = 'apuigdom'
 # -*- coding: utf-8 -*-
 
@@ -86,7 +88,7 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
                  pool_shapes=None, filter_shapes=None,
                  optimizer='lbfgs', batch_size=1, max_iter=1000, recurrent_layers=None,
                  verbose=False, n_time_steps=1, weights=False, p_dropout_inpt=False,
-                 p_dropout_conv=False, p_dropout_full=False):
+                 p_dropout_conv=False, p_dropout_full=False, clipping=False):
 
         if filter_shapes is None:
             filter_shapes = [[5, 5] for _ in range(len(n_hidden_conv))]
@@ -130,6 +132,7 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
         self.pool_shapes = pool_shapes
         self.filter_shapes = filter_shapes
         self.weights = weights
+        self.clipping = clipping
         self._init_image_shapes()
         self._init_filter_shapes()
 
@@ -163,8 +166,12 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
             self.image_shapes.append((self.n_time_steps, self.batch_size,
                                       n_feature_maps, image_size[0],
                                       image_size[1]))
-        for n_units in self.n_hidden_full:
-            self.image_shapes.append((self.n_time_steps, self.batch_size, n_units))
+
+        for n_units, rec in zip(self.n_hidden_full, self.recurrent_layers[len(self.n_hidden_conv):]):
+            if rec == 'lstm':
+                self.image_shapes.append((self.n_time_steps, self.batch_size, 4*n_units))
+            else:
+                self.image_shapes.append((self.n_time_steps, self.batch_size, n_units))
 
     def _init_pars(self):
         spec = rcnn.parameters(
@@ -197,19 +204,50 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
                             for i in range(len(self.n_hidden_full))]
         recurrents = []
         initial_hiddens = []
+        states = []
         for i in range(len(self.n_hidden_conv) + len(self.n_hidden_full)):
-            attribute = 'recurrent_%i' % i
-
-            if hasattr(P, attribute):
-                recurrents.append(getattr(P, attribute))
-                initial_hiddens.append(getattr(P, 'initial_hiddens_%i' % i))
-            elif hasattr(P, attribute+'_0'):
-                recurrents.append((getattr(P, attribute+'_0'),
-                                   getattr(P, attribute+'_1')))
-                initial_hiddens.append(getattr(P, 'initial_hiddens_%i' % i))
+            rec_attribute = 'recurrent_%i' % i
+            ih_attribute = 'initial_hiddens_%i' % i
+            s_attribute = 'state_%i' % i
+            if hasattr(P, rec_attribute):
+                recurrents.append(getattr(P, rec_attribute))
+            elif hasattr(P, rec_attribute+'_0'):
+                recurrents.append((getattr(P, rec_attribute+'_0'),
+                                   getattr(P, rec_attribute+'_1')))
             else:
                 recurrents.append(None)
+            if hasattr(P, ih_attribute):
+                initial_hiddens.append(getattr(P, ih_attribute))
+            else:
                 initial_hiddens.append(None)
+            if hasattr(P, s_attribute):
+                states.append(getattr(P, s_attribute))
+            else:
+                states.append(None)
+
+
+        ingate_peepholes = []
+        outgate_peepholes = []
+        forgetgate_peepholes = []
+
+        for i in range(len(self.n_hidden_full)):
+            layer = (i+len(self.n_hidden_conv))
+            print layer
+            attribute = 'ingate_peephole_%i' % layer
+            if hasattr(P, attribute):
+                ingate_peepholes.append(getattr(P, attribute))
+            else:
+                ingate_peepholes.append(None)
+            attribute = 'outgate_peephole_%i' % layer
+            if hasattr(P, attribute):
+                outgate_peepholes.append(getattr(P, attribute))
+            else:
+                outgate_peepholes.append(None)
+            attribute = 'forgetgate_peephole_%i' % layer
+            if hasattr(P, attribute):
+                forgetgate_peepholes.append(getattr(P, attribute))
+            else:
+                forgetgate_peepholes.append(None)
 
         self.exprs.update(rcnn.exprs(
             self.exprs['inpt'], self.exprs['target'], P.in_to_hidden, P.hidden_to_out,
@@ -222,8 +260,31 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
             self.exprs['weights'], self.recurrent_layers,
             p_dropout_inpt=self.p_dropout_inpt,
             p_dropout_conv=self.p_dropout_conv,
-            p_dropout_full=self.p_dropout_full)
+            p_dropout_full=self.p_dropout_full,
+            ingate_peephole=ingate_peepholes,
+            outgate_peephole=outgate_peepholes,
+            forgetgate_peephole=forgetgate_peepholes, states=states)
         )
+
+
+    def _make_loss_functions(self, mode=None, weights=False):
+        """Return pair `f_loss, f_d_loss` of functions.
+
+         - f_loss returns the current loss,
+         - f_d_loss returns the gradient of that loss wrt parameters,
+           matrix of the loss.
+        """
+        d_loss = self._d_loss()
+
+        if self.clipping:
+            d_loss = project_into_l2_ball(d_loss, self.clipping)
+
+        args = list(self.data_arguments)
+        if weights:
+            args += ['weights']
+        f_loss = self.function(args, 'loss', explicit_pars=True, mode=mode)
+        f_d_loss = self.function(args, d_loss, explicit_pars=True, mode=mode)
+        return f_loss, f_d_loss
 
     def apply_minibatches_function(self, f, X, Z, weights=None):
         """Apply a function to batches of the input.
@@ -289,10 +350,12 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
         total = np.concatenate([super(Rcnn, self).predict(element) for element in data], axis=0)
         return total
 
-    def get_deterministic_rcnn(self):
+    def get_deterministic_rcnn(self, loss=None):
+        if loss is None:
+            loss = self.loss
         return Rcnn(1, self.n_hidden_conv, self.n_hidden_full, self.n_output,
                  self.hidden_conv_transfers, self.hidden_full_transfers, self.out_transfer,
-                 self.loss, image_height=self.n_inpt[-2], image_width=self.n_inpt[-1],
+                 loss, image_height=self.n_inpt[-2], image_width=self.n_inpt[-1],
                  n_image_channel=self.n_inpt[-3],
                  pool_shapes=self.pool_shapes, filter_shapes=self.filter_shapes,
                  optimizer=self.optimizer, batch_size=self.batch_size,

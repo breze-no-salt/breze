@@ -67,10 +67,10 @@ def fmeasure(target, prediction, alpha=0.5):
     res : Theano variable
         An array of the same columns as ``target`` and ``prediction``
         representing the overall f-measure loss."""
-    n_pos = target.sum(axis=0)
-    m_pos = prediction.sum(axis=0)
+    n_pos = target.sum(axis=None)
+    m_pos = prediction.sum(axis=None)
     true_positives_approx = target*prediction
-    A = true_positives_approx.sum(axis=0)
+    A = true_positives_approx.sum(axis=None)
     return 1-A/(alpha*n_pos+(1-alpha)*m_pos)
 
 def squared(target, prediction):
@@ -162,7 +162,7 @@ def ncat_ce(target, prediction):
 
     The loss is different to ``cat_ce`` by that ``target`` is not a hot
     k coding but an array of integers.
-
+-
     Parameters
     ----------
 
