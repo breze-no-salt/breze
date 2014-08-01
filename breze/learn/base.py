@@ -209,13 +209,14 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         else:
             if imp_weight is not None:
                 data = iter_minibatches([X, Z, imp_weight], self.batch_size,
-                                        list(self.sample_dim) + [self.sample_dim[0]])
+                                        list(self.sample_dim) + [self.sample_dim[0]],
+                                        random_state=self.random_state)
                 data = ((cast_array_to_local_type(x),
                          cast_array_to_local_type(z),
                          cast_array_to_local_type(w)) for x, z, w in data)
             else:
                 data = iter_minibatches([X, Z], self.batch_size,
-                                        self.sample_dim)
+                                        self.sample_dim, random_state=self.random_state)
 
                 data = ((cast_array_to_local_type(x),
                          cast_array_to_local_type(z)) for x, z in data)
@@ -392,7 +393,7 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
         elif batch_size < 1:
             raise ValueError('need strictly positive batch size')
         else:
-            data = iter_minibatches(item, self.batch_size, self.sample_dim)
+            data = iter_minibatches(item, self.batch_size, self.sample_dim, random_state=self.random_state)
         args = ((i, {}) for i in data)
         return args
 
