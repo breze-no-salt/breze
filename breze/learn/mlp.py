@@ -80,13 +80,17 @@ class Mlp(Model, SupervisedBrezeWrapperBase):
                  imp_weight=False,
                  optimizer='lbfgs',
                  batch_size=None,
-                 max_iter=1000, verbose=False):
+                 max_iter=1000, verbose=False,
+                 random_state=None):
         self.n_inpt = n_inpt
         self.n_hiddens = n_hiddens
         self.n_output = n_output
         self.hidden_transfers = hidden_transfers
         self.out_transfer = out_transfer
         self.loss = loss
+
+
+
 
         self.optimizer = optimizer
         self.batch_size = batch_size
@@ -98,6 +102,7 @@ class Mlp(Model, SupervisedBrezeWrapperBase):
         self.f_predict = None
 
         super(Mlp, self).__init__()
+        self.random_state = random_state
 
     def _init_pars(self):
         spec = mlp.parameters(self.n_inpt, self.n_hiddens, self.n_output)

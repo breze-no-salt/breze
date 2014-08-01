@@ -392,6 +392,7 @@ class Model(object):
     """
 
     def __init__(self):
+        self.random_state = None
         self.updates = collections.defaultdict(dict)
         self._init_pars()
         self._init_exprs()
