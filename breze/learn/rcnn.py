@@ -350,15 +350,20 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
         total = np.concatenate([super(Rcnn, self).predict(element) for element in data], axis=0)
         return total
 
-    def get_deterministic_rcnn(self, loss=None):
+    def get_deterministic_rcnn(self, loss=None, get_lstm=False):
         if loss is None:
             loss = self.loss
+
+        recurrent_layers = self.recurrent_layers
+        if get_lstm:
+            recurrent_layers = ['lstm' if i else None for i in self.recurrent_layers]
+
         return Rcnn(1, self.n_hidden_conv, self.n_hidden_full, self.n_output,
                  self.hidden_conv_transfers, self.hidden_full_transfers, self.out_transfer,
                  loss, image_height=self.n_inpt[-2], image_width=self.n_inpt[-1],
                  n_image_channel=self.n_inpt[-3],
                  pool_shapes=self.pool_shapes, filter_shapes=self.filter_shapes,
                  optimizer=self.optimizer, batch_size=self.batch_size,
-                 max_iter=self.max_iter, recurrent_layers=self.recurrent_layers,
+                 max_iter=self.max_iter, recurrent_layers=recurrent_layers,
                  verbose=False, n_time_steps=self.n_time_steps, weights=self.weights, p_dropout_inpt=False,
                  p_dropout_conv=False, p_dropout_full=False)

@@ -95,7 +95,8 @@ class Trainer(object):
     """
 
     def __init__(self, model, stop, score=score_.simple,
-                 pause=always, interrupt=never, report=report_.point_print):
+                 pause=always, interrupt=never, report=report_.point_print,
+                 eval_model=None):
         """Create a Trainer object.
 
         Parameters
@@ -126,6 +127,7 @@ class Trainer(object):
         """
 
         self.model = model
+        self.eval_model = eval_model
 
         self._score = score
         self.pause = pause
@@ -146,11 +148,18 @@ class Trainer(object):
     def score(self, *data):
         return self._score(self.model.score, *data)
 
+    def val_score(self, *data):
+        if self.eval_model is not None:
+            for k, v in self.model.parameters.views.items():
+                self.eval_model.parameters[k] = v
+            return self._score(self.eval_model.score, *data)
+        return self._score(self.model.score, *data)
+
     def handle_update(self, fit_data):
         update_losses = {}
         update_losses['loss'] = ma.scalar(self.score(*fit_data))
         for key, data in self.eval_data.items():
-            update_losses['%s_loss' % key] = ma.scalar(self.score(*data))
+            update_losses['%s_loss' % key] = ma.scalar(self.val_score(*data))
         return update_losses
 
     def fit(self, *fit_data):

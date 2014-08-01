@@ -98,7 +98,6 @@ def recurrent_layer(hidden_inpt, hidden_to_hidden, f, initial_hidden, state,
                     rec_shape, rec_type, ingate_peephole=None,
                     outgate_peephole=None, forgetgate_peephole=None):
 
-
     def step_full(x, hi_tm1):
         h_tm1 = f(hi_tm1)
         hi = T.dot(h_tm1, hidden_to_hidden) + x
