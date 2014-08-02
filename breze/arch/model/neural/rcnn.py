@@ -255,6 +255,7 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
     hidden = hidden.reshape(conv_shape)
     if p_dropout_inpt:
         hidden = corrupt.mask(hidden, p_dropout_inpt)
+        hidden /= 1 - p_dropout_inpt
     for i, params in enumerate(zipped):
         image_shape, ft, rec, rec_type, ih, s, p_dropout = params[:7]
         f = lookup(ft, transfer)
@@ -278,6 +279,7 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
         hidden = f(hidden_in_down)
         if p_dropout:
             hidden = corrupt.mask(hidden, p_dropout)
+            hidden /= 1 - p_dropout
         exprs['conv-hidden_%i' % i] = hidden
 
 
@@ -311,6 +313,7 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
         exprs['hidden_in_%i' % (i + offset + 1)] = hidden_in
         if p_dropout:
             hidden = corrupt.mask(hidden, p_dropout)
+            hidden /= 1 - p_dropout
         exprs['hidden_%i' % (i + offset + 1)] = hidden
 
     f_output = lookup(output_transfer, transfer)

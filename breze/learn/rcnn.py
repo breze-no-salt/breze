@@ -276,24 +276,31 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
             forgetgate_peephole=forgetgate_peepholes, states=states)
         )
 
-
-    def _make_loss_functions(self, mode=None, weights=False):
-        """Return pair `f_loss, f_d_loss` of functions.
+    def _make_loss_functions(self, mode=None, givens=None,
+                             on_unused_input='raise', weights=False):
+        """Return pair (f_loss, f_d_loss) of functions.
 
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
-           matrix of the loss.
         """
+        if mode is None:
+            mode = self.mode
         d_loss = self._d_loss()
-
         if self.clipping:
             d_loss = project_into_l2_ball(d_loss, self.clipping)
 
-        args = list(self.data_arguments)
+        #Scale dropout!
+        givens = {} if givens is None else givens
+        inpts = ['inpt', 'target']
         if weights:
-            args += ['weights']
-        f_loss = self.function(args, 'loss', explicit_pars=True, mode=mode)
-        f_d_loss = self.function(args, d_loss, explicit_pars=True, mode=mode)
+            inpts += ['weights']
+        f_loss = self.function(inpts, 'loss', explicit_pars=True,
+                               mode=mode, givens=givens,
+                               on_unused_input=on_unused_input)
+        f_d_loss = self.function(
+            inpts, d_loss, explicit_pars=True, mode=mode,
+            givens=givens, on_unused_input=on_unused_input)
+
         return f_loss, f_d_loss
 
     def apply_minibatches_function(self, f, X, Z, weights=None):
