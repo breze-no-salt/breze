@@ -209,17 +209,25 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
         states = []
         for i in range(len(self.n_hidden_conv) + len(self.n_hidden_full)):
             rec_attribute = 'recurrent_%i' % i
+            rec_attribute_bwd = 'recurrent_%i_bwd' % i
             ih_attribute = 'initial_hiddens_%i' % i
+            ih_attribute_bwd = 'initial_hiddens_%i_bwd' % i
             s_attribute = 'state_%i' % i
             if hasattr(P, rec_attribute):
-                recurrents.append(getattr(P, rec_attribute))
+                if hasattr(P, rec_attribute_bwd):
+                    recurrents.append((getattr(P, rec_attribute), (getattr(P, rec_attribute_bwd))))
+                else:
+                    recurrents.append(getattr(P, rec_attribute))
             elif hasattr(P, rec_attribute+'_0'):
                 recurrents.append((getattr(P, rec_attribute+'_0'),
                                    getattr(P, rec_attribute+'_1')))
             else:
                 recurrents.append(None)
             if hasattr(P, ih_attribute):
-                initial_hiddens.append(getattr(P, ih_attribute))
+                if hasattr(P, ih_attribute_bwd):
+                    initial_hiddens.append((getattr(P, ih_attribute), getattr(P, ih_attribute_bwd)))
+                else:
+                    initial_hiddens.append(getattr(P, ih_attribute))
             else:
                 initial_hiddens.append(None)
             if hasattr(P, s_attribute):

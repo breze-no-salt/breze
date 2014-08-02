@@ -22,6 +22,10 @@ import numpy as np
 def define_recurrent_params(spec, current_layer, size_hidden, recurrency):
     if recurrency == 'full':
         spec['recurrent_%i' % current_layer] = (size_hidden, size_hidden)
+    elif recurrency == 'brnn':
+        spec['recurrent_%i' % current_layer] = (size_hidden, size_hidden)
+        spec['recurrent_%i_bwd' % current_layer] = (size_hidden, size_hidden)
+        spec['initial_hiddens_%i_bwd' % current_layer] = size_hidden
     elif recurrency == 'lstm':
         spec['recurrent_%i' % current_layer] = (size_hidden, size_hidden * 4)
         spec['ingate_peephole_%i' % current_layer] = (size_hidden,)
@@ -141,7 +145,7 @@ def recurrent_layer(hidden_inpt, hidden_to_hidden, f, initial_hidden, state,
         h_t = f(s_t) * outgate
         return [s_t, h_t]
 
-    if rec_type == 'full':
+    if rec_type == 'full' or rec_type == 'brnn':
         step = step_full
     elif rec_type == 'single':
         step = step_single
@@ -259,7 +263,16 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
         if rec is not None:
             rec_shape = list(image_shape[:2]) + [np.prod(image_shape[2:])]
             reshaped_hidden_in_conv_down = (hidden_in_down.reshape(image_shape)).reshape(rec_shape)
-            hidden_in_rec = recurrent_layer(reshaped_hidden_in_conv_down, rec, f, ih, s, rec_shape, rec_type)
+
+            if rec_type != 'brnn':
+                hidden_in_rec = recurrent_layer(reshaped_hidden_in_conv_down, rec, f, ih, s, rec_shape, rec_type)
+            else:
+                hidden_in_rec_f = recurrent_layer(reshaped_hidden_in_conv_down, rec[0],
+                                                  f, ih[0], s, rec_shape, rec_type)
+                hidden_in_rec_b = recurrent_layer(reshaped_hidden_in_conv_down[::-1], rec[1],
+                                                  f, ih[1], s, rec_shape, rec_type)
+
+                hidden_in_rec = (hidden_in_rec_f + hidden_in_rec_b[::-1]) / 2.
             hidden_in_down = (hidden_in_rec.reshape(image_shape)).reshape(conv_shape)
         exprs['conv-hidden_in_%i' % i] = hidden_in_down
         hidden = f(hidden_in_down)
@@ -283,10 +296,17 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
         hidden_in = feedforward_layer(hidden, w, b)
         f = lookup(t, transfer)
         if rec is not None:
-            print ip, op, fp
-            hidden_in = recurrent_layer(hidden_in, rec, f, ih, s, image_shape, rec_type,
+            if rec_type != 'brnn':
+                hidden_in = recurrent_layer(hidden_in, rec, f, ih, s, image_shape, rec_type,
                                       ingate_peephole=ip, outgate_peephole=op,
                                       forgetgate_peephole=fp)
+            else:
+                hidden_in_f = recurrent_layer(hidden_in, rec[0], f, ih[0], s, image_shape, rec_type,
+                                      ingate_peephole=ip, outgate_peephole=op, forgetgate_peephole=fp)
+                hidden_in_b = recurrent_layer(hidden_in[::-1], rec[1], f, ih[1], s, image_shape, rec_type,
+                      ingate_peephole=ip, outgate_peephole=op, forgetgate_peephole=fp)
+
+                hidden_in = (hidden_in_f + hidden_in_b[::-1]) / 2.
         hidden = f(hidden_in)
         exprs['hidden_in_%i' % (i + offset + 1)] = hidden_in
         if p_dropout:
