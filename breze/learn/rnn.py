@@ -99,7 +99,8 @@ class BaseRnn(Model):
                  optimizer='rprop',
                  batch_size=None,
                  max_iter=1000,
-                 verbose=False, weights=False):
+                 verbose=False, weights=False,
+                 random_state=None):
         self.weights = weights
         self.n_inpt = n_inpt
         self.n_hiddens = n_hiddens
@@ -117,6 +118,8 @@ class BaseRnn(Model):
         self.verbose = verbose
 
         super(BaseRnn, self).__init__()
+        self.random_state = random_state
+
 
     def _init_pars(self):
         spec = rnn.parameters(
@@ -387,7 +390,7 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
                  max_iter=1000,
                  verbose=False,
                  weights=False,
-                 local_mask=None):
+                 local_mask=None, random_state=None):
 
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hiddens = p_dropout_hiddens
@@ -413,7 +416,9 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
             n_inpt, n_hiddens, n_output,
             hidden_transfers, out_transfer, loss, pooling, leaky_coeffs,
             gradient_clip, skip_to_out,
-            optimizer, batch_size, max_iter, verbose, weights)
+            optimizer, batch_size, max_iter, verbose, weights,
+            random_state)
+
 
     def _init_exprs(self):
         self.exprs = {'inpt': T.tensor3('inpt'),

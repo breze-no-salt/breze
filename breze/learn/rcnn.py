@@ -88,7 +88,8 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
                  pool_shapes=None, filter_shapes=None,
                  optimizer='lbfgs', batch_size=1, max_iter=1000, recurrent_layers=None,
                  verbose=False, n_time_steps=1, weights=False, p_dropout_inpt=False,
-                 p_dropout_conv=False, p_dropout_full=False, clipping=False):
+                 p_dropout_conv=False, p_dropout_full=False, clipping=False,
+                 random_state=None):
 
         if filter_shapes is None:
             filter_shapes = [[5, 5] for _ in range(len(n_hidden_conv))]
@@ -141,6 +142,7 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
         self.verbose = verbose
 
         super(Rcnn, self).__init__()
+        self.random_state = random_state
 
     def _init_filter_shapes(self):
         self.filter_shapes_comp.append(
