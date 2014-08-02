@@ -85,5 +85,5 @@ def mask(arr, p, rng=None):
     """
     if rng is None:
         rng = T.shared_randomstreams.RandomStreams()
-    this_mask = T.cast(rng.binomial(size=arr.shape, p=p), theano.config.floatX)
+    this_mask = T.cast(rng.binomial(size=arr.shape, p=1-p), theano.config.floatX)
     return arr * this_mask
