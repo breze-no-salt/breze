@@ -150,8 +150,7 @@ class Trainer(object):
 
     def val_score(self, *data):
         if self.eval_model is not None:
-            for k, v in self.model.parameters.views.items():
-                self.eval_model.parameters[k] = v
+            self.eval_model.parameters.data[...] = self.model.parameters.data.copy()
             return self._score(self.eval_model.score, *data)
         return self._score(self.model.score, *data)
 
