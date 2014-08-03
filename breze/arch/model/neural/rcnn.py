@@ -220,7 +220,7 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
           pool_shapes, recurrents, initial_hiddens, weights,
           recurrent_types, p_dropout_inpt=False, p_dropout_conv=False,
           p_dropout_full=False, ingate_peephole=None, outgate_peephole=None,
-          forgetgate_peephole=None, states=None):
+          forgetgate_peephole=None, states=None, offline=False):
     if not p_dropout_inpt:
         p_dropout_inpt = 0
     if not p_dropout_conv:
@@ -243,9 +243,13 @@ def exprs(inpt, target, in_to_hidden, hidden_to_out, out_bias,
     if image_shapes[0][-2] != 1:
         n_time_steps, n_samples, channels, n_frames, n_features = list(image_shapes[0])
         hidden = hidden.reshape(((n_time_steps + n_frames - 1), n_samples, channels, 1, n_features))
-        hidden = T.concatenate([T.concatenate([hidden[j:j + 1, :, :, :, :] for j in range(i - n_frames, i)], axis=3)
-                                for i in range(n_frames, n_time_steps + n_frames)], axis=0)
-
+        if not offline:
+            hidden = T.concatenate([T.concatenate([hidden[j:j + 1, :, :, :, :] for j in range(i - n_frames, i)], axis=3)
+                                    for i in range(n_frames, n_time_steps + n_frames)], axis=0)
+        else:
+            hidden = T.concatenate([T.concatenate([hidden[j:j + 1, :, :, :, :]
+                                                   for j in range(i - n_frames/2, i + n_frames/2 + 1)], axis=3)
+                                    for i in range(n_frames/2, n_time_steps + n_frames/2)], axis=0)
     # Convolutional part
     zipped = zip(image_shapes[1:], hidden_conv_transfers,
                  recurrents, recurrent_types, initial_hiddens, states, p_dropout_conv,

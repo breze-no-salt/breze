@@ -89,7 +89,7 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
                  optimizer='lbfgs', batch_size=1, max_iter=1000, recurrent_layers=None,
                  verbose=False, n_time_steps=1, weights=False, p_dropout_inpt=False,
                  p_dropout_conv=False, p_dropout_full=False, clipping=False,
-                 random_state=None):
+                 random_state=None, offline=False):
 
         if filter_shapes is None:
             filter_shapes = [[5, 5] for _ in range(len(n_hidden_conv))]
@@ -140,6 +140,7 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
         self.optimizer = optimizer
         self.max_iter = max_iter
         self.verbose = verbose
+        self.offline = offline
 
         super(Rcnn, self).__init__()
         self.random_state = random_state
@@ -273,7 +274,8 @@ class Rcnn(Model, SupervisedBrezeWrapperBase):
             p_dropout_full=self.p_dropout_full,
             ingate_peephole=ingate_peepholes,
             outgate_peephole=outgate_peepholes,
-            forgetgate_peephole=forgetgate_peepholes, states=states)
+            forgetgate_peephole=forgetgate_peepholes,
+            states=states, offline=self.offline)
         )
 
     def _make_loss_functions(self, mode=None, givens=None,
