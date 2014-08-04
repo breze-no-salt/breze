@@ -207,7 +207,7 @@ def split(X, maxlength, to_add=0, offline=False):
             else:
                 new_X.append(seq[i * maxlength - to_add:(i + 1) * maxlength])
 
-        last_chunk = seq[i * maxlength - to_add:]
+        last_chunk = seq[(i+1) * maxlength - to_add:]
         if offline:
             last_chunk = np.concatenate((last_chunk, np.zeros(to_add_shape)))
         new_X.append(last_chunk)
