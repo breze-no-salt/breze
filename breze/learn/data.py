@@ -66,8 +66,6 @@ def padzeros(lst, front=True, return_mask=False, to_add=0, offline=False):
     restshape = list(lst[0].shape)[1:]
     item_shape = [maxlength] + restshape
     total_shape = [n_items] + item_shape
-    if offline:
-        to_add /= 2
     data = scipy.zeros(total_shape, dtype=lst[0].dtype)
     if return_mask:
         mask = scipy.zeros(total_shape, dtype=lst[0].dtype)
@@ -181,33 +179,33 @@ def iter_windows(X, size, offset=1):
             yield seq[j:j + size]
 
 
-def split(X, maxlength, to_add=0, offline=False):
+def split(X, maxlength, to_add=0, more_frames=0, offline=False):
     """Return a list of sequences where each sequence has a length of at most
     `maxlength`.
 
     Given a list of sequences `X`, the sequences are split accordingly."""
     if offline:
-        to_add /= 2
+        more_frames /= 2
     new_X = []
     for seq in X:
         n_new_seqs, rest = divmod(seq.shape[0], maxlength)
         if rest:
             n_new_seqs += 1
         to_add_shape = list(seq.shape)
-        to_add_shape[0] = to_add
+        to_add_shape[0] = to_add+more_frames
         to_add_shape = tuple(to_add_shape)
         first_chunk = np.zeros(to_add_shape)
         if offline:
-            new_X.append(np.concatenate((first_chunk, seq[0:maxlength+to_add])))
+            new_X.append(np.concatenate((first_chunk, seq[0:maxlength+to_add+more_frames])))
         else:
             new_X.append(np.concatenate((first_chunk, seq[0:maxlength])))
         for i in range(1, n_new_seqs-1):
             if offline:
-                new_X.append(seq[i * maxlength - to_add:(i + 1) * maxlength + to_add])
+                new_X.append(seq[i * maxlength - to_add - more_frames:(i + 1) * maxlength + to_add + more_frames])
             else:
                 new_X.append(seq[i * maxlength - to_add:(i + 1) * maxlength])
 
-        last_chunk = seq[(i+1) * maxlength - to_add:]
+        last_chunk = seq[(i+1) * maxlength - to_add - more_frames:]
         if offline:
             last_chunk = np.concatenate((last_chunk, np.zeros(to_add_shape)))
         new_X.append(last_chunk)
