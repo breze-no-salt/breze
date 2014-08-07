@@ -195,17 +195,24 @@ def split(X, maxlength, to_add=0, more_frames=0, offline=False):
         to_add_shape[0] = to_add+more_frames
         to_add_shape = tuple(to_add_shape)
         first_chunk = np.zeros(to_add_shape)
+        total_length = 2*(more_frames+to_add)+maxlength
         if offline:
             new_X.append(np.concatenate((first_chunk, seq[0:maxlength+to_add+more_frames])))
         else:
             new_X.append(np.concatenate((first_chunk, seq[0:maxlength])))
         for i in range(1, n_new_seqs-1):
             if offline:
-                new_X.append(seq[i * maxlength - to_add - more_frames:(i + 1) * maxlength + to_add + more_frames])
+                pre_seq = seq[i * maxlength - to_add - more_frames:(i + 1) * maxlength + to_add + more_frames]
+                if len(pre_seq) != total_length:
+                    pre_seq_shape = list(seq.shape)
+                    pre_seq_shape[0] = total_length-len(pre_seq)
+                    pre_seq_shape = tuple(pre_seq_shape)
+                    new_X.append(np.concatenate((pre_seq, np.zeros(pre_seq_shape))))
+                else:
+                    new_X.append(pre_seq)
             else:
-                new_X.append(seq[i * maxlength - to_add:(i + 1) * maxlength])
-
-        last_chunk = seq[(i+1) * maxlength - to_add - more_frames:]
+                new_X.append(seq[i * maxlength - to_add - more_frames:(i + 1) * maxlength])
+        last_chunk = seq[(n_new_seqs-1) * maxlength - to_add - more_frames:]
         if offline:
             last_chunk = np.concatenate((last_chunk, np.zeros(to_add_shape)))
         new_X.append(last_chunk)
