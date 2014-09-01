@@ -119,14 +119,19 @@ def estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
     else:
         raise ValueError('unexpected ndim for X, can be 2 or 3')
 
+    samples = []
     for i in range(n_samples):
         Z = f_sample_z_given_x(X)
+        samples.append(Z)
         log_prior[i] = -f_nll_z(Z)
         log_posterior[i] = -f_nll_x_given_z(X, Z)
         log_recog[i] = -f_nll_z_given_x(Z, X)
 
     d = log_prior + log_posterior - log_recog
 
+    while d.ndim > 1:
+        d = d.sum(-1)
+    ll = logsumexp(d, 0).sum() - np.log(n_samples)
     ll = logsumexp(d, 0) - np.log(n_samples)
     return -ll
 
@@ -232,19 +237,20 @@ class WienerLatentAssumption(object):
     def kl_recog_prior(self, stt):
         mean, var = unpack_mean_var(stt)
         d_latent_mean = mean[1:] - mean[:-1]
-        d_latent_var = var[1:] + var[:-1]
+        d_latent_mean = T.concatenate([mean[:1], d_latent_mean])
 
-        kl_first = inter_gauss_kl(mean[:1], var[:1])
-        kl_diff = inter_gauss_kl(d_latent_mean, d_latent_var)
-        kl_coord_wise = T.concatenate([kl_first, kl_diff])
+        d_latent_var = var[1:] + var[:-1]
+        d_latent_var = T.concatenate([var[:1], d_latent_var])
+
+        kl_coord_wise = inter_gauss_kl(d_latent_mean, d_latent_var, 0, 1)
         return kl_coord_wise
 
     def nll_prior(self, Z):
         d_Z = Z[1:] - Z[:-1]
+        d_Z = T.concatenate([Z[:1], d_Z])
 
-        nll_first = -normal_logpdf(Z[:1], 0, 1)
-        nll_diff = -normal_logpdf(d_Z, 0, 1)
-        nll_coord_wise = T.concatenate([nll_first, nll_diff])
+        nll_coord_wise = -normal_logpdf(
+            d_Z, T.zeros_like(d_Z), T.ones_like(d_Z))
         return nll_coord_wise
 
     def latent_layer_size(self, n_latents):
@@ -443,7 +449,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         """Return the expression of the generating model."""
         P = self.parameters.gen
 
-        n_layers = len(self.n_hiddens_recog)
+        n_layers = len(self.n_hiddens_gen)
         hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
                              for i in range(n_layers - 1)]
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
@@ -452,7 +458,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         exprs = mlp.exprs(
             inpt, P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
             hidden_biases, P.out_bias,
-            self.recog_transfers, self.assumptions.statify_visible)
+            self.gen_transfers, self.assumptions.statify_visible)
 
         return exprs
 
