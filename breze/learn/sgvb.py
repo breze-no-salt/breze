@@ -906,9 +906,15 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
 
         # TODO also integrate variance!
         last_hidden_layer = exprs['hidden_mean_%i' % (len(self.n_hiddens_recog) - 1)]
-        shortcut = T.zeros_like(last_hidden_layer)
-        T.set_subtensor(shortcut[1:], last_hidden_layer[:-1], inplace=True)
-        exprs['shortcut'] = shortcut
+
+        shortcut = T.concatenate([T.zeros_like(last_hidden_layer[:1]),
+                                  last_hidden_layer[:-1]])
+
+        # Hic sunt dracones.
+        # If we do not keep this line, Theano will die with a segfault.
+        shortcut_empty = T.set_subtensor(T.zeros_like(shortcut)[:, :, :], shortcut)
+
+        exprs['shortcut'] = shortcut_empty
 
         return exprs
 
