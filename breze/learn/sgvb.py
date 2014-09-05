@@ -604,6 +604,24 @@ class VariationalRecurrentAutoEncoder(VariationalAutoEncoder):
 
     shortcut = None
 
+    def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
+                 recog_transfers, gen_transfers,
+                 assumptions,
+                 p_dropout_inpt=.1, p_dropout_hiddens=.1,
+                 p_dropout_hidden_to_out=None,
+                 imp_weight=False,
+                 batch_size=None, optimizer='rprop',
+                 max_iter=1000, verbose=False):
+        self.p_dropout_inpt = p_dropout_inpt
+        if isinstance(p_dropout_hiddens, float):
+            p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
+        self.p_dropout_hiddens = p_dropout_hiddens
+        self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
+        super(VariationalRecurrentAutoEncoder, self).__init__(
+            n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
+            recog_transfers, gen_transfers, assumptions, imp_weight, batch_size,
+            optimizer, max_iter, verbose)
+
     def _make_start_exprs(self):
         exprs = {
             'inpt': T.tensor3('inpt')
@@ -687,8 +705,11 @@ class VariationalRecurrentAutoEncoder(VariationalAutoEncoder):
         initial_hiddens_bwd = [getattr(P, 'initial_hiddens_bwd_%i' % i)
                                for i in range(n_layers)]
 
-        # TODO Need to crossvalidate at some point.
-        p_dropouts = [0.1] + [0.1] * len(self.n_hiddens_gen) + [0.1]
+        p_dropouts = [self.p_dropout_inpt] + self.p_dropout_hiddens
+        if self.p_dropout_hidden_to_out is None:
+            p_dropouts.append(self.p_dropout_hiddens[-1])
+        else:
+            p_dropouts.append(self.p_dropout_hidden_to_out)
 
         def out_transfer(m, v):
             m2 = self.assumptions.statify_visible(m)
