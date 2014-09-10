@@ -225,6 +225,53 @@ class DiagGaussLatentAssumption(object):
             return sample
 
 
+class GaussIncrementAssumption(object):
+
+    def statify_latent(self, mean, var):
+        # TODO this will not work for non-FD Wieners.
+        return mean, var
+
+    def nll_recog_model(self, Z, stt):
+        return diag_gauss_nll(Z, stt)
+
+    def kl_recog_prior(self, stt):
+        mean, var = unpack_mean_var(stt)
+
+        log_det_cov_d_q = T.sum(T.log(var), axis=0)
+        n_time_steps = stt.shape[0]
+        trace_cov_d_q = 2 * T.sum(var[:-1], axis=0) + T.sum(var[-1:], axis=0)
+        mean_dots = (mean ** 2).sum(0)
+
+        kl = .5 * (- log_det_cov_d_q
+                   - n_time_steps
+                   - trace_cov_d_q
+                   + mean_dots)
+        return (kl / n_time_steps).dimshuffle('x', 0, 1)
+
+    def nll_prior(self, Z):
+        d_Z = Z[1:] - Z[:-1]
+        d_Z = T.concatenate([Z[:1], d_Z])
+
+        nll_coord_wise = -normal_logpdf(
+            d_Z, T.zeros_like(d_Z), T.ones_like(d_Z))
+        return nll_coord_wise
+
+    def latent_layer_size(self, n_latents):
+        return n_latents * 2
+
+    def sample_latents(self, stt, rng):
+        stt_flat = assert_no_time(stt)
+        n_latent = stt_flat.shape[1] // 2
+        latent_mean = stt_flat[:, :n_latent]
+        latent_var = stt_flat[:, n_latent:]
+        noise = rng.normal(size=latent_mean.shape)
+        sample = latent_mean + T.sqrt(latent_var) * noise
+        if stt.ndim == 3:
+            return recover_time(sample, stt.shape[0])
+        else:
+            return sample
+
+
 class WienerLatentAssumption(object):
 
     def statify_latent(self, mean, var):
