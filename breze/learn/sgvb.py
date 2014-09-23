@@ -649,13 +649,14 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
         # Map a sample s to the prior log probability p(z)
         nll_z = self.assumptions.nll_prior(latent_sample).sum(axis=ndim - 1)
-        f_nll_z = theano.function([latent_sample], nll_z)
+        f_nll_z = self.function([latent_sample], nll_z, on_unused_input='ignore')
 
         # Map a given visible x and a sample z to the generating
         # probability p(x|z).
         nll_x_given_z = self.assumptions.nll_gen_model(
-        f_nll_x_given_z = self.function(['inpt', latent_sample], nll_x_given_z,
             self.exprs['inpt'], self.exprs['output']).sum(axis=ndim - 1)
+        f_nll_x_given_z = self.function(['inpt', latent_sample], nll_x_given_z,
+                                        givens={self.exprs['sample']: latent_sample})
 
         # Map a given visible x and a sample z to the recognition
         # probability q(z|x).
@@ -671,12 +672,16 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             return estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
                                 f_sample_z_given_x, n)
 
+        # So it gets deleted before pickling.
+        inner.breze_func = True
+
         return inner
 
 
 class VariationalRecurrentAutoEncoder(VariationalAutoEncoder):
 
     shortcut = None
+    sample_dim = 1,
 
     def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
                  recog_transfers, gen_transfers,
@@ -786,8 +791,7 @@ class VariationalRecurrentAutoEncoder(VariationalAutoEncoder):
             p_dropouts.append(self.p_dropout_hidden_to_out)
 
         def out_transfer(m, v):
-            m2 = self.assumptions.statify_visible(m)
-            return m2, v
+            return self.assumptions.statify_visible(m, v)
 
         exprs = vpbrnn.exprs(
             inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens,
@@ -799,12 +803,6 @@ class VariationalRecurrentAutoEncoder(VariationalAutoEncoder):
             out_transfer,
             p_dropouts=p_dropouts)
         exprs['output_uncut'] = exprs['output']
-
-        # FD-RNNs have twice as many outputs as we care about here.
-        # TODO: this does not seem right though, we probably need to fix this
-        # for other assumptions to work.
-
-        exprs['output'] = exprs['output'][:, :, :self.n_inpt]
 
         return exprs
 
