@@ -366,8 +366,11 @@ class DiagGaussVisibleAssumption(object):
 
 class BernoulliVisibleAssumption(object):
 
-    def statify_visible(self, X):
-        return sigmoid(X)
+    def statify_visible(self, X, var=None):
+        if var is not None:
+            return sigmoid(X, var)
+        else:
+            return sigmoid(X, T.zeros_like(X))
 
     def nll_gen_model(self, X, stt):
         return bern_ces(X, stt)
