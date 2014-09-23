@@ -71,6 +71,8 @@ from breze.learn.base import (
     ReconstructBrezeWrapperMixin)
 from breze.learn.utils import theano_floatx
 
+from climin import mathadapt as ma
+
 
 # TODO find a better home for the following functions.
 
@@ -119,19 +121,17 @@ def estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
     else:
         raise ValueError('unexpected ndim for X, can be 2 or 3')
 
-    samples = []
     for i in range(n_samples):
         Z = f_sample_z_given_x(X)
-        samples.append(Z)
-        log_prior[i] = -f_nll_z(Z)
-        log_posterior[i] = -f_nll_x_given_z(X, Z)
-        log_recog[i] = -f_nll_z_given_x(Z, X)
+
+        log_prior[i] = ma.assert_numpy(-f_nll_z(Z))
+        log_posterior[i] = ma.assert_numpy(-f_nll_x_given_z(X, Z))
+        log_recog[i] = ma.assert_numpy(-f_nll_z_given_x(Z, X))
 
     d = log_prior + log_posterior - log_recog
 
     while d.ndim > 1:
         d = d.sum(-1)
-    ll = logsumexp(d, 0).sum() - np.log(n_samples)
     ll = logsumexp(d, 0) - np.log(n_samples)
     return -ll
 
@@ -627,8 +627,8 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         # Map a given visible x and a sample z to the generating
         # probability p(x|z).
         nll_x_given_z = self.assumptions.nll_gen_model(
+        f_nll_x_given_z = self.function(['inpt', latent_sample], nll_x_given_z,
             self.exprs['inpt'], self.exprs['output']).sum(axis=ndim - 1)
-        f_nll_x_given_z = self.function(['inpt', 'sample'], nll_x_given_z)
 
         # Map a given visible x and a sample z to the recognition
         # probability q(z|x).
