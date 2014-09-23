@@ -936,6 +936,7 @@ class VariationalSequenceAE(VariationalAutoEncoder):
 class VariationalOneStepPredictor(VariationalAutoEncoder):
 
     shortcut = 'shortcut'
+    sample_dim = 1,
 
     def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
                  recog_transfers, gen_transfers,
