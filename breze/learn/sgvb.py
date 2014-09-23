@@ -607,7 +607,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             Array of shape ``(n,)`` where each entry corresponds to the nll of
             corresponding sample in ``X``.
         """
-        if self.f_estimate_nll is None:
+        if getattr(self, 'f_estimate_nll', None) is None:
             self.f_estimate_nll = self._make_f_estimate_nll()
         return self.f_estimate_nll(X, n_samples)
 
