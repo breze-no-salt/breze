@@ -284,6 +284,18 @@ class GaussIncrementAssumption(object):
             return sample
 
 
+def accumulate(X, a, b):
+    def step(y_m1, x):
+        return a * y_m1 + b * x
+    result, _ = theano.scan(sequences=[X], fn=step, outputs_info=T.zeros_like(X[0]))
+    return result
+
+
+def diff(X, a, b):
+    d_X = (X[1:] - a * X[:-1]) / b
+    return T.concatenate([X[:1], d_X])
+
+
 class WienerLatentAssumption(object):
 
     def statify_latent(self, mean, var):
