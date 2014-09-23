@@ -199,7 +199,12 @@ class DiagGaussLatentAssumption(object):
             stt_flat = stt
 
         mean, var = stt_flat[:, :stt_flat.shape[1] // 2], stt_flat[:, stt_flat.shape[1] // 2:]
-        return inter_gauss_kl(mean, var)
+        kl = inter_gauss_kl(mean, var)
+
+        if stt.ndim == 3:
+            kl = recover_time(kl, stt.shape[0])
+
+        return kl
 
     def nll_prior(self, X):
         X_flat = X.flatten()
