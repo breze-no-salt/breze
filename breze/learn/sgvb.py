@@ -614,9 +614,9 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
     def _make_f_estimate_nll(self):
         ndim = self.exprs['sample'].ndim
         if ndim == 3:
-            latent_sample = T.tensor3()
+            latent_sample = T.tensor3('sample')
         elif ndim == 2:
-            latent_sample = T.matrix()
+            latent_sample = T.matrix('sample')
         else:
             raise ValueError('unexpected ndim for samples')
 
