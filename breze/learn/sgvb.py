@@ -183,8 +183,11 @@ class Assumptions(object):
 
 class DiagGaussLatentAssumption(object):
 
-    def statify_latent(self, X):
-        return diag_gauss(X)
+    def statify_latent(self, X, var=None):
+        if var is None:
+            return diag_gauss(X)
+        else:
+            return X, var
 
     def nll_recog_model(self, Z, stt):
         return diag_gauss_nll(Z, stt)
