@@ -56,9 +56,10 @@ from scipy.misc import logsumexp
 
 from breze.arch.component.common import supervised_loss
 from breze.arch.component.misc import inter_gauss_kl
-from breze.arch.component.transfer import sigmoid, diag_gauss
-from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nll
-from breze.arch.component.loss import bern_ces
+from breze.arch.component.transfer import diag_gauss
+from breze.arch.component.varprop.transfer import sigmoid
+from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nll, bern_ces
+#from breze.arch.component.loss import bern_ces
 from breze.arch.component.varprop.loss import unpack_mean_var
 from breze.arch.model import sgvb
 from breze.arch.model.neural import mlp
@@ -1029,4 +1030,43 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
 
         exprs['output'] = wild_reshape(exprs['output_flat'],
                                        (inpt.shape[0], inpt.shape[1], -1))
+        return exprs
+
+
+class RVariationalOneStepPredictor(VariationalOneStepPredictor):
+
+    def _gen_par_spec(self):
+        """Return the parameter specification of the generating model."""
+        n_output = self.assumptions.visible_layer_size(self.n_inpt)
+        return rnn.parameters(
+            self.n_latent + self.n_hiddens_recog[-1], self.n_hiddens_gen,
+            n_output)
+
+    def _gen_exprs(self, inpt):
+        """Return the exprssions of the recognition model."""
+        P = self.parameters.gen
+
+        n_layers = len(self.n_hiddens_gen)
+        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
+                             for i in range(n_layers - 1)]
+        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
+                         for i in range(n_layers)]
+        initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
+                           for i in range(n_layers)]
+        recurrents = [getattr(P, 'recurrent_%i' % i)
+                      for i in range(n_layers)]
+
+        p_dropouts = [self.p_dropout_inpt] + self.p_dropout_hiddens
+        if self.p_dropout_hidden_to_out is None:
+            p_dropouts.append(self.p_dropout_hiddens[-1])
+        else:
+            p_dropouts.append(self.p_dropout_hidden_to_out)
+
+        exprs = vprnn.exprs(
+            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
+            hidden_biases, [1 for _ in hidden_biases],
+            initial_hiddens, recurrents,
+            P.out_bias, 1, self.recog_transfers, self.assumptions.statify_visible,
+            p_dropouts=p_dropouts)
+
         return exprs
