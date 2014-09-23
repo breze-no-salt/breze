@@ -245,16 +245,20 @@ class GaussIncrementAssumption(object):
     def kl_recog_prior(self, stt):
         mean, var = unpack_mean_var(stt)
 
-        log_det_cov_d_q = T.sum(T.log(var), axis=0)
+        from theano.tensor.extra_ops import diff as T_diff
+        log_det_cov_d_q = T.log(var)
+        trace_cov_d_q = T.concatenate([var[:1], 2 * var[1:]])
+        d_mean = mean[1:] - mean[:-1]
+        d_mean = T.concatenate([mean[:1], d_mean])
+        d_mean_dots = d_mean ** 2
         n_time_steps = stt.shape[0]
-        trace_cov_d_q = 2 * T.sum(var[:-1], axis=0) + T.sum(var[-1:], axis=0)
-        mean_dots = (mean ** 2).sum(0)
 
         kl = .5 * (- log_det_cov_d_q
-                   - n_time_steps
-                   - trace_cov_d_q
-                   + mean_dots)
-        return (kl / n_time_steps).dimshuffle('x', 0, 1)
+                   - 1
+                   + trace_cov_d_q
+                   + d_mean_dots)
+
+        return kl
 
     def nll_prior(self, Z):
         d_Z = Z[1:] - Z[:-1]
