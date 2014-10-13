@@ -65,6 +65,7 @@ from breze.arch.model import sgvb
 from breze.arch.model.neural import mlp
 from breze.arch.model.varprop import brnn as vpbrnn
 from breze.arch.model.varprop import rnn as vprnn
+from breze.arch.model.varprop import mlp as vpmlp
 from breze.arch.model.rnn import rnn
 from breze.arch.util import ParameterSet, Model
 from breze.learn.base import (
@@ -188,7 +189,8 @@ class DiagGaussLatentAssumption(object):
         if var is None:
             return diag_gauss(X)
         else:
-            return X, var
+            # Not adding 1e-4 will definately lead to NaNs.
+            return X, var + 1e-4
 
     def nll_recog_model(self, Z, stt):
         return diag_gauss_nll(Z, stt)
@@ -227,7 +229,7 @@ class DiagGaussLatentAssumption(object):
         latent_mean = stt_flat[:, :n_latent]
         latent_var = stt_flat[:, n_latent:]
         noise = rng.normal(size=latent_mean.shape)
-        sample = latent_mean + T.sqrt(latent_var + 1e-8) * noise
+        sample = latent_mean + T.sqrt(latent_var) * noise
         if stt.ndim == 3:
             return recover_time(sample, stt.shape[0])
         else:
@@ -286,40 +288,37 @@ class GaussIncrementAssumption(object):
 
 
 def accumulate(X, a, b):
-    def step(y_m1, x):
-        return a * y_m1 + b * x
+    def step(x_m1, x):
+        return a * x_m1 + b * x
     result, _ = theano.scan(sequences=[X], fn=step, outputs_info=T.zeros_like(X[0]))
     return result
 
 
 def diff(X, a, b):
     d_X = (X[1:] - a * X[:-1]) / b
-    return T.concatenate([X[:1], d_X])
+    return T.concatenate([X[:1] / b, d_X])
 
 
 class WienerLatentAssumption(object):
+
+    def __init__(self, decay=1, gain=1):
+        self.gain = gain
+        self.decay = decay
 
     def statify_latent(self, mean, var):
         # TODO this will not work for non-FD Wieners.
         return mean, var
 
     def nll_recog_model(self, Z, stt):
-        return diag_gauss_nll(Z, stt)
+        return diag_gauss_nll(diff(Z, self.decay, self.gain), stt)
 
     def kl_recog_prior(self, stt):
         mean, var = unpack_mean_var(stt)
-        d_latent_mean = mean[1:] - mean[:-1]
-        d_latent_mean = T.concatenate([mean[:1], d_latent_mean])
-
-        d_latent_var = var[1:] + var[:-1]
-        d_latent_var = T.concatenate([var[:1], d_latent_var])
-
-        kl_coord_wise = inter_gauss_kl(d_latent_mean, d_latent_var, 0, 1)
+        kl_coord_wise = inter_gauss_kl(mean, var, 0, 1)
         return kl_coord_wise
 
     def nll_prior(self, Z):
-        d_Z = Z[1:] - Z[:-1]
-        d_Z = T.concatenate([Z[:1], d_Z])
+        d_Z = diff(Z, self.decay, self.gain)
 
         nll_coord_wise = -normal_logpdf(
             d_Z, T.zeros_like(d_Z), T.ones_like(d_Z))
@@ -340,11 +339,11 @@ class WienerLatentAssumption(object):
         latent_mean = stt_flat[:, :n_latent]
         latent_var = stt_flat[:, n_latent:]
         noise = rng.normal(size=latent_mean.shape)
-        sample = latent_mean + T.sqrt(latent_var) * noise
+        sample = latent_mean + T.sqrt(latent_var + 1e-8) * noise
         if stt.ndim == 3:
-            return recover_time(sample, stt.shape[0])
-        else:
-            return sample
+            sample = recover_time(sample, stt.shape[0])
+
+        return accumulate(sample, self.decay, self.gain)
 
 
 class DiagGaussVisibleAssumption(object):
@@ -944,6 +943,7 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
                  assumptions,
                  p_dropout_inpt=.1, p_dropout_hiddens=.1,
                  p_dropout_hidden_to_out=None,
+                 p_dropout_shortcut=None,
                  imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
@@ -952,6 +952,7 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
             p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
         self.p_dropout_hiddens = p_dropout_hiddens
         self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
+        self.p_dropout_shortcut = p_dropout_shortcut
         super(VariationalOneStepPredictor, self).__init__(
             n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
             recog_transfers, gen_transfers, assumptions, imp_weight, batch_size,
@@ -970,7 +971,13 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
 
     def _recog_par_spec(self):
         """Return the parameter specification of the recognition model."""
-        return rnn.parameters(self.n_inpt, self.n_hiddens_recog, self.n_latent)
+        spec = rnn.parameters(self.n_inpt, self.n_hiddens_recog, self.n_latent)
+        spec['p_dropout'] = {
+            'inpt': 1,
+            'hiddens': [1 for _ in self.n_hiddens_recog],
+            'hidden_to_out': 1,
+        }
+        return spec
 
     def _recog_exprs(self, inpt):
         """Return the exprssions of the recognition model."""
@@ -986,11 +993,12 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
         recurrents = [getattr(P, 'recurrent_%i' % i)
                       for i in range(n_layers)]
 
-        p_dropouts = [self.p_dropout_inpt] + self.p_dropout_hiddens
-        if self.p_dropout_hidden_to_out is None:
-            p_dropouts.append(self.p_dropout_hiddens[-1])
-        else:
-            p_dropouts.append(self.p_dropout_hidden_to_out)
+        p_dropouts = (
+            [P.p_dropout.inpt] + P.p_dropout.hiddens
+            + [P.p_dropout.hidden_to_out])
+
+        # Reparametrize to assert the rates lie in (0.025, 1-0.025).
+        p_dropouts = [T.nnet.sigmoid(i) * 0.49 + 0.01 for i in p_dropouts]
 
         exprs = vprnn.exprs(
             inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
@@ -1000,10 +1008,11 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
             p_dropouts=p_dropouts)
 
         # TODO also integrate variance!
-        last_hidden_layer = exprs['hidden_mean_%i' % (len(self.n_hiddens_recog) - 1)]
+        #to_shortcut = self.exprs['inpt']
+        to_shortcut = exprs['hidden_mean_%i' % (n_layers - 1)]
 
-        shortcut = T.concatenate([T.zeros_like(last_hidden_layer[:1]),
-                                  last_hidden_layer[:-1]])
+        shortcut = T.concatenate([T.zeros_like(to_shortcut[:1]),
+                                  to_shortcut[:-1]])
 
         # Hic sunt dracones.
         # If we do not keep this line, Theano will die with a segfault.
@@ -1016,13 +1025,30 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
     def _gen_par_spec(self):
         """Return the parameter specification of the generating model."""
         n_output = self.assumptions.visible_layer_size(self.n_inpt)
-        return mlp.parameters(
+        return rnn.parameters(
             self.n_latent + self.n_hiddens_recog[-1], self.n_hiddens_gen,
             n_output)
 
     def _gen_exprs(self, inpt):
+        """Return the expression of the generating model."""
         inpt_flat = wild_reshape(inpt, (-1, inpt.shape[2]))
-        exprs = super(VariationalOneStepPredictor, self)._gen_exprs(inpt_flat)
+        P = self.parameters.gen
+
+        n_layers = len(self.n_hiddens_gen)
+        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
+                             for i in range(n_layers - 1)]
+        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
+                         for i in range(n_layers)]
+
+        inpt_var = T.zeros_like(inpt)
+
+        exprs = vpmlp.exprs(
+            inpt, inpt_var, P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
+            hidden_biases, [1 for _ in hidden_biases], P.out_bias, 1,
+            self.gen_transfers, self.assumptions.statify_visible,
+            self.p_dropout_inpt, self.p_dropout_hiddens,
+            )
+
         exprs['output_flat'] = exprs['output']
 
         output_flat = exprs['output_flat']
@@ -1030,10 +1056,11 @@ class VariationalOneStepPredictor(VariationalAutoEncoder):
 
         exprs['output'] = wild_reshape(exprs['output_flat'],
                                        (inpt.shape[0], inpt.shape[1], -1))
+
         return exprs
 
 
-class RVariationalOneStepPredictor(VariationalOneStepPredictor):
+class StochasticRnn(VariationalOneStepPredictor):
 
     def _gen_par_spec(self):
         """Return the parameter specification of the generating model."""
@@ -1056,7 +1083,18 @@ class RVariationalOneStepPredictor(VariationalOneStepPredictor):
         recurrents = [getattr(P, 'recurrent_%i' % i)
                       for i in range(n_layers)]
 
-        p_dropouts = [self.p_dropout_inpt] + self.p_dropout_hiddens
+        shortcut_size = self.n_hiddens_recog[-1]
+        p_dropout_inpt = T.zeros_like(inpt[:, :, :self.n_latent])
+        p_dropout_inpt = T.fill(p_dropout_inpt, self.p_dropout_inpt)
+
+        p_dropout_shortcut = T.zeros_like(inpt[:, :, self.n_latent:])
+        p_dropout_shortcut = T.fill(p_dropout_shortcut, self.p_dropout_inpt)
+
+        p_dropout_inpt = T.concatenate([p_dropout_inpt, p_dropout_shortcut],
+                                       axis=2)
+        #p_dropout_inpt = T.zeros_like(inpt)
+
+        p_dropouts = [p_dropout_inpt] + self.p_dropout_hiddens
         if self.p_dropout_hidden_to_out is None:
             p_dropouts.append(self.p_dropout_hiddens[-1])
         else:
@@ -1068,5 +1106,69 @@ class RVariationalOneStepPredictor(VariationalOneStepPredictor):
             initial_hiddens, recurrents,
             P.out_bias, 1, self.recog_transfers, self.assumptions.statify_visible,
             p_dropouts=p_dropouts)
+
+        return exprs
+
+
+class BidirectStochasticRnn(StochasticRnn):
+
+    def _recog_par_spec(self):
+        """Return the specification of the recognition model."""
+        spec = vpbrnn.parameters(self.n_inpt, self.n_hiddens_recog,
+                                 self.n_latent)
+
+        spec['p_dropout'] = {
+            'inpt': 1,
+            'hiddens': [1 for _ in self.n_hiddens_recog],
+            'hidden_to_out': 1,
+        }
+
+        return spec
+
+    def _recog_exprs(self, inpt):
+        """Return the exprssions of the recognition model."""
+        P = self.parameters.recog
+
+        n_layers = len(self.n_hiddens_recog)
+        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
+                             for i in range(n_layers - 1)]
+        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
+                         for i in range(n_layers)]
+        initial_hiddens_fwd = [getattr(P, 'initial_hiddens_fwd_%i' % i)
+                               for i in range(n_layers)]
+        initial_hiddens_bwd = [getattr(P, 'initial_hiddens_bwd_%i' % i)
+                               for i in range(n_layers)]
+        recurrents_fwd = [getattr(P, 'recurrent_fwd_%i' % i)
+                          for i in range(n_layers)]
+        recurrents_bwd = [getattr(P, 'recurrent_bwd_%i' % i)
+                          for i in range(n_layers)]
+
+        p_dropouts = (
+            [P.p_dropout.inpt] + P.p_dropout.hiddens
+            + [P.p_dropout.hidden_to_out])
+
+        # Reparametrize to assert the rates lie in (0.025, 1-0.025).
+        p_dropouts = [T.nnet.sigmoid(i) * 0.95 + 0.025 for i in p_dropouts]
+
+        exprs = vpbrnn.exprs(
+            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
+            hidden_biases, [1 for _ in hidden_biases],
+            initial_hiddens_fwd, initial_hiddens_bwd,
+            recurrents_fwd, recurrents_bwd,
+            P.out_bias, 1, self.recog_transfers, self.assumptions.statify_latent,
+            p_dropouts=p_dropouts)
+        exprs['inpt'] = inpt
+
+        #to_shortcut = self.exprs['inpt']
+        to_shortcut = self.exprs['']
+
+        shortcut = T.concatenate([T.zeros_like(to_shortcut[:1]),
+                                  to_shortcut[:-1]])
+
+        # Hic sunt dracones.
+        # If we do not keep this line, Theano will die with a segfault.
+        shortcut_empty = T.set_subtensor(T.zeros_like(shortcut)[:, :, :], shortcut)
+
+        exprs['shortcut'] = shortcut_empty
 
         return exprs
