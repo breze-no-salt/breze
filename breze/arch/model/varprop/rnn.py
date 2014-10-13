@@ -123,6 +123,8 @@ def forward_layer(in_mean, in_var, weights, mean_bias, var_bias_sqrt,
     """
     in_mean_flat = flat_time(in_mean)
     in_var_flat = flat_time(in_var)
+    if hasattr(p_dropout, 'ndim') and p_dropout.ndim == 3:
+        p_dropout = flat_time(p_dropout)
 
     omi_flat, ovi_flat, omo_flat, ovo_flat = mlp.mean_var_forward(
         in_mean_flat, in_var_flat, weights, mean_bias, var_bias_sqrt,
