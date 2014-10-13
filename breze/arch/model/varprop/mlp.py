@@ -65,7 +65,7 @@ def parameters(n_inpt, n_hiddens, n_output, var_scale=True):
         return spec
 
 
-def exprs(inpt_mean, inpt_var, target, in_to_hidden,
+def exprs(inpt_mean, inpt_var, in_to_hidden,
           hidden_to_hiddens,
           hidden_to_out,
           hidden_biases,
@@ -115,7 +115,6 @@ def exprs(inpt_mean, inpt_var, target, in_to_hidden,
     exprs.update({
         'inpt_mean': inpt_mean,
         'inpt_var': inpt_var,
-        'target': target,
         'output_in_mean': output_in_mean,
         'output_in_var': output_in_var,
         'output_mean': output_in_mean,
