@@ -385,16 +385,19 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         # Scalar
         inpt_var = T.ones_like(inpt_mean) * inpt_var
 
+    inpt_mean *= 1 - p_dropouts[0]
+    inpt_var *= (1 - p_dropouts[0]) * p_dropouts[0]
+
     if hotk_inpt:
         hmi, hvi, hmo, hvo = int_forward_layer(
             inpt_mean, inpt_var, in_to_hidden,
             hidden_biases[0], hidden_var_scales_sqrt[0],
-            f_hiddens[0], p_dropouts[0])
+            f_hiddens[0], p_dropouts[1])
     else:
         hmi, hvi, hmo, hvo = forward_layer(
             inpt_mean, inpt_var, in_to_hidden,
             hidden_biases[0], hidden_var_scales_sqrt[0],
-            f_hiddens[0], p_dropouts[0])
+            f_hiddens[0], p_dropouts[1])
 
     hmi_rec, hvi_rec, hmo_rec, hvo_rec = recurrent_layer(
         hmi, hvi, recurrents[0], f_hiddens[0], initial_hiddens[0],
