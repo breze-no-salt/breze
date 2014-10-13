@@ -68,6 +68,7 @@ def exprs(inpt, recog_exprs_func, gen_exprs_func,
     output = gen_exprs[visible_key]
 
     res = {
+        'inpt': inpt,
         'recog': recog_exprs,
         'gen': gen_exprs,
         'sample': sample,
