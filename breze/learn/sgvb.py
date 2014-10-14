@@ -238,8 +238,11 @@ class DiagGaussLatentAssumption(object):
 
 class DiagGaussVisibleAssumption(object):
 
-    def statify_visible(self, X):
-        return diag_gauss(X)
+    def statify_visible(self, X, var=None):
+        if var is None:
+            return diag_gauss(X)
+        else:
+            return X, var
 
     def nll_gen_model(self, X, stt):
         return diag_gauss_nll(X, stt)
@@ -251,7 +254,7 @@ class DiagGaussVisibleAssumption(object):
         For example, a diagonal Gaussian needs two sufficient statistics for a
         single random variable, the mean and the variance. A Bernoulli only
         needs one, which is the probability of it being 0 or 1."""
-        return n_latents * 2
+        return n_latents
 
 
 class BernoulliVisibleAssumption(object):
@@ -294,6 +297,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
     def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
                  recog_transfers, gen_transfers,
                  assumptions,
+                 p_dropout_inpt=.1, p_dropout_hiddens=.1,
                  imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
@@ -356,6 +360,10 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
         self.assumptions = assumptions
 
+        self.p_dropout_inpt = p_dropout_inpt
+        if isinstance(p_dropout_hiddens, float):
+            p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
+        self.p_dropout_hiddens = p_dropout_hiddens
         self.imp_weight = imp_weight
         self.batch_size = batch_size
         self.optimizer = optimizer
@@ -382,9 +390,16 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
     def _recog_par_spec(self):
         """Return the specification of the recognition model."""
-        n_code_units = self.assumptions.latent_layer_size(self.n_latent)
-        return mlp.parameters(self.n_inpt, self.n_hiddens_recog,
+        #n_code_units = self.assumptions.latent_layer_size(self.n_latent)
+        n_code_units = self.n_latent
+        spec = mlp.parameters(self.n_inpt, self.n_hiddens_recog,
                               n_code_units)
+        spec['p_dropout'] = {
+            'inpt': 1,
+            'hiddens': [1 for _ in self.n_hiddens_recog],
+        }
+
+        return spec
 
     def _recog_exprs(self, inpt):
         """Return the exprssions of the recognition model."""
@@ -396,10 +411,15 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
 
-        exprs = mlp.exprs(
-            inpt, P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
-            hidden_biases, P.out_bias,
-            self.recog_transfers, self.assumptions.statify_latent)
+        scale_to_interval = lambda x: T.nnet.sigmoid(x) * 0.49 + 0.01
+
+        exprs = vpmlp.exprs(
+            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
+            hidden_biases, [1 for _ in hidden_biases], P.out_bias, 1,
+            self.recog_transfers, self.assumptions.statify_latent,
+            scale_to_interval(P.p_dropout.inpt),
+            [scale_to_interval(i) for i in P.p_dropout.hiddens],
+            )
 
         return exprs
 
@@ -419,10 +439,12 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
 
-        exprs = mlp.exprs(
-            inpt, P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
-            hidden_biases, P.out_bias,
-            self.gen_transfers, self.assumptions.statify_visible)
+        exprs = vpmlp.exprs(
+            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
+            hidden_biases, [1 for _ in hidden_biases], P.out_bias, 1,
+            self.gen_transfers, self.assumptions.statify_visible,
+            self.p_dropout_inpt, self.p_dropout_hiddens,
+            )
 
         return exprs
 
@@ -476,7 +498,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         # TODO this is not going to work with variance propagation.
         imp_weight = False if not self.imp_weight else self._fix_imp_weight(n_dim)
         rec_loss = supervised_loss(
-            E['inpt'], E['gen']['output'], self.assumptions.nll_gen_model,
+                E['inpt'], E['gen']['output'], self.assumptions.nll_gen_model,
             prefix='rec_', coord_axis=n_dim - 1, imp_weight=imp_weight)
 
         # Create the KL divergence part of the loss.
