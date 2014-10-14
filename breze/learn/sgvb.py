@@ -604,15 +604,14 @@ class StochasticRnn(VariationalAutoEncoder):
                  imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
-        self.p_dropout_inpt = p_dropout_inpt
-        if isinstance(p_dropout_hiddens, float):
-            p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
-        self.p_dropout_hiddens = p_dropout_hiddens
+
         self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
         self.p_dropout_shortcut = p_dropout_shortcut
-        super(VariationalOneStepPredictor, self).__init__(
+        super(StochasticRnn, self).__init__(
             n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
-            recog_transfers, gen_transfers, assumptions, imp_weight, batch_size,
+            recog_transfers, gen_transfers, assumptions,
+            p_dropout_inpt, p_dropout_hiddens,
+            imp_weight, batch_size,
             optimizer, max_iter, verbose)
 
     def _make_start_exprs(self):
