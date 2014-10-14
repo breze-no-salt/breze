@@ -364,6 +364,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         if isinstance(p_dropout_hiddens, float):
             p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
         self.p_dropout_hiddens = p_dropout_hiddens
+
         self.imp_weight = imp_weight
         self.batch_size = batch_size
         self.optimizer = optimizer
@@ -728,6 +729,13 @@ class StochasticRnn(VariationalAutoEncoder):
 
 class BidirectStochasticRnn(StochasticRnn):
 
+    def _gen_par_spec(self):
+        """Return the parameter specification of the generating model."""
+        n_output = self.assumptions.visible_layer_size(self.n_inpt)
+        return rnn.parameters(
+            self.n_latent + self.n_inpt, self.n_hiddens_gen,
+            n_output)
+
     def _recog_par_spec(self):
         """Return the specification of the recognition model."""
         spec = vpbrnn.parameters(self.n_inpt, self.n_hiddens_recog,
@@ -776,7 +784,7 @@ class BidirectStochasticRnn(StochasticRnn):
         exprs['inpt'] = inpt
 
         #to_shortcut = self.exprs['inpt']
-        to_shortcut = self.exprs['']
+        to_shortcut = self.exprs['inpt']
 
         shortcut = T.concatenate([T.zeros_like(to_shortcut[:1]),
                                   to_shortcut[:-1]])
