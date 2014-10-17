@@ -73,6 +73,7 @@ from breze.learn.base import (
     ReconstructBrezeWrapperMixin)
 from breze.learn.utils import theano_floatx
 
+import climin.initialize
 from climin import mathadapt as ma
 
 
@@ -726,6 +727,46 @@ class StochasticRnn(VariationalAutoEncoder):
 
         return exprs
 
+    def draw_pars(self, par_std, par_std_i2h, sparsify_in, sparsify_rec, 
+                  spectral_radius): 
+        n_recog_layers = len(self.recog_transfers)
+        n_gen_layers = len(self.gen_transfers)
+        
+        climin.initialize.randomize_normal(
+            self.parameters.data, 0, par_std)
+        climin.initialize.randomize_normal(
+            self.parameters['recog']['in_to_hidden'],
+            0, in_to_hidden_par_std)
+        climin.initialize.randomize_normal(
+            self.parameters['gen']['in_to_hidden'],
+            0, par_std_i2h)
+
+        if sparsify_rec:
+            for i in range(n_recog_layers):
+                climin.initialize.sparsify_columns(
+                    self.parameters['recog']['recurrent_%i' % i], sparsify_rec)
+                climin.initialize.bound_spectral_radius(
+                    self.parameters['recog']['recurrent_%i' % i], spectral_radius)
+                
+            for i in range(n_gen_layers):
+                climin.initialize.sparsify_columns(
+                    self.parameters['gen']['recurrent_%i' % i], sparsify_rec)
+
+                climin.initialize.bound_spectral_radius(
+                    self.parameters['gen']['recurrent_%i' % i], spectral_radius)
+
+        for i in range(n_recog_layers):
+            climin.initialize.bound_spectral_radius(
+                self.parameters['recog']['recurrent_%i' % i], spectral_radius)
+
+        for i in range(n_gen_layers):
+            climin.initialize.bound_spectral_radius(
+                self.parameters['gen']['recurrent_%i' % i], spectral_radius)
+
+        if sparsify_in:
+            climin.initialize.sparsify_columns(
+                self.parameters['recog']['in_to_hidden'], sparsify_in)
+
 
 class BidirectStochasticRnn(StochasticRnn):
 
@@ -796,3 +837,43 @@ class BidirectStochasticRnn(StochasticRnn):
         exprs['shortcut'] = shortcut_empty
 
         return exprs
+
+    def draw_pars(self, par_std, par_std_i2h, sparsify_in, sparsify_rec, 
+                  spectral_radius): 
+        n_recog_layers = len(self.recog_transfers)
+        n_gen_layers = len(self.gen_transfers)
+
+        climin.initialize.randomize_normal(
+            self.parameters.data, 0, par_std)
+        climin.initialize.randomize_normal(
+            self.parameters['recog']['in_to_hidden'],
+            0, par_std_i2h)
+        climin.initialize.randomize_normal(
+            self.parameters['gen']['in_to_hidden'],
+            0, par_std_i2h)
+        
+        for i in range(n_recog_layers):
+            if sparsify_rec:
+                climin.initialize.sparsify_columns(
+                    self.parameters['recog']['recurrent_fwd_%i' % i], sparsify_rec)
+                climin.initialize.sparsify_columns(
+                    self.parameters['recog']['recurrent_bwd_%i' % i], sparsify_rec)
+            climin.initialize.bound_spectral_radius(
+                self.parameters['recog']['recurrent_fwd_%i' % i], spectral_radius)
+            climin.initialize.bound_spectral_radius(
+                self.parameters['recog']['recurrent_bwd_%i' % i], spectral_radius)
+
+        for i in range(n_gen_layers):
+            if sparsify_rec:
+                climin.initialize.sparsify_columns(
+                    self.parameters['gen']['recurrent_%i' % i], sparsify_rec)
+            climin.initialize.bound_spectral_radius(
+                self.parameters['gen']['recurrent_%i' % i], spectral_radius)
+
+        if sparsify_in:
+            climin.initialize.sparsify_columns(
+                self.parameters['recog']['in_to_hidden'], sparsify_in)
+
+        self.parameters['recog']['p_dropout']['hiddens'][0] = -3
+        self.parameters['recog']['p_dropout']['hidden_to_out'][0] = -3
+        self.parameters['recog']['p_dropout']['inpt'][0] = -3
