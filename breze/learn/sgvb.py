@@ -79,6 +79,14 @@ from climin import mathadapt as ma
 
 # TODO find a better home for the following functions.
 
+
+def flatten_list(lst):
+    res = []
+    for i in lst:
+        res += list(i)
+    return res
+
+
 def assert_no_time(X):
     if X.ndim == 2:
         return X
@@ -257,6 +265,22 @@ class DiagGaussVisibleAssumption(object):
         needs one, which is the probability of it being 0 or 1."""
         return n_latents
 
+    def sample_visibles(self, stt, rng):
+        stt_flat = assert_no_time(stt)
+        n_latent = stt_flat.shape[1] // 2
+        latent_mean = stt_flat[:, :n_latent]
+        latent_var = stt_flat[:, n_latent:]
+        noise = rng.normal(size=latent_mean.shape)
+        print stt_flat.tag.test_value.shape
+        print latent_mean.tag.test_value.shape,
+        print latent_var.tag.test_value.shape,
+        print noise.tag.test_value.shape
+        sample = latent_mean + T.sqrt(latent_var) * noise
+        if stt.ndim == 3:
+            return recover_time(sample, stt.shape[0])
+        else:
+            return sample
+
 
 class BernoulliVisibleAssumption(object):
 
@@ -277,6 +301,16 @@ class BernoulliVisibleAssumption(object):
         single random variable, the mean and the variance. A Bernoulli only
         needs one, which is the probability of it being 0 or 1."""
         return n_visibles
+
+    def sample_visibles(self, stt, rng):
+        stt_flat = assert_no_time(stt)
+        n_latent = stt_flat.shape[1] // 2
+        noise = rng.uniform(size=stt_flat.shape)
+        sample = noise < stt_flat
+        if stt.ndim == 3:
+            return recover_time(sample, stt.shape[0])
+        else:
+            return sample
 
 
 class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
@@ -629,7 +663,7 @@ class StochasticRnn(VariationalAutoEncoder):
 
     def _recog_par_spec(self):
         """Return the parameter specification of the recognition model."""
-        spec = rnn.parameters(self.n_inpt, self.n_hiddens_recog, self.n_latent)
+        spec = vprnn.parameters(self.n_inpt, self.n_hiddens_recog, self.n_latent)
         spec['p_dropout'] = {
             'inpt': 1,
             'hiddens': [1 for _ in self.n_hiddens_recog],
@@ -646,8 +680,10 @@ class StochasticRnn(VariationalAutoEncoder):
                              for i in range(n_layers - 1)]
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
-        initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
-                           for i in range(n_layers)]
+        initial_hidden_means = [getattr(P, 'initial_hidden_means_%i' % i)
+                                for i in range(n_layers)]
+        initial_hidden_vars = [getattr(P, 'initial_hidden_vars_%i' % i) ** 2 + 1e-4
+                               for i in range(n_layers)]
         recurrents = [getattr(P, 'recurrent_%i' % i)
                       for i in range(n_layers)]
 
@@ -661,7 +697,8 @@ class StochasticRnn(VariationalAutoEncoder):
         exprs = vprnn.exprs(
             inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
             hidden_biases, [1 for _ in hidden_biases],
-            initial_hiddens, recurrents,
+            initial_hidden_means, initial_hidden_vars,
+            recurrents,
             P.out_bias, 1, self.recog_transfers, self.assumptions.statify_latent,
             p_dropouts=p_dropouts)
 
@@ -683,7 +720,7 @@ class StochasticRnn(VariationalAutoEncoder):
     def _gen_par_spec(self):
         """Return the parameter specification of the generating model."""
         n_output = self.assumptions.visible_layer_size(self.n_inpt)
-        return rnn.parameters(
+        return vprnn.parameters(
             self.n_latent + self.n_hiddens_recog[-1], self.n_hiddens_gen,
             n_output)
 
@@ -696,8 +733,10 @@ class StochasticRnn(VariationalAutoEncoder):
                              for i in range(n_layers - 1)]
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
-        initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
-                           for i in range(n_layers)]
+        initial_hidden_means = [getattr(P, 'initial_hidden_means_%i' % i)
+                                for i in range(n_layers)]
+        initial_hidden_vars = [getattr(P, 'initial_hidden_vars_%i' % i)
+                               for i in range(n_layers)]
         recurrents = [getattr(P, 'recurrent_%i' % i)
                       for i in range(n_layers)]
 
@@ -721,17 +760,18 @@ class StochasticRnn(VariationalAutoEncoder):
         exprs = vprnn.exprs(
             inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
             hidden_biases, [1 for _ in hidden_biases],
-            initial_hiddens, recurrents,
+            initial_hidden_means, initial_hidden_vars,
+            recurrents,
             P.out_bias, 1, self.recog_transfers, self.assumptions.statify_visible,
             p_dropouts=p_dropouts)
 
         return exprs
 
-    def draw_pars(self, par_std, par_std_i2h, sparsify_in, sparsify_rec, 
-                  spectral_radius): 
+    def draw_pars(self, par_std, par_std_i2h, sparsify_in, sparsify_rec,
+                  spectral_radius):
         n_recog_layers = len(self.recog_transfers)
         n_gen_layers = len(self.gen_transfers)
-        
+
         climin.initialize.randomize_normal(
             self.parameters.data, 0, par_std)
         climin.initialize.randomize_normal(
@@ -747,7 +787,7 @@ class StochasticRnn(VariationalAutoEncoder):
                     self.parameters['recog']['recurrent_%i' % i], sparsify_rec)
                 climin.initialize.bound_spectral_radius(
                     self.parameters['recog']['recurrent_%i' % i], spectral_radius)
-                
+
             for i in range(n_gen_layers):
                 climin.initialize.sparsify_columns(
                     self.parameters['gen']['recurrent_%i' % i], sparsify_rec)
@@ -766,6 +806,62 @@ class StochasticRnn(VariationalAutoEncoder):
         if sparsify_in:
             climin.initialize.sparsify_columns(
                 self.parameters['recog']['in_to_hidden'], sparsify_in)
+
+    def _make_sample_one_step(self):
+        n_layers = len(self.n_hiddens_gen)
+
+        # make clones for parameters, so they can be used as inputs
+        initials = []
+        for i in range(n_layers):
+            initials += ['initial_hidden_means_%i' % i, 'initial_hidden_vars_%i' % i]
+
+        clones = [T.vector(i) for i in initials]
+        inpts = clones + [self.exprs['sample'], self.exprs['inpt']]
+        gen_exprs = self.exprs['gen']
+        outputs = [[gen_exprs['hidden_mean_%i' % i], gen_exprs['hidden_var_%i' % i]]
+                   for i in range(n_layers)]
+        outputs = flatten_list(outputs)
+
+        visible_stt = self.exprs['gen']['output']
+        rng = T.shared_randomstreams.RandomStreams()
+        visible_sample = self.assumptions.sample_visibles(visible_stt, rng)
+
+        # TODO sample here instead of MAP
+        outputs += [visible_sample]
+
+        self.f_sample_one_step = self.function(
+            inpts, outputs, givens=dict(zip([getattr(self.parameters.gen, i) for i in initials],
+                                            clones)),
+            on_unused_input='warn')
+
+    def _sample_one_step(self, *args):
+        if getattr(self, 'f_sample_one_step', None) is None:
+            self._make_sample_one_step()
+
+        res = self.f_sample_one_step(*args)
+        return res
+
+    def sample(self, n_time_steps):
+        samples = []
+        n_layers = len(self.n_hiddens_gen)
+        initial_means = [self.parameters['gen']['initial_hidden_means_%i' % i]
+                         for i in range(n_layers)]
+        initial_vars = [self.parameters['gen']['initial_hidden_vars_%i' % i]
+                         for i in range(n_layers)]
+
+        # TODO: sample from prior!
+        latent_samples = np.random.standard_normal((1, 1, self.n_latent)
+                                                   ).astype(theano.config.floatX)
+        inpt = np.zeros((1, 1, self.n_inpt), dtype=theano.config.floatX)
+        args = flatten_list(zip(initial_means, initial_vars))
+        args += [latent_samples, inpt]
+
+        for i in range(n_time_steps):
+            args = self._sample_one_step(*args)
+            samples.append(args[-1])
+            args = [i[0, 0, :] for i in args[:-1]] + [latent_samples] + args[-1:]
+
+        return np.concatenate(samples, axis=1)[0]
 
 
 class BidirectStochasticRnn(StochasticRnn):
@@ -799,9 +895,13 @@ class BidirectStochasticRnn(StochasticRnn):
                              for i in range(n_layers - 1)]
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
-        initial_hiddens_fwd = [getattr(P, 'initial_hiddens_fwd_%i' % i)
+        initial_hidden_means_fwd = [getattr(P, 'initial_hidden_means_fwd_%i' % i)
                                for i in range(n_layers)]
-        initial_hiddens_bwd = [getattr(P, 'initial_hiddens_bwd_%i' % i)
+        initial_hidden_vars_fwd = [getattr(P, 'initial_hidden_vars_fwd_%i' % i)  ** 2 + 1e-4
+                               for i in range(n_layers)]
+        initial_hidden_means_bwd = [getattr(P, 'initial_hidden_means_bwd_%i' % i)
+                               for i in range(n_layers)]
+        initial_hidden_vars_bwd = [getattr(P, 'initial_hidden_vars_bwd_%i' % i) ** 2 + 1e-4
                                for i in range(n_layers)]
         recurrents_fwd = [getattr(P, 'recurrent_fwd_%i' % i)
                           for i in range(n_layers)]
@@ -818,7 +918,8 @@ class BidirectStochasticRnn(StochasticRnn):
         exprs = vpbrnn.exprs(
             inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
             hidden_biases, [1 for _ in hidden_biases],
-            initial_hiddens_fwd, initial_hiddens_bwd,
+            initial_hidden_means_fwd, initial_hidden_vars_fwd,
+            initial_hidden_means_fwd, initial_hidden_vars_bwd,
             recurrents_fwd, recurrents_bwd,
             P.out_bias, 1, self.recog_transfers, self.assumptions.statify_latent,
             p_dropouts=p_dropouts)
@@ -838,8 +939,8 @@ class BidirectStochasticRnn(StochasticRnn):
 
         return exprs
 
-    def draw_pars(self, par_std, par_std_i2h, sparsify_in, sparsify_rec, 
-                  spectral_radius): 
+    def draw_pars(self, par_std, par_std_i2h, sparsify_in, sparsify_rec,
+                  spectral_radius):
         n_recog_layers = len(self.recog_transfers)
         n_gen_layers = len(self.gen_transfers)
 
@@ -851,7 +952,7 @@ class BidirectStochasticRnn(StochasticRnn):
         climin.initialize.randomize_normal(
             self.parameters['gen']['in_to_hidden'],
             0, par_std_i2h)
-        
+
         for i in range(n_recog_layers):
             if sparsify_rec:
                 climin.initialize.sparsify_columns(

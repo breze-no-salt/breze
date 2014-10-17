@@ -209,7 +209,8 @@ def int_forward_layer(in_mean, in_var, weights, mean_bias, var_bias_sqrt,
     return omi, ovi, omo, ovo
 
 
-def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
+def recurrent_layer(in_mean, in_var, weights, f,
+                    initial_hidden_mean, initial_hidden_var,
                     p_dropout):
     """Return a theano variable representing a recurrent layer.
 
@@ -274,9 +275,12 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
 
         return hom, hov, fhom, fhov
 
-    initial_hidden_mean = repeat(initial_hidden.dimshuffle('x', 0), in_mean.shape[1], axis=0)
-
-    initial_hidden_var = T.zeros_like(initial_hidden_mean) + 1e-8
+    if initial_hidden_mean.ndim == 1:
+        initial_hidden_mean = repeat(
+            initial_hidden_mean.dimshuffle('x', 0), in_mean.shape[1], axis=0)
+    if initial_hidden_var.ndim == 1:
+        initial_hidden_var = repeat(
+            initial_hidden_var.dimshuffle('x', 0), in_mean.shape[1], axis=0)
 
     (hidden_in_mean_rec, hidden_in_var_rec, hidden_mean_rec, hidden_var_rec), _ = theano.scan(
         step,
@@ -293,8 +297,37 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
             hidden_mean_rec, hidden_var_rec)
 
 
+def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False, prefix=''):
+    spec = dict(in_to_hidden=(n_inpt, n_hiddens[0]),
+                hidden_to_out=(n_hiddens[-1], n_output),
+                hidden_bias_0=n_hiddens[0],
+                out_bias=n_output)
+
+    zipped = zip(n_hiddens[:-1], n_hiddens[1:])
+    for i, (inlayer, outlayer) in enumerate(zipped):
+        spec['hidden_to_hidden_%i' % i] = (inlayer, outlayer)
+
+    if skip_to_out:
+        spec['in_to_out'] = (n_inpt, n_output)
+
+    for i, h in enumerate(n_hiddens):
+        spec['hidden_bias_%i' % i] = h
+        spec['recurrent_%i' % i] = (h, h)
+        spec['initial_hidden_means_%i' % i] = h
+        spec['initial_hidden_vars_%i' % i] = h
+        if skip_to_out and i < len(n_hiddens):
+            # Only do for all but the last layer.
+            spec['hidden_%i_to_out' % i] = (h, n_output)
+
+    spec = dict(('%s%s' % (prefix, k), v) for k, v in spec.items())
+
+    return spec
+
+
 def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
-          hidden_biases, hidden_var_scales_sqrt, initial_hiddens, recurrents,
+          hidden_biases, hidden_var_scales_sqrt,
+          initial_hidden_means, initial_hidden_vars,
+          recurrents,
           out_bias, out_var_scale_sqrt, hidden_transfers, out_transfer,
           in_to_out=None, skip_to_outs=None, p_dropouts=None,
           hotk_inpt=False):
@@ -329,8 +362,11 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         Biases for the variances. See ``forward_layer`` for an exact description
         of what it does.
 
-    initial_hiddens : list of Theano variables
-        List of vectors representing the initial hidden states.
+    initial_hidden_means : list of Theano variables
+        List of vectors representing the mean of the initial hidden states.
+
+    initial_hidden_vars : list of Theano variables
+        List of vectors representing the variance initial hidden states.
 
     recurrents : list of Theano variables
         List of matrices representing the recurrent weight matrices.
@@ -402,7 +438,8 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
             f_hiddens[0], p_dropouts[1])
 
     hmi_rec, hvi_rec, hmo_rec, hvo_rec = recurrent_layer(
-        hmi, hvi, recurrents[0], f_hiddens[0], initial_hiddens[0],
+        hmi, hvi, recurrents[0], f_hiddens[0],
+        initial_hidden_means[0], initial_hidden_vars[0],
         p_dropouts[1])
 
     exprs.update({
@@ -414,16 +451,18 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
 
     zipped = zip(
         hidden_to_hiddens, hidden_biases[1:], hidden_var_scales_sqrt[1:],
-        recurrents[1:], f_hiddens[1:], initial_hiddens[1:], p_dropouts[1:])
+        recurrents[1:], f_hiddens[1:],
+        initial_hidden_means[1:], initial_hidden_vars[1:],
+        p_dropouts[1:])
 
-    for i, (w, b, vb, r, t, j, d) in enumerate(zipped):
+    for i, (w, b, vb, r, t, j, k, d) in enumerate(zipped):
         hmo_rec_m1, hvo_rec_m1 = hmo_rec, hvo_rec
 
         hmi, hvi, hmo, hvo = forward_layer(
             hmo_rec_m1, hvo_rec_m1, w, b, vb, t, d)
 
         hmi_rec, hvi_rec, hmo_rec, hvo_rec = recurrent_layer(
-            hmi, hvi, r, t, j, d)
+            hmi, hvi, r, t, j, k, d)
 
         exprs.update({
             'hidden_in_mean_%i' % (i + 1): hmi,

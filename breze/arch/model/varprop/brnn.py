@@ -29,8 +29,10 @@ def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False, prefix=''):
         spec['hidden_bias_%i' % i] = h
         spec['recurrent_fwd_%i' % i] = (h, h)
         spec['recurrent_bwd_%i' % i] = (h, h)
-        spec['initial_hiddens_fwd_%i' % i] = h
-        spec['initial_hiddens_bwd_%i' % i] = h
+        spec['initial_hidden_means_fwd_%i' % i] = h
+        spec['initial_hidden_means_bwd_%i' % i] = h
+        spec['initial_hidden_vars_fwd_%i' % i] = h
+        spec['initial_hidden_vars_bwd_%i' % i] = h
         if skip_to_out and i < len(n_hiddens):
             # Only do for all but the last layer.
             spec['hidden_%i_to_out' % i] = (h, n_output)
