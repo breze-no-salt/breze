@@ -199,10 +199,10 @@ class DiagGaussLatentAssumption(object):
             return diag_gauss(X)
         else:
             # Not adding 1e-4 will definately lead to NaNs.
-            return X, var + 1e-4
+            return X, var
 
     def nll_recog_model(self, Z, stt):
-        return diag_gauss_nll(Z, stt)
+        return diag_gauss_nll(Z, stt, var, 1e-4)
 
     def kl_recog_prior(self, stt):
         if stt.ndim == 3:
@@ -211,7 +211,7 @@ class DiagGaussLatentAssumption(object):
             stt_flat = stt
 
         mean, var = stt_flat[:, :stt_flat.shape[1] // 2], stt_flat[:, stt_flat.shape[1] // 2:]
-        kl = inter_gauss_kl(mean, var)
+        kl = inter_gauss_kl(mean, var, 1e-4)
 
         if stt.ndim == 3:
             kl = recover_time(kl, stt.shape[0])
@@ -254,7 +254,7 @@ class DiagGaussVisibleAssumption(object):
             return X, var
 
     def nll_gen_model(self, X, stt):
-        return diag_gauss_nll(X, stt)
+        return diag_gauss_nll(X, stt, 1e-4)
 
     def visible_layer_size(self, n_latents):
         """Return the cardinality of the sufficient statistics given we want to

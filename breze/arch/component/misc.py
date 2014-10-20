@@ -144,7 +144,7 @@ def project_into_l2_ball(arr, radius=1):
     return arr
 
 
-def inter_gauss_kl(mean, var, mean_=0, var_=1):
+def inter_gauss_kl(mean, var, mean_=0, var_=1, var_offset=0, var_offset_=0):
     """Function returning a theano tensor representing the Kullback-Leibler
     divergence between Gaussian distributed random variables and a white
     Gaussian.
@@ -171,6 +171,6 @@ def inter_gauss_kl(mean, var, mean_=0, var_=1):
     #return -.5 * (1 + T.log(var + 1e-8) - mean ** 2 - var)
     #std = T.sqrt(var)
     #std_ = T.sqrt(var_)
-    m1, s1, m2, s2 = mean, T.sqrt(var), mean_, T.sqrt(var_)
+    m1, s1, m2, s2 = mean, T.sqrt(var + var_offset), mean_, T.sqrt(var_ + var_offset_)
     return T.log(s2 / s1 + 1e-4) + (s1 ** 2 + (m1 - m2) ** 2) / (2 * s2 ** 2 + 1e-4) - .5
 
