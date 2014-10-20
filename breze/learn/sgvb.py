@@ -749,7 +749,6 @@ class StochasticRnn(VariationalAutoEncoder):
 
         p_dropout_inpt = T.concatenate([p_dropout_inpt, p_dropout_shortcut],
                                        axis=2)
-        #p_dropout_inpt = T.zeros_like(inpt)
 
         p_dropouts = [p_dropout_inpt] + self.p_dropout_hiddens
         if self.p_dropout_hidden_to_out is None:
