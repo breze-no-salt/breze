@@ -776,7 +776,7 @@ class StochasticRnn(VariationalAutoEncoder):
             self.parameters.data, 0, par_std)
         climin.initialize.randomize_normal(
             self.parameters['recog']['in_to_hidden'],
-            0, in_to_hidden_par_std)
+            0, par_std_i2h)
         climin.initialize.randomize_normal(
             self.parameters['gen']['in_to_hidden'],
             0, par_std_i2h)
