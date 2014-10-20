@@ -397,7 +397,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
 
         self.p_dropout_inpt = p_dropout_inpt
         if isinstance(p_dropout_hiddens, float):
-            p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
+            p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_gen)
         self.p_dropout_hiddens = p_dropout_hiddens
 
         self.imp_weight = imp_weight
@@ -762,7 +762,7 @@ class StochasticRnn(VariationalAutoEncoder):
             hidden_biases, [1 for _ in hidden_biases],
             initial_hidden_means, initial_hidden_vars,
             recurrents,
-            P.out_bias, 1, self.recog_transfers, self.assumptions.statify_visible,
+            P.out_bias, 1, self.gen_transfers, self.assumptions.statify_visible,
             p_dropouts=p_dropouts)
 
         return exprs
