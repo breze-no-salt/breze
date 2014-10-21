@@ -64,7 +64,7 @@ def pdf(sample, mean, cov):
     True
     """
 
-    dim = sample.shape[0]
+    dim = sample.shape[1]
     psd(cov)
     inv_cov = minv(cov)
     L = chol(inv_cov)
