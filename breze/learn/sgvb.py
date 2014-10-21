@@ -271,10 +271,6 @@ class DiagGaussVisibleAssumption(object):
         latent_mean = stt_flat[:, :n_latent]
         latent_var = stt_flat[:, n_latent:]
         noise = rng.normal(size=latent_mean.shape)
-        print stt_flat.tag.test_value.shape
-        print latent_mean.tag.test_value.shape,
-        print latent_var.tag.test_value.shape,
-        print noise.tag.test_value.shape
         sample = latent_mean + T.sqrt(latent_var) * noise
         if stt.ndim == 3:
             return recover_time(sample, stt.shape[0])
