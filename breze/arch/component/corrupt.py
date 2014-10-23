@@ -40,7 +40,7 @@ def gaussian_perturb(arr, std, rng=None):
     >>> m = T.matrix()
     >>> c = gaussian_perturb(m, 0.1)
     >>> pprint(c)
-    '(<TensorType(float32, matrix)> + RandomFunction{normal}(<RandomStateType>, int32(<TensorType(float32, matrix)>.shape), TensorConstant{0.0}, TensorConstant{0.10000000149}))'
+    '(<TensorType(float32, matrix)> + RandomFunction{normal}(<RandomStateType>, int32(Shape(<TensorType(float32, matrix)>)), TensorConstant{0.0}, TensorConstant{0.10000000149}))'
     """
 
     if rng is None:
@@ -81,7 +81,7 @@ def mask(arr, p, rng=None):
     >>> m = T.matrix()
     >>> c = mask(m, 0.1)
     >>> pprint(c)
-    '(<TensorType(float32, matrix)> * float32(RandomFunction{binomial}(<RandomStateType>, int32(<TensorType(float32, matrix)>.shape), TensorConstant{1}, TensorConstant{0.10000000149})))'
+    '(<TensorType(float32, matrix)> * float32(RandomFunction{binomial}(<RandomStateType>, int32(Shape(<TensorType(float32, matrix)>)), TensorConstant{1}, TensorConstant{0.10000000149})))'
     """
     if rng is None:
         rng = T.shared_randomstreams.RandomStreams()

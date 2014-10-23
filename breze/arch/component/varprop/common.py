@@ -58,7 +58,7 @@ def supervised_loss(target, prediction, loss, coord_axis=1,
     >>> loss_dict = supervised_loss(target, prediction, diag_gaussian_nll,
     ...   prefix='mymodel-')
     >>> sorted(loss_dict.items())
-    [('mymodel-loss', Elemwise{true_div,no_inplace}.0), ('mymodel-loss_coord_wise', Elemwise{neg,no_inplace}.0), ('mymodel-loss_sample_wise', Sum{1}.0), ('mymodel-prediction', prediction), ('mymodel-target', target)]
+    [('mymodel-loss', Elemwise{true_div,no_inplace}.0), ('mymodel-loss_coord_wise', Elemwise{mul,no_inplace}.0), ('mymodel-loss_sample_wise', Sum{1}.0), ('mymodel-prediction', prediction), ('mymodel-target', target)]
     """
     f_loss = lookup(loss, loss_)
     loss_coord_wise = f_loss(target, prediction)

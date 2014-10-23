@@ -13,19 +13,19 @@ def test_vae():
     X = np.random.random((2, 10))
     X, = theano_floatx(X)
 
+    class Assmptn(sgvb.DiagGaussLatentAssumption, sgvb.DiagGaussVisibleAssumption):
+        pass
+
     m = sgvb.VariationalAutoEncoder(
         10, [20, 30], 4, [15, 25],
         ['tanh'] * 2, ['rectifier'] * 2,
-        latent_prior='white_gauss',
-        latent_posterior='diag_gauss',
-        visible='bern',
+        assumptions=Assmptn(),
         optimizer='rprop', batch_size=None,
         max_iter=3)
 
     m.fit(X)
     m.score(X)
     m.transform(X)
-    m.denoise(X)
     m.estimate_nll(X[:2], 2)
 
 
@@ -51,81 +51,26 @@ def test_vae_imp_weight():
     m.fit(X, W)
     m.score(X, W)
     m.transform(X)
-    m.denoise(X)
 
 
-def test_sequential_vae():
+def test_storn():
     theano.config.compute_test_value = 'raise'
     X = np.random.random((2, 5, 10))
     X, = theano_floatx(X)
 
-    m = sgvb.VariationalSequenceAE(
-        10, [20, 30], 4, [15, 25],
-        ['tanh'] * 2, ['rectifier'] * 2,
-        latent_prior='white_gauss',
-        latent_posterior='diag_gauss',
-        visible='bern',
-        optimizer='rprop', batch_size=None,
-        max_iter=3)
-
-    m._init_pars()
-    m._init_exprs()
-
-    m.fit(X)
-    m.score(X)
-    m.transform(X)
-
-
-def test_vosp():
-    theano.config.compute_test_value = 'raise'
-    X = np.random.random((2, 5, 10))
-    X, = theano_floatx(X)
-
-    m = sgvb.VariationalOneStepPredictor(
-        10, [20, 30], 4, [15, 25],
-        ['tanh'] * 2, ['rectifier'] * 2,
-        latent_prior='white_gauss',
-        latent_posterior='diag_gauss',
-        visible='bern',
-        optimizer='rprop', batch_size=None,
-        max_iter=3)
-
-    m._init_pars()
-    m._init_exprs()
-
-    m.fit(X)
-    m.score(X)
-    m.transform(X)
-
-
-def test_sequential_vae():
-    theano.config.compute_test_value = 'raise'
-    X = np.random.random((2, 5, 10))
-    W = np.random.random((2, 5, 1))
-    X, W = theano_floatx(X, W)
-
-    m = sgvb.VariationalSequenceAE(
-        10, [20, 30], 4, [15, 25],
-        ['tanh'] * 2, ['rectifier'] * 2,
-        latent_prior='white_gauss',
-        latent_posterior='diag_gauss',
-        visible='bern',
-        imp_weight=True,
-        optimizer='rprop', batch_size=None,
-        max_iter=3)
-
-    m._init_pars()
-    m._init_exprs()
-
-    m.fit(X, W)
-    m.score(X, W)
-    m.transform(X)
-
-    stop_iter = iter([False, False, False, True])
-    stop = lambda x: stop_iter.next()
-    pause_iter = iter([True * 4])
-    pause = lambda x: pause_iter.next()
-
-    for info in m.powerfit((X, W), (X, W), stop, pause, True):
+    class Assmptn(sgvb.DiagGaussLatentAssumption, sgvb.DiagGaussVisibleAssumption):
         pass
 
+    m = sgvb.StochasticRnn(
+        10, [20, 30], 4, [15, 25],
+        ['tanh'] * 2, ['rectifier'] * 2,
+        assumptions=Assmptn(),
+        optimizer='rprop', batch_size=None,
+        max_iter=3)
+
+    m._init_pars()
+    m._init_exprs()
+
+    m.fit(X)
+    m.score(X)
+    m.transform(X)

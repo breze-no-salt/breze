@@ -33,8 +33,9 @@ def test_pdf_compare_logpdf():
 
     some_cov = np.dot(w, w.T) + np.eye(5).astype(theano.config.floatX)
 
-
     d = f_density(some_sample, some_mean, some_cov)
     log_d = f_logdensity(some_sample, some_mean, some_cov)
 
-    assert np.allclose(np.log(d), log_d)
+    print np.log(d) / log_d
+
+    assert np.allclose(np.log(d), log_d), '%s %s' % (np.log(d), log_d)
