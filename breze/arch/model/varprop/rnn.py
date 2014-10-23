@@ -411,6 +411,15 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
          - ``output_var``: post-synaptic variance of output,
          - ``output``: concatenation of mean and variance of output
     """
+    if not len(set([len(hidden_to_hiddens) + 1,
+                    len(hidden_biases),
+                    len(hidden_var_scales_sqrt),
+                    len(initial_hidden_means),
+                    len(initial_hidden_vars),
+                    len(recurrents),
+                    len(hidden_transfers)])):
+        raise ValueError('one of the inputs has wrong length')
+
     # TODO add skip to outs docs
     # TODO: add pooling
     # TODO: add leaky integration
