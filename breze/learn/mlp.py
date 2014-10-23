@@ -322,7 +322,7 @@ class FastDropoutNetwork(Model, SupervisedBrezeWrapperBase):
         inpt_var = T.zeros_like(self.exprs['inpt_mean']) + self.inpt_var
 
         self.exprs.update(varprop_mlp.exprs(
-            self.exprs['inpt_mean'], inpt_var, self.exprs['target'],
+            self.exprs['inpt_mean'], inpt_var,
             P.in_to_hidden,
             hidden_to_hiddens,
             P.hidden_to_out,
