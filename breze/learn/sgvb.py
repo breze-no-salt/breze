@@ -202,7 +202,7 @@ class DiagGaussLatentAssumption(object):
             return X, var
 
     def nll_recog_model(self, Z, stt):
-        return diag_gauss_nll(Z, stt, var, 1e-4)
+        return diag_gauss_nll(Z, stt, 1e-4)
 
     def kl_recog_prior(self, stt):
         if stt.ndim == 3:
