@@ -59,15 +59,17 @@ from breze.arch.component.misc import inter_gauss_kl
 from breze.arch.component.transfer import diag_gauss
 from breze.arch.component.varprop.transfer import sigmoid
 from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nll, bern_ces
-#from breze.arch.component.loss import bern_ces
 from breze.arch.component.varprop.loss import unpack_mean_var
+
 from breze.arch.model import sgvb
 from breze.arch.model.neural import mlp
 from breze.arch.model.varprop import brnn as vpbrnn
 from breze.arch.model.varprop import rnn as vprnn
 from breze.arch.model.varprop import mlp as vpmlp
 from breze.arch.model.rnn import rnn
+
 from breze.arch.util import ParameterSet, Model
+
 from breze.learn.base import (
     UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin,
     ReconstructBrezeWrapperMixin)
@@ -585,8 +587,15 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         ndim = self.exprs['sample'].ndim
         if ndim == 3:
             latent_sample = T.tensor3('sample')
+            latent_sample.tag.test_value = np.zeros(
+                (self.exprs['inpt'].tag.test_value.shape[0],
+                 self.exprs['inpt'].tag.test_value.shape[1],
+                 self.n_latent)).astype(theano.config.floatX)
         elif ndim == 2:
             latent_sample = T.matrix('sample')
+            latent_sample.tag.test_value = np.zeros(
+                (self.exprs['inpt'].tag.test_value.shape[0],
+                 self.n_latent)).astype(theano.config.floatX)
         else:
             raise ValueError('unexpected ndim for samples')
 
