@@ -10,7 +10,7 @@ from breze.arch.model.neural.cnn import pad, perform_pooling, perform_lrnorm
 
 def prepare_array(arr):
     arr = np.array(arr)
-    return arr.reshape((1, 1) + arr.shape)
+    return arr.reshape((1, 1) + arr.shape).astype(theano.config.floatX)
 
 
 def test_pad():
