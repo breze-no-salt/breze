@@ -198,7 +198,6 @@ class DiagGaussLatentAssumption(object):
         if var is None:
             return diag_gauss(X)
         else:
-            # Not adding 1e-4 will definately lead to NaNs.
             return X, var
 
     def nll_recog_model(self, Z, stt):
