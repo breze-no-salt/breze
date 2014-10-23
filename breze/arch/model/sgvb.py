@@ -5,7 +5,7 @@ import theano.tensor as T
 
 
 def exprs(inpt, recog_exprs_func, gen_exprs_func,
-          latent_sample,
+          latent_sample_func,
           latent_key='output', visible_key='output',
           shortcut_key=None):
     """Function returning an expression dictionary.
@@ -25,8 +25,9 @@ def exprs(inpt, recog_exprs_func, gen_exprs_func,
         model given a sample from the recognition model. (I.e. it has one
         argument.)
 
-    latent_posterior_dist : {'diag_gauss'}
-        Identifier of the distribution of the latents given the visibles.
+    latent_sample_func : callable
+        Callable that given sufficient statistics of a distribution and a
+        RandomStreams object, returns a sample from it.
 
     latent_key : string, optional. Default: 'output'.
         Key to use to retrieve the expression for the latents from the
@@ -49,14 +50,15 @@ def exprs(inpt, recog_exprs_func, gen_exprs_func,
     >>> inpt = T.matrix()
     >>> rec_model = lambda x: {'output': T.matrix()}
     >>> gen_model = lambda x: {'output': T.matrix()}
-    >>> exprs(inpt, rec_model, gen_model, 'diag_gauss', 'diag_gauss').keys()
-    ['sample', 'recog', 'latent', 'gen', 'output']
+    >>> latent_sample_func = lambda x, rng: x
+    >>> sorted(exprs(inpt, rec_model, gen_model, latent_sample_func).keys())
+    ['gen', 'gen_inpt', 'inpt', 'latent', 'output', 'recog', 'sample']
     """
     recog_exprs = recog_exprs_func(inpt)
     latent = recog_exprs[latent_key]
 
     rng = T.shared_randomstreams.RandomStreams()
-    sample = latent_sample(latent, rng)
+    sample = latent_sample_func(latent, rng)
 
     if shortcut_key is None:
         gen_inpt = sample
