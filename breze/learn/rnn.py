@@ -424,6 +424,13 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
             optimizer=optimizer, batch_size=batch_size, max_iter=max_iter,
             verbose=verbose, imp_weight=imp_weight)
 
+    def _init_pars(self):
+        spec = varprop_rnn.parameters(
+            self.n_inpt, self.n_hiddens, self.n_output, self.skip_to_out)
+        self.parameters = ParameterSet(**spec)
+        self.parameters.data[:] = np.random.standard_normal(
+            self.parameters.data.shape).astype(theano.config.floatX)
+
     def _init_exprs(self):
         self.exprs = {'inpt': T.tensor3('inpt'),
                       'target': T.tensor3('target')}
@@ -436,8 +443,10 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
                              for i in range(n_layers - 1)]
         recurrents = [getattr(P, 'recurrent_%i' % i)
                       for i in range(n_layers)]
-        initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
-                           for i in range(n_layers)]
+        initial_hidden_means = [getattr(P, 'initial_hidden_means_%i' % i)
+                                 for i in range(n_layers)]
+        initial_hidden_vars = [getattr(P, 'initial_hidden_vars_%i' % i)
+                                for i in range(n_layers)]
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
 
@@ -460,7 +469,7 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
         self.exprs.update(varprop_rnn.exprs(
             self.exprs['inpt'], inpt_var, P.in_to_hidden, hidden_to_hiddens,
             P.hidden_to_out, hidden_biases,
-            hidden_var_scales_sqrt, initial_hiddens,
+            hidden_var_scales_sqrt, initial_hidden_means, initial_hidden_vars,
             recurrents, P.out_bias, out_var_scale_sqrt,
             self.hidden_transfers, self.out_transfer,
             in_to_out=in_to_out, skip_to_outs=skip_to_outs,
