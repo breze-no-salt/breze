@@ -88,10 +88,8 @@ def matern52_by_dist(D2):
         distances.
     :returns: Theano tensor of the same size as the input.
     """
-    import theano.printing
-    D2 = theano.printing.Print('d2')(D2)
     D = T.sqrt(D2 + 1e-8)
-    return (1.0 + T.sqrt(5.) * D + (5. / 3.) * D2) * T.exp(-T.sqrt(5.) * D)
+    return (1.0 + T.sqrt(5.) * D + (5. / 3.) * D2) * T.exp(-T.sqrt(5.) * D + 1e-4)
 
 
 def matern52(X, X_, length_scales, amplitude, diag=False):

@@ -30,6 +30,7 @@ Learning representations, clustering:
    tsne
    kmeans
    rim
+   sgvb
    :maxdepth: 1
 
 Denoising:
@@ -51,6 +52,12 @@ Sampling
 
 .. toctree::
    sampling/hmc
+
+
+Trainers
+
+.. toctree::
+   learn/trainer/trainer
 
 
 Helpers, convenience functions and tools
@@ -75,6 +82,14 @@ Architectures, Components
    arch/component/misc
    arch/component/layer
    arch/component/common
+   arch/component/distributions/normal
+   arch/component/distributions/mvn
+   arch/util
+
+For variance propagation:
+
+.. toctree::
+   arch/component/varprop/common
 
 
 Implementation Notes

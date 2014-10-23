@@ -2,14 +2,13 @@
 # -*- coding: utf-8 -*-
 
 
-import theano
-import theano.tensor as T
-
 import loss as loss_
 from ...util import lookup, get_named_variables
 
 
-def supervised_loss(target, prediction, loss, coord_axis=1, prefix=''):
+def supervised_loss(target, prediction, loss, coord_axis=1,
+                    imp_weight=False,
+                    prefix=''):
     """Return a dictionary populated with several expressions for a supervised
     loss and corresponding targets and predictions.
 
@@ -28,7 +27,6 @@ def supervised_loss(target, prediction, loss, coord_axis=1, prefix=''):
         coordinate axis, where the first half corresponds to the mean and the
         second half to the variance of the prediction.
 
-
     loss : callable or string
         If a string, should index a member of :mod:`breze.arch.component.loss`.
         If a callable, has to be a of the form described in
@@ -37,6 +35,10 @@ def supervised_loss(target, prediction, loss, coord_axis=1, prefix=''):
     coord_axis : integer, optional [default: 1]
         Axis aong which the coordinates of single sample are stored. I.e. not
         the sample axis or some spatial axis.
+
+    imp_weight : Theano variable, float or boolean, optional [default: False]
+        Importance weights for the loss. Will be multiplied to the coordinate
+        wise loss.
 
     prefix : string, optional [default: '']
         Each key in the resulting dictionary will be prefixed with ``prefix``.
@@ -60,9 +62,16 @@ def supervised_loss(target, prediction, loss, coord_axis=1, prefix=''):
     """
     f_loss = lookup(loss, loss_)
     loss_coord_wise = f_loss(target, prediction)
-    loss_sample_wise = loss_coord_wise.sum(axis=coord_axis)
-    loss = loss_sample_wise.mean()
-
+    loss_coord_wise *= imp_weight if imp_weight else 1
+    try:
+        loss_sample_wise = loss_coord_wise.sum(axis=coord_axis)
+    except ValueError:
+        #we do not have enough dimensions, the loss is not coordinate-wise
+        loss_sample_wise = loss_coord_wise
+    if imp_weight:
+        loss = loss_coord_wise.sum(axis=None) / imp_weight.sum(axis=None)
+    else:
+        loss = loss_sample_wise.mean()
     return get_named_variables(locals(), prefix=prefix)
 
 

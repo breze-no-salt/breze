@@ -140,7 +140,7 @@ class GaussianProcess(Model, SupervisedBrezeWrapperBase):
         self.stored_X = (X - self.mean_x) / self.std_x
         self.stored_Z = (Z - self.mean_z) / self.std_z
 
-    def iter_fit(self, X, Z, mode=None):
+    def iter_fit(self, X, Z, mode=None, info_opt=None):
         self.store_dataset(X, Z)
 
         if 'diff' in self.exprs:
@@ -153,7 +153,7 @@ class GaussianProcess(Model, SupervisedBrezeWrapperBase):
             givens=givens, mode=mode, on_unused_input='warn')
 
         args = self._make_args(self.stored_X, self.stored_Z)
-        opt = self._make_optimizer(f_loss, f_d_loss, args)
+        opt = self._make_optimizer(f_loss, f_d_loss, args, info=info_opt)
 
         for i, info in enumerate(opt):
             yield info

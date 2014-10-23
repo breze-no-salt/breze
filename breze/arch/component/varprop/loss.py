@@ -49,17 +49,18 @@ def unpack_mean_var(arr):
 
 
 def discard_var_loss(loss):
-    def inner(target, prediction):
+    def inner_discard_var_loss(target, prediction):
         mean, var = unpack_mean_var(prediction)
         return loss(target, mean)
-    return inner
+    return inner_discard_var_loss
 
 
 squared = discard_var_loss(loss.squared)
 absolute = discard_var_loss(loss.absolute)
 cat_ce = discard_var_loss(loss.cat_ce)
 ncat_ce = discard_var_loss(loss.ncat_ce)
-bernoulli_ces = discard_var_loss(loss.bern_ces)
+bern_ces = discard_var_loss(loss.bern_ces)
+fmeasure = discard_var_loss(loss.fmeasure)
 ncac = discard_var_loss(loss.ncac)
 ncar = discard_var_loss(loss.ncar)
 

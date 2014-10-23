@@ -6,7 +6,7 @@ from breze.learn.utils import theano_floatx
 
 
 def test_autoencoder():
-    X = np.random.random((100, 10))
+    X = np.random.random((10, 10))
     X, = theano_floatx(X)
 
     m = autoencoder.AutoEncoder(10, [100], ['tanh'], 'identity', 'squared',
@@ -17,7 +17,7 @@ def test_autoencoder():
 
 
 def test_deepautoencoder():
-    X = np.random.random((100, 10))
+    X = np.random.random((10, 10))
     X, = theano_floatx(X)
 
     m = autoencoder.AutoEncoder(10, [100, 10, 100],
@@ -30,19 +30,21 @@ def test_deepautoencoder():
 
 
 def test_sparse_autoencoder():
-    X = np.random.random((100, 10))
+    X = np.random.random((10, 10))
     X, = theano_floatx(X)
 
     m = autoencoder.SparseAutoEncoder(
         10, [100], ['sigmoid'], 'identity', 'squared', tied_weights=True,
-        sparsity_target=0.01, c_sparsity=3., sparsity_loss='bern_bern_kl')
+        optimizer='rprop',
+        sparsity_target=0.01, c_sparsity=3., sparsity_loss='bern_bern_kl',
+        max_iter=10)
     m.fit(X)
     m.score(X)
     m.transform(X)
 
 
 def test_contractive_autoencoder():
-    X = np.random.random((100, 10))
+    X = np.random.random((10, 10))
     X, = theano_floatx(X)
 
     m = autoencoder.ContractiveAutoEncoder(
@@ -55,7 +57,7 @@ def test_contractive_autoencoder():
 
 
 def test_denoising_autoencoder():
-    X = np.random.random((100, 10))
+    X = np.random.random((10, 10))
     X, = theano_floatx(X)
 
     m = autoencoder.DenoisingAutoEncoder(

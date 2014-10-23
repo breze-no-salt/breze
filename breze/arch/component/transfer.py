@@ -195,6 +195,29 @@ def softsign(inpt):
     return inpt / (1 + abs(inpt))
 
 
+def diag_gauss(inpt):
+    """Transfer function to turn an arary into sufficient statistics of a
+    diagonal Gaussian.
+
+    The first half of the input will be left unchanged, the second will be
+    squared. the "split" into halves is performed along the second axis.
+
+    Parameters
+    ----------
+
+    inpt : Theano tensor
+        Array of shape ``(n, d)``.
+    Returns
+    -------
+
+    output : Theano variable.
+        Transformed input. Same shape as ``inpt``.
+    """
+    half = inpt.shape[1] // 2
+    mean, var = inpt[:, :half], inpt[:, half:]
+    return T.concatenate([mean, var ** 2], axis=1)
+
+
 # TODO move this into a different module, e.g. "densities" or so.
 
 def logproduct_of_t(inpt):

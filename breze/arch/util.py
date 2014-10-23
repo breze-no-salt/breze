@@ -7,7 +7,12 @@ import numpy as np
 import theano
 import theano.tensor as T
 import theano.sandbox.cuda
+import theano.sandbox.cuda.var
 import theano.misc.gnumpy_utils as gput
+
+from breze.utils import dictlist
+
+import attrdict
 
 
 try:
@@ -56,12 +61,14 @@ def unflatten(tmpl, flat):
 
 
 def theano_function_with_nested_exprs(variables, exprs, *args, **kwargs):
-    """Creates and returns a theano.function that takes values for `variables`
-    as arguments, where `variables` may contain nested lists and/or tuples,
-    and returns values for `exprs`, where again `exprs` may contain nested
+    """Creates and returns a ``theano.function`` that takes values for
+    ``variables``
+    as arguments, where ``variables` may contain nested lists and/or tuples,
+    and returns values for ``exprs``, where again ``exprs`` may contain nested
     lists and/or tuples.
 
-    All other arguments are passed to theano.function without modification."""
+    All other arguments are passed to ``theano.function`` without
+    modification."""
 
     flat_variables = flatten(variables)
     flat_exprs = flatten(exprs)
@@ -178,7 +185,6 @@ def gnumpy_func_wrap(f):
             if not isinstance(res, (float, np.ndarray)):
                 res = gput.cudandarray_to_garray(res)
         return res
-    inner.theano_func = f.theano_func
     return inner
 
 
@@ -189,8 +195,6 @@ def lookup(what, where, default=None):
         res = getattr(where, what, default)
     else:
         res = what
-    if res is None:
-        raise ValueError('could not find %s' % what)
     return res
 
 
@@ -233,8 +237,14 @@ def theano_expr_bfs(expr):
         if not stack:
             break
         expr = stack.pop()
-        candidates = expr.owner.inputs if hasattr(expr.owner, 'inputs') else []
-        candidates = [i for i in candidates if i not in marked]
+        if hasattr(expr, 'variable'):
+            candidates = [expr.variable]
+        else:
+            candidates = expr.owner.inputs if hasattr(expr.owner, 'inputs') else []
+            candidates = [i for i in candidates if i not in marked]
+
+        if hasattr(expr, 'default_update'):
+            candidates.append(expr.default_update)
 
         stack += candidates
         marked |= set(candidates)
@@ -245,6 +255,13 @@ def theano_expr_bfs(expr):
 def tell_deterministic(expr):
     """Return True iff no random number generator is in the expression graph."""
     return all(not hasattr(i, 'rng') for i in theano_expr_bfs(expr))
+
+
+def tell_variable_in_expr(variable, expr):
+    for i in theano_expr_bfs(expr):
+        if i == variable:
+            return True
+    return False
 
 
 class ParameterSet(object):
@@ -258,15 +275,14 @@ class ParameterSet(object):
     a parameter variable (with concrete values) while a (parameter)
     tensor/variable refers to the symbolic Theano variable.
 
-
-    Parameters
-    ----------
-
     Initialization takes a variable amount of keyword arguments, where each has
     to be a single integer or a tuple of arbitrary length containing only
     integers. For each of the keyword argument keys a tensor of the shape given
     by the value will be created. The key is the identifier of that variable.
 
+    All symbolic variables can be accessed as attributes of the object, all
+    concrete variables as keys. E.g. parameter_set.x references the symbolic
+    variable, while parameter_set['x'] will give you the concrete array.
 
     Attributes
     ----------
@@ -275,31 +291,20 @@ class ParameterSet(object):
         Total amount of parameters.
 
     flat : Theano vector
-        Flat one dimensional tensor containing all the different tensors
-        flattened out. Symbolic pendant to ``data``.
+        Flat one dimensional tensor containing all the different tensors flattened out. Symbolic pendant to ``data``.
 
     data : array_like
         Concrete array containig all the different arrays flattened out.
         Concrete pendant to ``flat``.
 
-    views : dictionary
+    views : dict
         All parameter arrays can be accessed by with their identifier as key
         in this dictionary.
-
-    All symbolic variables can be accessed as attributes of the object, all
-    concrete variables as keys. E.g. parameter_set.x references the symbolic
-    variable, while parameter_set['x'] will give you the concrete array.
     """
 
     def __init__(self, **kwargs):
-        # Make sure all size specifications are tuples.
-        kwargs = dict((k, v if isinstance(v, tuple) else (v,))
-                      for k, v in kwargs.iteritems())
-
-        # Find out total size of needed parameters and create memory for it.
-        sizes = [np.prod(i) for i in kwargs.values()]
-
-        self.n_pars = sum(sizes)
+        dictlist.replace(kwargs, lambda x: (x,) if isinstance(x, int) else x)
+        self.n_pars = n_pars_by_partition(kwargs)
 
         # Create two representations of the parameters of the object. The first
         # is the symbolic theano variable (of which the type is GPU/CPU
@@ -315,27 +320,17 @@ class ParameterSet(object):
         self.flat.tag.test_value = self.data
 
         # Go through parameters and assign space and variable.
-        self.views = {}
-        n_used = 0 	# Number of used parameters.
+        self.views = array_partition_views(self.data, kwargs)
 
-        for (key, shape), size in zip(kwargs.items(), sizes):
-            # Make sure the key is legit -- that it does not overwrite
-            # anything.
+        # Make sure the keys are legit -- that they do not overwrite
+        # anything.
+        for key in kwargs:
             if hasattr(self, key):
                 raise ValueError("%s is an illegal name for a variable")
 
-            # Get the region from the big flat array.
-            region = self.data[n_used:n_used + size]
-            # Then shape it correctly and make it accessible from the outside.
-            region = region.reshape(shape)
-            self.views[key] = region
-
-            # Get the right variable as a subtensor.
-            var = self.flat[n_used:n_used + size].reshape(shape)
-            var.name = key
-            setattr(self, key, var)
-
-            n_used += size
+        variables = array_partition_views(self.flat, kwargs)
+        variables = dictlist.copy(variables, dct_maker=attrdict.AttrDict)
+        self.__dict__.update(variables)
 
     def __contains__(self, key):
         return key in self.views
@@ -358,23 +353,6 @@ class Model(object):
     targets, the data (3) *expressions* composed out of the two, such as the
     prediction of a model or the loss resulting from those.
 
-    Attributes
-    ----------
-
-    pars : ParameterSet object
-        Holding the adaptable parameters of the object.
-
-    exprs : dictionary
-        Containig the expressions. Out of convenience, the external variables
-        are held in here as well.
-
-    updates : dictionary containing update variables, e.g. due to the use of
-        ``theano.scan``.
-
-
-    Expression Names
-    ----------------
-
     There are several "reserved" names for expressions.
 
       - ``inpt``: observations of a supervised or unsupervised model,
@@ -387,7 +365,31 @@ class Model(object):
 
     Overriding these names is possible in general, but is part of the interface
     and will lead to unexpected behaviour with functionality building upon
-    this."""
+    this.
+
+    Lookup of variables and expressions is typically done in the following ways.
+
+      - as the variable/expression itself,
+      - as a string which is the attribute/key to look for in the ParameterSet
+      object/expression dictinary,
+      - as a path along theese, e.g. the tuple ``('foo', 'bar', 0)`` will
+      identify ``.parameters.foo.bar[0]`` or ``.parameters['foo']['bar'][0]``
+      depending on the context.
+
+
+    Attributes
+    ----------
+
+    pars : ParameterSet object
+        Holding the adaptable parameters of the object.
+
+    exprs : dictionary
+        Containig the expressions. Out of convenience, the external variables
+        are held in here as well.
+
+    updates : dict
+        Containing update variables, e.g. due to the use of ``theano.scan``.
+    """
 
     def __init__(self):
         self.updates = collections.defaultdict(dict)
@@ -404,16 +406,26 @@ class Model(object):
     def _init_exprs(self):
         pass
 
+    def _lookup(self, container, ident):
+        tensor_types = (theano.tensor.basic.TensorVariable,
+                        theano.sandbox.cuda.var.CudaNdarrayVariable)
+
+        if isinstance(ident, tensor_types):
+            res = ident
+        elif isinstance(ident, tuple):
+            res = dictlist.get(container, ident)
+        elif isinstance(ident, str):
+            res = container[ident]
+        else:
+            raise ValueError('unrecognized way of pointing to expr')
+
+        return res
+
     def _unify_variables(self, variables):
         """Given a list of variables where each identifier given as a string
         is repaced by the corresponding variable from the .exprs
         dictionary."""
-        def lookup(varname):
-            res = getattr(self.parameters, varname, None)
-            if res is None:
-                res = self.exprs[i]
-            return res
-        variables = [lookup(i) if isinstance(i, str) else i
+        variables = [self._lookup(i) if isinstance(i, str) else i
                      for i in variables]
         return variables
 
@@ -438,6 +450,16 @@ class Model(object):
             exprs = [self.exprs[i] if isinstance(i, str) else i for i in exprs]
 
         return exprs
+
+    def _gpu_and_random(self, exprs):
+        """Tell whether the GPU is used the expressions contain a random number
+        generator."""
+        if not GPU:
+            return False
+        if not all(tell_deterministic(i) for i in exprs):
+            return True
+
+        return False
 
     def function(self, variables, exprs, mode=None, explicit_pars=False,
                  givens=None,
@@ -481,53 +503,60 @@ class Model(object):
             If set to True, a numpy array is always returned, even if the
             computation is done on the GPU and a gnumpy array was more natural.
         """
-        variables = self._unify_variables(variables)
-        exprs = self._unify_exprs(exprs)
+        # Get variables and expressions into a canonical form first that is
+        # assumed below.
+        variables = [self._lookup(self.exprs, i) for i in variables]
 
-        if GPU:
-            back_out = False
-            if isinstance(exprs, list):
-                if not all(tell_deterministic(i) for i in exprs):
-                    back_out = True
-            else:
-                if not tell_deterministic(exprs):
-                    back_out = True
-            if back_out:
-                raise NotImplementedError(
-                    'cannot use random variables in Breze for GPU due to Theano '
-                    'issue #1467')
+        if not isinstance(exprs, list):
+            # We memorize whether exprs originall was a list. If it was, we
+            # need to undo this later for the returned function.
+            exprs_not_list = True
+            exprs = [exprs]
+        else:
+            exprs_not_list = False
+        exprs = [self._lookup(self.exprs, i) for i in exprs]
+
 
         # We need to clone instead of using the givens parameter of
-        # theano.function, because otherwise we might get an theano error
+        # theano.function, because otherwise we might get a theano error
         # with conflicting replacements. (See theano/compile/pfunc.py:162,
         # rebuild_collect_shared.)
         if givens is not None:
-            if isinstance(exprs, list):
-                exprs = [theano.clone(e, givens) for e in exprs]
-            else:
-                exprs = theano.clone(exprs, givens)
+            exprs = [theano.clone(e, givens) for e in exprs]
         else:
             givens = {}
 
         # Build update dictionary.
         updates = collections.defaultdict(lambda: {})
         if isinstance(exprs, (list, tuple)):
-            flat_exprs = flatten(exprs)
-            for expr in flat_exprs:
+            for expr in exprs:
                 # TODO: last takes all, maybe should throw an error.
                 updates.update(self.updates[expr])
         else:
             updates.update(self.updates[exprs])
 
         if GPU:
+            # This is a workaround for theano issue #1467. After cloning a
+            # graph with random state in it, the cloning will not make the
+            # random state reference the new substitutions but instead have
+            # references to the old variables. The workaround is to silently
+            # add these variables to the givens parameter, and substitute them
+            # with their new references.
             outputs = not numpy_result
+            old_variables, old_exprs = variables, exprs
             variables, exprs = self.var_exp_for_gpu(
                 variables, exprs, outputs=outputs)
+            more_givens = [(old, new) for old, new
+                           in zip(old_variables, variables)
+                           if any(tell_variable_in_expr(old, e) for e in exprs)]
+            givens.update(dict(more_givens))
 
         variables = [self.parameters.flat] + variables
 
-        f = theano_function_with_nested_exprs(
-            variables, exprs, givens=givens, mode=mode,
+        f = theano.function(
+            variables,
+            exprs[0] if exprs_not_list else exprs,
+            givens=givens, mode=mode,
             on_unused_input=on_unused_input, updates=updates)
 
         if GPU:
@@ -536,7 +565,7 @@ class Model(object):
         if not explicit_pars:
             def f_implicit_pars(*args, **kwargs):
                 return f(self.parameters.data, *args, **kwargs)
-            f_implicit_pars.theano_func = f.theano_func
+            f_implicit_pars.theano_func = f
             f_implicit_pars.breze_func = True
             return f_implicit_pars
 
@@ -628,3 +657,27 @@ class WarnNaNMode(theano.Mode):
             [theano.gof.OpWiseCLinker()], [print_eval])
         super(WarnNaNMode, self).__init__(
             wrap_linker, optimizer='fast_compile')
+
+
+def array_partition_views(array, partition):
+    views = dictlist.copy(partition)
+    pathsshapes = sorted(list(dictlist.leafs(partition)))
+
+    n_used = 0
+    for path, shape in pathsshapes:
+        item = dictlist.get(partition, path)
+        shape = (item,) if isinstance(item, int) else item
+        size = int(np.prod(shape))
+        dictlist.set_(views, path, array[n_used:n_used + size].reshape(shape))
+        n_used += size
+
+    return views
+
+
+def n_pars_by_partition(partition):
+    n = 0
+    for _, shape in dictlist.leafs(partition):
+        shape = (shape,) if isinstance(shape, int) else shape
+        n += np.prod(shape)
+
+    return int(n)
