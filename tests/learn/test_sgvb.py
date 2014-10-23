@@ -9,12 +9,13 @@ from breze.learn import sgvb
 from breze.learn.utils import theano_floatx
 
 
+class Assmptn(sgvb.DiagGaussLatentAssumption, sgvb.DiagGaussVisibleAssumption):
+    pass
+
+
 def test_vae():
     X = np.random.random((2, 10))
     X, = theano_floatx(X)
-
-    class Assmptn(sgvb.DiagGaussLatentAssumption, sgvb.DiagGaussVisibleAssumption):
-        pass
 
     m = sgvb.VariationalAutoEncoder(
         10, [20, 30], 4, [15, 25],
@@ -39,9 +40,7 @@ def test_vae_imp_weight():
     m = sgvb.VariationalAutoEncoder(
         10, [20, 30], 4, [15, 25],
         ['tanh'] * 2, ['rectifier'] * 2,
-        latent_prior='white_gauss',
-        latent_posterior='diag_gauss',
-        visible='bern',
+        assumptions=Assmptn(),
         optimizer='rprop', batch_size=None,
         max_iter=3,
         imp_weight=True)
@@ -74,3 +73,6 @@ def test_storn():
     m.fit(X)
     m.score(X)
     m.transform(X)
+
+    m.sample(10, visible_map=True)
+    m.sample(10, visible_map=False)

@@ -146,6 +146,11 @@ def estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
     while d.ndim > 1:
         d = d.sum(-1)
     ll = logsumexp(d, 0) - np.log(n_samples)
+
+    # Normalize to average.
+    ll /= X.shape[0]
+    if X.ndim == 3:
+        ll /= X.shape[1]
     return -ll
 
 
@@ -273,6 +278,15 @@ class DiagGaussVisibleAssumption(object):
         latent_var = stt_flat[:, n_latent:]
         noise = rng.normal(size=latent_mean.shape)
         sample = latent_mean + T.sqrt(latent_var) * noise
+        if stt.ndim == 3:
+            return recover_time(sample, stt.shape[0])
+        else:
+            return sample
+
+    def mode_visibles(self, stt):
+        stt_flat = assert_no_time(stt)
+        n_latent = stt_flat.shape[1] // 2
+        sample = stt_flat[:, :n_latent]
         if stt.ndim == 3:
             return recover_time(sample, stt.shape[0])
         else:
@@ -810,7 +824,7 @@ class StochasticRnn(VariationalAutoEncoder):
             climin.initialize.sparsify_columns(
                 self.parameters['recog']['in_to_hidden'], sparsify_in)
 
-    def _make_sample_one_step(self):
+    def _make_sample_one_step(self, visible_map=False):
         n_layers = len(self.n_hiddens_gen)
 
         # make clones for parameters, so they can be used as inputs
@@ -826,41 +840,57 @@ class StochasticRnn(VariationalAutoEncoder):
         outputs = flatten_list(outputs)
 
         visible_stt = self.exprs['gen']['output']
-        rng = T.shared_randomstreams.RandomStreams()
-        visible_sample = self.assumptions.sample_visibles(visible_stt, rng)
+        if visible_map:
+            visible_sample = self.assumptions.mode_visibles(visible_stt)
+        else:
+            rng = T.shared_randomstreams.RandomStreams()
+            visible_sample = self.assumptions.sample_visibles(visible_stt, rng)
 
         # TODO sample here instead of MAP
         outputs += [visible_sample]
 
-        self.f_sample_one_step = self.function(
+        return self.function(
             inpts, outputs, givens=dict(zip([getattr(self.parameters.gen, i) for i in initials],
                                             clones)),
             on_unused_input='warn')
 
     def _sample_one_step(self, *args):
         if getattr(self, 'f_sample_one_step', None) is None:
-            self._make_sample_one_step()
+            self.f_sample_one_step = self._make_sample_one_step()
 
         res = self.f_sample_one_step(*args)
         return res
 
-    def sample(self, n_time_steps):
+    def _sample_one_step_vmap(self, *args):
+        if getattr(self, 'f_sample_one_step_vmap', None) is None:
+            self.f_sample_one_step_vmap = self._make_sample_one_step(
+                visible_map=True)
+
+        res = self.f_sample_one_step_vmap(*args)
+        return res
+
+    def sample(self, n_time_steps, visible_map=False):
         samples = []
         n_layers = len(self.n_hiddens_gen)
         initial_means = [self.parameters['gen']['initial_hidden_means_%i' % i]
                          for i in range(n_layers)]
         initial_vars = [self.parameters['gen']['initial_hidden_vars_%i' % i]
-                         for i in range(n_layers)]
+                        for i in range(n_layers)]
 
-        # TODO: sample from prior!
+        # TODO: sample from assumption prior instead of from standard normal.
         latent_samples = np.random.standard_normal((1, 1, self.n_latent)
                                                    ).astype(theano.config.floatX)
         inpt = np.zeros((1, 1, self.n_inpt), dtype=theano.config.floatX)
         args = flatten_list(zip(initial_means, initial_vars))
         args += [latent_samples, inpt]
 
+        if visible_map:
+            sampler = self._sample_one_step_vmap
+        else:
+            sampler = self._sample_one_step
+
         for i in range(n_time_steps):
-            args = self._sample_one_step(*args)
+            args = sampler(*args)
             samples.append(args[-1])
             args = [i[0, 0, :] for i in args[:-1]] + [latent_samples] + args[-1:]
 
