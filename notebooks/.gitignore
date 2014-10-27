@@ -1,0 +1,5 @@
+.coverage
+.nose
+notebooks/misc/debug/*
+notebooks/misc/scratch/*
+*pickle
