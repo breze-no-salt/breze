@@ -110,9 +110,15 @@ class Mlp(Model, SupervisedBrezeWrapperBase):
             'inpt': T.matrix('inpt'),
             'target': T.matrix('target')
         }
+        self.exprs['inpt'].tag.test_value = np.zeros(
+            (10, self.n_inpt)).astype(theano.config.floatX)
+        self.exprs['target'].tag.test_value = np.zeros(
+            (10, self.n_output)).astype(theano.config.floatX)
 
         if self.imp_weight:
             self.exprs['imp_weight'] = T.matrix('imp_weight')
+            self.exprs['imp_weight'].tag.test_value = np.zeros(
+                (10, self.n_output)).astype(theano.config.floatX)
 
         P = self.parameters
 

@@ -54,25 +54,32 @@ def test_vae_imp_weight():
 
 def test_storn():
     theano.config.compute_test_value = 'raise'
-    X = np.random.random((2, 5, 10))
+    X = np.random.random((3, 5, 2))
     X, = theano_floatx(X)
 
     class Assmptn(sgvb.DiagGaussLatentAssumption, sgvb.DiagGaussVisibleAssumption):
         pass
 
     m = sgvb.StochasticRnn(
-        10, [20, 30], 4, [15, 25],
-        ['tanh'] * 2, ['rectifier'] * 2,
+        2, [5], 4, [5],
+        ['tanh'] * 1, ['rectifier'] * 1,
         assumptions=Assmptn(),
         optimizer='rprop', batch_size=None,
         max_iter=3)
 
+    print 'init pars and expressions'
+
     m._init_pars()
     m._init_exprs()
 
+    print 'fitting'
     m.fit(X)
+    print 'scoring'
     m.score(X)
+    print 'transforming'
     m.transform(X)
 
-    m.sample(10, visible_map=True)
-    m.sample(10, visible_map=False)
+    print 'sampling map'
+    m.sample(5, visible_map=True)
+    print 'sampling'
+    m.sample(5, visible_map=False)

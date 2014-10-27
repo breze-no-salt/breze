@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 
+import numpy as np
 import theano.tensor as T
 
 from ...util import get_named_variables
@@ -62,6 +63,8 @@ def exprs(inpt, feature_to_in, c_sparsity):
         is given via ``loss``.
     """
     feature_flat = T.vector('feature_flat')
+    feature_flat.tag.test_value = np.zeros((inpt.tag.test_value.shape[0],
+                                            feature_to_in.tag.test_value.shape[0]))
     feature = feature_flat.reshape((inpt.shape[0], feature_to_in.shape[0]))
 
     reconstruction = T.dot(feature, feature_to_in)

@@ -205,6 +205,8 @@ class AutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         self.exprs = {
             'inpt': T.matrix('inpt'),
         }
+        self.exprs['inpt'].tag.test_value = np.zeros(
+            (10, self.n_inpt)).astype(theano.config.floatX)
         P = self.parameters
 
         n_layers = len(self.n_hiddens)

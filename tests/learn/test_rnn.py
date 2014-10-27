@@ -57,6 +57,7 @@ def test_srnn_predict():
 
 
 def test_fd_srnn_fit():
+    raise SkipTest()
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
     W = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
@@ -76,6 +77,7 @@ def test_fd_srnn_fit():
 
 
 def test_fd_srnn_iter_fit():
+    raise SkipTest()
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
     X, Z = theano_floatx(X, Z)

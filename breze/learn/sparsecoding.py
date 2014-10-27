@@ -117,6 +117,8 @@ class SparseCoding(Model, UnsupervisedBrezeWrapperBase,
         self.exprs = {
             'inpt': T.matrix('inpt'),
         }
+        self.exprs['inpt'].tag.test_value = np.zeros((5, self.n_inpt)).astype(
+            theano.config.floatX)
         P = self.parameters
         self.exprs = sparsecoding.exprs(
             self.exprs['inpt'], P.feature_to_in, self.c_sparsity)
