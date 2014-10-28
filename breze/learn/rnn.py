@@ -123,13 +123,16 @@ class BaseRnn(Model):
 
     def _init_pars(self):
         spec = rnn.parameters(
-            self.n_inpt, self.n_hiddens, self.n_output, self.skip_to_out)
+            self.n_inpt, self.n_hiddens, self.n_output, self.skip_to_out,
+            self.hidden_transfers)
         self.parameters = ParameterSet(**spec)
         self.parameters.data[:] = np.random.standard_normal(
             self.parameters.data.shape).astype(theano.config.floatX)
 
     def _init_exprs(self):
         self.exprs = {'inpt': T.tensor3('inpt')}
+        self.exprs['inpt'].tag.test_value = np.zeros((5, 2, self.n_inpt)
+            ).astype(theano.config.floatX)
         P = self.parameters
 
         n_layers = len(self.n_hiddens)
@@ -206,16 +209,23 @@ class SupervisedRnn(BaseRnn, SupervisedBrezeWrapperBase):
 
         if self.imp_weight:
             self.exprs['imp_weight'] = T.tensor3('imp_weight')
+            self.exprs['imp_weight'].tag.test_value = np.zeros((5, 2, self.n_output)
+                ).astype(theano.config.floatX)
 
         if self.pooling:
             self.exprs['target'] = T.matrix('target')
+            self.exprs['target'].tag.test_value = np.zeros((2, self.n_output)
+                ).astype(theano.config.floatX)
         else:
             self.exprs['target'] = T.tensor3('target')
+            self.exprs['target'].tag.test_value = np.zeros((5, 2, self.n_output)
+                ).astype(theano.config.floatX)
 
         imp_weight = False if not self.imp_weight else self.exprs['imp_weight']
         self.exprs.update(supervised_loss(
             self.exprs['target'], self.exprs['output'], self.loss, 2,
             imp_weight=imp_weight))
+
 
 
 class UnsupervisedRnn(BaseRnn, UnsupervisedBrezeWrapperBase):
@@ -437,6 +447,13 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
         if self.imp_weight:
             self.exprs['imp_weight'] = T.tensor3('imp_weight')
 
+        self.exprs['inpt'].tag.test_value = np.zeros((5, 2, self.n_inpt)
+            ).astype(theano.config.floatX)
+        self.exprs['target'].tag.test_value = np.zeros((5, 2, self.n_output)
+            ).astype(theano.config.floatX)
+        self.exprs['imp_weight'].tag.test_value = np.zeros((5, 2, self.n_output)
+            ).astype(theano.config.floatX)
+
         P = self.parameters
         n_layers = len(self.n_hiddens)
         hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
@@ -444,9 +461,9 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
         recurrents = [getattr(P, 'recurrent_%i' % i)
                       for i in range(n_layers)]
         initial_hidden_means = [getattr(P, 'initial_hidden_means_%i' % i)
-                                 for i in range(n_layers)]
-        initial_hidden_vars = [getattr(P, 'initial_hidden_vars_%i' % i)
                                 for i in range(n_layers)]
+        initial_hidden_vars = [getattr(P, 'initial_hidden_vars_%i' % i)
+                               for i in range(n_layers)]
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
 

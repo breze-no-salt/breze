@@ -12,26 +12,49 @@ from ...component import transfer
 from pooling import pooling_layer
 
 
-def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False, prefix=''):
-    spec = dict(in_to_hidden=(n_inpt, n_hiddens[0]),
-                hidden_to_out=(n_hiddens[-1], n_output),
-                hidden_bias_0=n_hiddens[0],
-                out_bias=n_output)
+def inout_size(transfer_func):
+    in_size = getattr(transfer_func, 'in_size', 1)
+    out_size = getattr(transfer_func, 'out_size', 1)
+    return in_size, out_size
 
-    zipped = zip(n_hiddens[:-1], n_hiddens[1:])
-    for i, (inlayer, outlayer) in enumerate(zipped):
-        spec['hidden_to_hidden_%i' % i] = (inlayer, outlayer)
+
+def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False,
+               hidden_transfers=None, out_transfer=None, prefix=''):
+
+    if hidden_transfers is not None:
+        hiddens_inoutsizes = [inout_size(i) for i in hidden_transfers]
+    else:
+        hiddens_inoutsizes = [(1, 1) for _ in n_hiddens]
+
+    if out_transfer is not None:
+        output_insize = out_transfer.in_size
+    else:
+        output_insize = 1
+
+    hiddens_insizes, hiddens_outsizes = zip(*hiddens_inoutsizes)
+    total_hidden_insizes = [i * j for i, j in zip(n_hiddens, hiddens_insizes)]
+    total_hidden_outsizes = [i * j for i, j in zip(n_hiddens, hiddens_outsizes)]
+    total_out_insize = n_output * output_insize
+
+    spec = dict(in_to_hidden=(n_inpt, n_hiddens[0] * hiddens_insizes[0]),
+                hidden_to_out=(total_hidden_outsizes[-1],
+                               total_out_insize),
+                out_bias=total_out_insize)
+
+    for i, j in enumerate(total_hidden_insizes):
+        spec['hidden_bias_%i' % i] = j
+        spec['initial_hiddens_%i' % i] = j
+
+    for i, (j, k) in enumerate(zip(total_hidden_insizes, total_hidden_outsizes)):
+        spec['recurrent_%i' % i] = (k, j)
+
+    for i, (j, k) in enumerate(zip(total_hidden_insizes[1:], total_hidden_outsizes[:-1])):
+        spec['hidden_to_hidden_%i' % i] = (k, j)
 
     if skip_to_out:
-        spec['in_to_out'] = (n_inpt, n_output)
-
-    for i, h in enumerate(n_hiddens):
-        spec['hidden_bias_%i' % i] = h
-        spec['recurrent_%i' % i] = (h, h)
-        spec['initial_hiddens_%i' % i] = h
-        if skip_to_out and i < len(n_hiddens):
-            # Only do for all but the last layer.
-            spec['hidden_%i_to_out' % i] = (h, n_output)
+        spec['in_to_out'] = (n_inpt, total_out_insize)
+        for i, j in enumerate(total_hidden_outsizes[1:]):
+            spec['hidden_%i_to_out' % i] = (j, total_out_insize)
 
     spec = dict(('%s%s'% (prefix, k), v)  for k, v in spec.items())
 
