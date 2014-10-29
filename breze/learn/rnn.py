@@ -444,9 +444,9 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
         recurrents = [getattr(P, 'recurrent_%i' % i)
                       for i in range(n_layers)]
         initial_hidden_means = [getattr(P, 'initial_hidden_means_%i' % i)
-                                 for i in range(n_layers)]
-        initial_hidden_vars = [getattr(P, 'initial_hidden_vars_%i' % i)
                                 for i in range(n_layers)]
+        initial_hidden_vars = [getattr(P, 'initial_hidden_vars_%i' % i) ** 2 + 1e-4
+                               for i in range(n_layers)]
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
 
