@@ -21,6 +21,7 @@ from theano.tensor.extra_ops import repeat
 
 from ...util import lookup
 from ...component.varprop import transfer, loss as loss_
+from breze.arch.model.rnn import rnn
 import mlp
 
 
@@ -260,6 +261,8 @@ def recurrent_layer(in_mean, in_var, weights, f,
         activations after the application of ``f``.
     """
     def step(inpt_mean, inpt_var, him_m1, hiv_m1, hom_m1, hov_m1):
+        fhom, fhov = f(hom_m1, hov_m1)
+
         hom = T.dot(hom_m1, weights) * p_dropout + inpt_mean
 
         p_keep = 1 - p_dropout
@@ -285,8 +288,8 @@ def recurrent_layer(in_mean, in_var, weights, f,
     (hidden_in_mean_rec, hidden_in_var_rec, hidden_mean_rec, hidden_var_rec), _ = theano.scan(
         step,
         sequences=[in_mean, in_var],
-        outputs_info=[T.zeros_like(initial_hidden_mean),
-                      T.zeros_like(initial_hidden_var),
+        outputs_info=[T.zeros_like(in_mean[0]),
+                      T.zeros_like(in_mean[0]),
                       initial_hidden_mean,
                       initial_hidden_var])
 
@@ -297,29 +300,23 @@ def recurrent_layer(in_mean, in_var, weights, f,
             hidden_mean_rec, hidden_var_rec)
 
 
-def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False, prefix=''):
-    spec = dict(in_to_hidden=(n_inpt, n_hiddens[0]),
-                hidden_to_out=(n_hiddens[-1], n_output),
-                hidden_bias_0=n_hiddens[0],
-                out_bias=n_output)
+def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False,
+               hidden_transfers=None, out_transfer=None, prefix=''):
+    spec = rnn.parameters(n_inpt, n_hiddens, n_output, skip_to_out,
+                          hidden_transfers, out_transfer, prefix)
 
-    zipped = zip(n_hiddens[:-1], n_hiddens[1:])
-    for i, (inlayer, outlayer) in enumerate(zipped):
-        spec['hidden_to_hidden_%i' % i] = (inlayer, outlayer)
+    if hidden_transfers is not None:
+        hiddens_inoutsizes = [rnn.inout_size(i) for i in hidden_transfers]
+    else:
+        hiddens_inoutsizes = [(1, 1) for _ in n_hiddens]
 
-    if skip_to_out:
-        spec['in_to_out'] = (n_inpt, n_output)
+    hiddens_insizes, hiddens_outsizes = zip(*hiddens_inoutsizes)
+    total_hidden_outsizes = [i * j for i, j in zip(n_hiddens, hiddens_outsizes)]
 
-    for i, h in enumerate(n_hiddens):
-        spec['hidden_bias_%i' % i] = h
-        spec['recurrent_%i' % i] = (h, h)
-        spec['initial_hidden_means_%i' % i] = h
-        spec['initial_hidden_vars_%i' % i] = h
-        if skip_to_out and i < len(n_hiddens):
-            # Only do for all but the last layer.
-            spec['hidden_%i_to_out' % i] = (h, n_output)
-
-    spec = dict(('%s%s' % (prefix, k), v) for k, v in spec.items())
+    for i, j in enumerate(total_hidden_outsizes):
+        spec['initial_hidden_means_%i' % i] = j
+        spec['initial_hidden_vars_%i' % i] = j
+        del spec['initial_hiddens_%i' % i]
 
     return spec
 

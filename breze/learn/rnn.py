@@ -436,7 +436,8 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
 
     def _init_pars(self):
         spec = varprop_rnn.parameters(
-            self.n_inpt, self.n_hiddens, self.n_output, self.skip_to_out)
+            self.n_inpt, self.n_hiddens, self.n_output, self.skip_to_out,
+            self.hidden_transfers, self.out_transfer)
         self.parameters = ParameterSet(**spec)
         self.parameters.data[:] = np.random.standard_normal(
             self.parameters.data.shape).astype(theano.config.floatX)
@@ -444,15 +445,16 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
     def _init_exprs(self):
         self.exprs = {'inpt': T.tensor3('inpt'),
                       'target': T.tensor3('target')}
-        if self.imp_weight:
-            self.exprs['imp_weight'] = T.tensor3('imp_weight')
-
         self.exprs['inpt'].tag.test_value = np.zeros((5, 2, self.n_inpt)
             ).astype(theano.config.floatX)
         self.exprs['target'].tag.test_value = np.zeros((5, 2, self.n_output)
             ).astype(theano.config.floatX)
-        self.exprs['imp_weight'].tag.test_value = np.zeros((5, 2, self.n_output)
-            ).astype(theano.config.floatX)
+
+        if self.imp_weight:
+            self.exprs['imp_weight'] = T.tensor3('imp_weight')
+            self.exprs['imp_weight'].tag.test_value = np.zeros(
+                (5, 2, self.n_output)).astype(theano.config.floatX)
+
 
         P = self.parameters
         n_layers = len(self.n_hiddens)

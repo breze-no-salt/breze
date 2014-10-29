@@ -20,14 +20,13 @@ def inout_size(transfer_func):
 
 def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False,
                hidden_transfers=None, out_transfer=None, prefix=''):
-
     if hidden_transfers is not None:
         hiddens_inoutsizes = [inout_size(i) for i in hidden_transfers]
     else:
         hiddens_inoutsizes = [(1, 1) for _ in n_hiddens]
 
     if out_transfer is not None:
-        output_insize = out_transfer.in_size
+        output_insize, _ = inout_size(out_transfer)
     else:
         output_insize = 1
 
