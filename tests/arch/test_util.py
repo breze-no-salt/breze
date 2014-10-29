@@ -76,6 +76,31 @@ def test_model_function():
     assert np.allclose(f3(test_inpt), f4(test_inpt)), "f3 and f4 don't agree"
 
 
+def test_model_function_mode():
+    pars = ParameterSet(weights=(2, 3))
+    inpt = T.matrix()
+    output = T.dot(inpt, pars.weights)
+    pars.data[...] = np.random.standard_normal(pars.data.shape)
+
+    model = Model()
+    model.exprs = {'inpt': inpt, 'output': output}
+    model.parameters = pars
+
+    mode = theano.Mode()
+
+    f = model.function(['inpt'], 'output', mode=mode)
+    actual_mode = f.theano_func.maker.mode
+    assert actual_mode is mode, 'wrong mode: %s' % actual_mode
+
+    model.mode = theano.Mode()
+    f = model.function(['inpt'], 'output')
+    actual_mode = f.theano_func.maker.mode
+
+    # Maybe a weird way to compare modes, but it seems to get the job done.
+    equal = actual_mode.__dict__ == mode.__dict__
+    assert equal, 'wrong mode: (%s != %s)' % (actual_mode, mode)
+
+
 def test_flatten():
     nested = (1, 2, [3, 4, 5, [6], [7], (8), ([9, 10, []]), (), ((([[]]))), []], 11)
     flattened = breze.arch.util.flatten(nested)
