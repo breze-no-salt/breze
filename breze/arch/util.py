@@ -390,7 +390,6 @@ class Model(object):
     updates : dict
         Containing update variables, e.g. due to the use of ``theano.scan``.
     """
-
     def __init__(self):
         self.updates = collections.defaultdict(dict)
         self._init_pars()
@@ -485,6 +484,7 @@ class Model(object):
         mode : string or None, optional, default: None
             Mode to use for compilation. Passed on to ``theano.function``.
             See Theano documentation for details.
+            If None, ``self.mode`` will be used.
 
         explicit_pars: boolean, optional, default: False
             If True, the first argument to the function is expected to be an
@@ -503,6 +503,12 @@ class Model(object):
             If set to True, a numpy array is always returned, even if the
             computation is done on the GPU and a gnumpy array was more natural.
         """
+        if mode is None:
+            if getattr(self, 'mode', None) is None:
+                mode = theano.config.mode
+            else:
+                mode = self.mode
+
         # Get variables and expressions into a canonical form first that is
         # assumed below.
         variables = [self._lookup(self.exprs, i) for i in variables]

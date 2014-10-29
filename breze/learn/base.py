@@ -178,9 +178,6 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
         """
-        if mode is None:
-            mode = self.mode
-
         d_loss = self._d_loss()
         givens = {} if givens is None else givens
         inpts = ['inpt', 'target']
@@ -426,9 +423,6 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
          - f_loss returns the current loss,
          - f_d_loss returns the gradient of that loss wrt parameters,
         """
-        if mode is None:
-            mode = self.mode
-
         d_loss = self._d_loss()
         givens = {} if givens is None else givens
 
