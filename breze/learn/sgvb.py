@@ -691,7 +691,10 @@ class StochasticRnn(VariationalAutoEncoder):
 
     def _recog_par_spec(self):
         """Return the parameter specification of the recognition model."""
-        spec = vprnn.parameters(self.n_inpt, self.n_hiddens_recog, self.n_latent)
+        spec = vprnn.parameters(
+            self.n_inpt, self.n_hiddens_recog, self.n_latent,
+            hidden_transfers=self.recog_transfers,
+        )
         spec['p_dropout'] = {
             'inpt': 1,
             'hiddens': [1 for _ in self.n_hiddens_recog],
