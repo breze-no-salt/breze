@@ -59,7 +59,6 @@ from breze.arch.component.misc import inter_gauss_kl
 from breze.arch.component.transfer import diag_gauss
 from breze.arch.component.varprop.transfer import sigmoid
 from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nll, bern_ces
-from breze.arch.component.varprop.loss import unpack_mean_var
 
 from breze.arch.model import sgvb
 from breze.arch.model.neural import mlp
