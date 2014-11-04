@@ -315,8 +315,19 @@ class BernoulliVisibleAssumption(object):
     def sample_visibles(self, stt, rng):
         stt_flat = assert_no_time(stt)
         n_latent = stt_flat.shape[1] // 2
+        stt_flat = stt_flat[:, :n_latent]
         noise = rng.uniform(size=stt_flat.shape)
         sample = noise < stt_flat
+        if stt.ndim == 3:
+            return recover_time(sample, stt.shape[0])
+        else:
+            return sample
+
+    def mode_visibles(self, stt):
+        stt_flat = assert_no_time(stt)
+        n_latent = stt_flat.shape[1] // 2
+        stt_flat = stt_flat[:, :n_latent]
+        sample = stt_flat > 0.5
         if stt.ndim == 3:
             return recover_time(sample, stt.shape[0])
         else:
