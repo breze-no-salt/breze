@@ -261,8 +261,6 @@ def recurrent_layer(in_mean, in_var, weights, f,
         activations after the application of ``f``.
     """
     def step(inpt_mean, inpt_var, him_m1, hiv_m1, hom_m1, hov_m1):
-        fhom, fhov = f(hom_m1, hov_m1)
-
         hom = T.dot(hom_m1, weights) * p_dropout + inpt_mean
 
         p_keep = 1 - p_dropout
