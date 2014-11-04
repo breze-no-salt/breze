@@ -476,7 +476,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             self.recog_transfers, self.assumptions.statify_latent,
             scale_to_interval(P.p_dropout.inpt),
             [scale_to_interval(i) for i in P.p_dropout.hiddens],
-            )
+        )
 
         return exprs
 
@@ -501,7 +501,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             hidden_biases, [1 for _ in hidden_biases], P.out_bias, 1,
             self.gen_transfers, self.assumptions.statify_visible,
             self.p_dropout_inpt, self.p_dropout_hiddens,
-            )
+        )
 
         return exprs
 
@@ -555,7 +555,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         # TODO this is not going to work with variance propagation.
         imp_weight = False if not self.imp_weight else self._fix_imp_weight(n_dim)
         rec_loss = supervised_loss(
-                E['inpt'], E['gen']['output'], self.assumptions.nll_gen_model,
+            E['inpt'], E['gen']['output'], self.assumptions.nll_gen_model,
             prefix='rec_', coord_axis=n_dim - 1, imp_weight=imp_weight)
 
         # Create the KL divergence part of the loss.
@@ -719,7 +719,7 @@ class StochasticRnn(VariationalAutoEncoder):
             [P.p_dropout.inpt] + P.p_dropout.hiddens
             + [P.p_dropout.hidden_to_out])
 
-        # Reparametrize to assert the rates lie in (0.025, 1-0.025).
+        # Reparametrize to assert the rates lie in (0.01, 0.5).
         p_dropouts = [T.nnet.sigmoid(i) * 0.49 + 0.01 for i in p_dropouts]
 
         exprs = vprnn.exprs(
@@ -771,7 +771,6 @@ class StochasticRnn(VariationalAutoEncoder):
         recurrents = [getattr(P, 'recurrent_%i' % i)
                       for i in range(n_layers)]
 
-        shortcut_size = self.n_hiddens_recog[-1]
         p_dropout_inpt = T.zeros_like(inpt[:, :, :self.n_latent])
         p_dropout_inpt = T.fill(p_dropout_inpt, self.p_dropout_inpt)
 
