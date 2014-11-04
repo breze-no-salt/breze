@@ -738,9 +738,12 @@ class StochasticRnn(VariationalAutoEncoder):
     def _gen_par_spec(self):
         """Return the parameter specification of the generating model."""
         n_output = self.assumptions.visible_layer_size(self.n_inpt)
-        return vprnn.parameters(
+        spec = vprnn.parameters(
             self.n_latent + self.n_hiddens_recog[-1], self.n_hiddens_gen,
-            n_output)
+            n_output,
+            hidden_transfers=self.gen_transfers,
+        )
+        return spec
 
     def _gen_exprs(self, inpt):
         """Return the exprssions of the recognition model."""
@@ -753,7 +756,7 @@ class StochasticRnn(VariationalAutoEncoder):
                          for i in range(n_layers)]
         initial_hidden_means = [getattr(P, 'initial_hidden_means_%i' % i)
                                 for i in range(n_layers)]
-        initial_hidden_vars = [getattr(P, 'initial_hidden_vars_%i' % i)
+        initial_hidden_vars = [getattr(P, 'initial_hidden_vars_%i' % i) ** 2 + 1e-4
                                for i in range(n_layers)]
         recurrents = [getattr(P, 'recurrent_%i' % i)
                       for i in range(n_layers)]
@@ -902,9 +905,12 @@ class BidirectStochasticRnn(StochasticRnn):
     def _gen_par_spec(self):
         """Return the parameter specification of the generating model."""
         n_output = self.assumptions.visible_layer_size(self.n_inpt)
-        return rnn.parameters(
+        spec = vprnn.parameters(
             self.n_latent + self.n_inpt, self.n_hiddens_gen,
-            n_output)
+            n_output,
+            hidden_transfers=self.gen_transfers,
+        )
+        return spec
 
     def _recog_par_spec(self):
         """Return the specification of the recognition model."""
@@ -928,14 +934,18 @@ class BidirectStochasticRnn(StochasticRnn):
                              for i in range(n_layers - 1)]
         hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
                          for i in range(n_layers)]
-        initial_hidden_means_fwd = [getattr(P, 'initial_hidden_means_fwd_%i' % i)
-                               for i in range(n_layers)]
-        initial_hidden_vars_fwd = [getattr(P, 'initial_hidden_vars_fwd_%i' % i)  ** 2 + 1e-4
-                               for i in range(n_layers)]
-        initial_hidden_means_bwd = [getattr(P, 'initial_hidden_means_bwd_%i' % i)
-                               for i in range(n_layers)]
-        initial_hidden_vars_bwd = [getattr(P, 'initial_hidden_vars_bwd_%i' % i) ** 2 + 1e-4
-                               for i in range(n_layers)]
+        initial_hidden_means_fwd = [
+            getattr(P, 'initial_hidden_means_fwd_%i' % i)
+            for i in range(n_layers)]
+        initial_hidden_vars_fwd = [
+            getattr(P, 'initial_hidden_vars_fwd_%i' % i) ** 2 + 1e-4
+            for i in range(n_layers)]
+        initial_hidden_means_bwd = [
+            getattr(P, 'initial_hidden_means_bwd_%i' % i)
+            for i in range(n_layers)]
+        initial_hidden_vars_bwd = [
+            getattr(P, 'initial_hidden_vars_bwd_%i' % i) ** 2 + 1e-4
+            for i in range(n_layers)]
         recurrents_fwd = [getattr(P, 'recurrent_fwd_%i' % i)
                           for i in range(n_layers)]
         recurrents_bwd = [getattr(P, 'recurrent_bwd_%i' % i)

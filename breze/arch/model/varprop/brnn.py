@@ -42,13 +42,16 @@ def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False, prefix=''):
     return spec
 
 
-def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
+def exprs(inpt_mean, inpt_var,
+          in_to_hidden, hidden_to_hiddens, hidden_to_out,
           hidden_biases, hidden_var_scales_sqrt,
-          initial_hiddens_fwd, initial_hiddens_bwd,
+          initial_hidden_means_fwd, initial_hidden_vars_fwd,
+          initial_hidden_means_bwd, initial_hidden_vars_bwd,
           recurrents_fwd, recurrents_bwd,
           out_bias, out_var_scale_sqrt, hidden_transfers, out_transfer,
           in_to_out=None, skip_to_outs=None, p_dropouts=None,
           hotk_inpt=False):
+    # TODO update docs down there to signature
     """Return a dictionary containing Theano expressions for various components
     of a recurrent network with variance propagation.
 
@@ -160,11 +163,13 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
             f_hiddens[0], p_dropouts[0])
 
     hmi_rec_fwd, hvi_rec_fwd, hmo_rec_fwd, hvo_rec_fwd = recurrent_layer(
-        hmi, hvi, recurrents_fwd[0], f_hiddens[0], initial_hiddens_fwd[0],
+        hmi, hvi, recurrents_fwd[0], f_hiddens[0],
+        initial_hidden_means_fwd[0], initial_hidden_vars_fwd[0],
         p_dropouts[1])
 
     hmi_rec_bwd, hvi_rec_bwd, hmo_rec_bwd, hvo_rec_bwd = recurrent_layer(
-        hmi[::-1], hvi[::-1], recurrents_bwd[0], f_hiddens[0], initial_hiddens_bwd[0],
+        hmi[::-1], hvi[::-1], recurrents_bwd[0], f_hiddens[0],
+        initial_hidden_means_bwd[0], initial_hidden_vars_bwd[0],
         p_dropouts[1])
 
     hmo_rec = (hmo_rec_fwd + hmo_rec_bwd[::-1]) / 2.
@@ -189,7 +194,10 @@ def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         hidden_to_hiddens, hidden_biases[1:], hidden_var_scales_sqrt[1:],
         recurrents_fwd[1:], recurrents_bwd[1:],
         f_hiddens[1:],
-        initial_hiddens_fwd[1:], initial_hiddens_bwd[1:],
+        initial_hidden_means_fwd[1:],
+        initial_hidden_vars_fwd[1:],
+        initial_hidden_means_fwd[1:],
+        initial_hidden_vars_fwd[1:],
         p_dropouts[1:])
 
     for i, (w, b, vb, rf, rb, t, jf, jb, d) in enumerate(zipped):
