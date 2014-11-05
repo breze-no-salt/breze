@@ -442,8 +442,6 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             'gen': self._gen_par_spec(),
         }
         self.parameters = ParameterSet(**spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
 
     def _recog_par_spec(self):
         """Return the specification of the recognition model."""
