@@ -47,6 +47,19 @@ def assert_ndarray(arr):
     return arr
 
 
+def make_clipper(threshold):
+    def clip_if_long(func):
+        def inner(*args, **kwargs):
+            res = func(*args, **kwargs)
+            length = np.sqrt((res ** 2).sum())
+            if  length > threshold:
+                res /= length
+                res *= threshold
+            return res
+        return inner
+    return clip_if_long
+
+
 class BrezeWrapperBase(object):
     """Class that helps with wrapping Breze models."""
 
@@ -171,6 +184,8 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
     _f_loss = None
     _f_dloss = None
 
+    gradient_clip_threshold = None
+
     def _make_loss_functions(self, mode=None, givens=None,
                              on_unused_input='raise', imp_weight=False):
         """Return pair (f_loss, f_d_loss) of functions.
@@ -189,6 +204,10 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         f_d_loss = self.function(
             inpts, d_loss, explicit_pars=True, mode=mode,
             givens=givens, on_unused_input=on_unused_input)
+
+        if self.gradient_clip_threshold is not None:
+            clipper = make_clipper(self.gradient_clip_threshold)
+            f_d_loss = clipper(f_d_loss)
 
         return f_loss, f_d_loss
 
@@ -339,6 +358,32 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
     _f_loss = None
     _f_dloss = None
 
+    gradient_clip_threshold = None
+
+    def _make_loss_functions(self, mode=None, givens=None,
+                             on_unused_input='raise', imp_weight=False):
+        """Return pair (f_loss, f_d_loss) of functions.
+
+         - f_loss returns the current loss,
+         - f_d_loss returns the gradient of that loss wrt parameters,
+        """
+        d_loss = self._d_loss()
+        givens = {} if givens is None else givens
+
+        args = ['inpt'] if not imp_weight else ['inpt', 'imp_weight']
+
+        f_loss = self.function(args, 'loss', explicit_pars=True, mode=mode,
+                               givens=givens, on_unused_input=on_unused_input)
+        f_d_loss = self.function(
+            args, d_loss, explicit_pars=True, givens=givens, mode=mode,
+            on_unused_input=on_unused_input)
+
+        if self.gradient_clip_threshold is not None:
+            clipper = make_clipper(self.gradient_clip_threshold)
+            f_d_loss = clipper(f_d_loss)
+
+        return f_loss, f_d_loss
+
     def iter_fit(self, X, W=None, info_opt=None):
         """Iteratively fit the parameters of the model to the given data.
 
@@ -415,25 +460,6 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
                     for x, in data)
         args = ((i, {}) for i in data)
         return args
-
-    def _make_loss_functions(self, mode=None, givens=None,
-                             on_unused_input='raise', imp_weight=False):
-        """Return pair (f_loss, f_d_loss) of functions.
-
-         - f_loss returns the current loss,
-         - f_d_loss returns the gradient of that loss wrt parameters,
-        """
-        d_loss = self._d_loss()
-        givens = {} if givens is None else givens
-
-        args = ['inpt'] if not imp_weight else ['inpt', 'imp_weight']
-
-        f_loss = self.function(args, 'loss', explicit_pars=True, mode=mode,
-                               givens=givens, on_unused_input=on_unused_input)
-        f_d_loss = self.function(
-            args, d_loss, explicit_pars=True, givens=givens, mode=mode,
-            on_unused_input=on_unused_input)
-        return f_loss, f_d_loss
 
     def _make_score_function(self):
         """Return a function to predict targets from input sequences."""
