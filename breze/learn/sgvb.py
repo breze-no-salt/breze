@@ -294,6 +294,17 @@ class DiagGaussVisibleAssumption(object):
             return sample
 
 
+class ConstantVarVisibleGaussAssumption(DiagGaussVisibleAssumption):
+
+    out_std = 1
+
+    def statify_visible(self, X, var=None):
+        if var is None:
+            raise NotImplemented()
+        else:
+            return X, T.ones_like(var) * self.out_std
+
+
 class BernoulliVisibleAssumption(object):
 
     def statify_visible(self, X, var=None):
