@@ -52,6 +52,8 @@ import theano.tensor as T
 import theano.tensor.nnet
 import numpy as np
 
+from theano.compile import optdb
+
 from scipy.misc import logsumexp
 
 from breze.arch.component.common import supervised_loss
@@ -656,6 +658,9 @@ class StochasticRnn(VariationalAutoEncoder):
 
     shortcut = 'shortcut'
     sample_dim = 1,
+    theano_optimizer = optdb.query(theano.gof.Query(
+        include=['fast_run'], exclude=['scan_eqopt1', 'scan_eqopt2']))
+    mode = theano.Mode(linker='cvm', optimizer=theano_optimizer)
 
     def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
                  recog_transfers, gen_transfers,
