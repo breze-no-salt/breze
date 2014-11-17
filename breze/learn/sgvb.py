@@ -988,7 +988,7 @@ class BidirectStochasticRnn(StochasticRnn):
             inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
             hidden_biases, [1 for _ in hidden_biases],
             initial_hidden_means_fwd, initial_hidden_vars_fwd,
-            initial_hidden_means_fwd, initial_hidden_vars_bwd,
+            initial_hidden_means_bwd, initial_hidden_vars_bwd,
             recurrents_fwd, recurrents_bwd,
             P.out_bias, 1, self.recog_transfers, self.assumptions.statify_latent,
             p_dropouts=p_dropouts)
