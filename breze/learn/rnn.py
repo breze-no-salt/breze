@@ -202,7 +202,12 @@ class SupervisedRnn(BaseRnn, SupervisedBrezeWrapperBase):
     sklearn like methods.
     """
 
-    sample_dim = 1, 1
+    @property
+    def sample_dim(self):
+        if self.pooling is None:
+            return 1, 1
+        else:
+            return 1, 0
 
     def _init_exprs(self):
         super(SupervisedRnn, self)._init_exprs()
