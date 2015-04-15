@@ -6,6 +6,7 @@
 import theano.tensor as T
 
 from breze.arch import component
+from breze.arch.component.varprop import transfer as vptransfer
 import component.transfer, component.loss
 from util import ParameterSet, Model, lookup, get_named_variables
 from breze.learn.base import (
@@ -56,6 +57,62 @@ class AffineNonlinear(Stackable):
 
         E = self.exprs = get_named_variables(locals())
         self.output = [output]
+
+
+def make_std(std):
+    return (std ** 2 + 1e-8) ** 0.5
+
+
+class VarpropAffineNonLinear(AffineNonlinear):
+
+    def spec(self):
+        spec = {}
+        other_spec = super(VarpropAffineNonLinear, self).spec()
+        for name, shape in other_spec.items():
+            spec[name] = {
+                'mean': shape,
+                'std': shape
+            }
+        return spec
+
+    def _init_exprs(self, inpt_mean, inpt_var):
+        P = self.parameters
+        wm, ws = P.weights.mean, make_std(P.weights.std)
+        bm, bs = P.bias.mean, make_std(P.bias.std)
+
+        pres_mean = T.dot(inpt_mean, wm) + bm
+        pres_var = (T.dot(inpt_mean ** 2, ws ** 2)
+                    + T.dot(inpt_var, wm ** 2)
+                    + T.dot(inpt_var, ws ** 2)
+                    + bs ** 2)
+
+        f_transfer = lookup(self.transfer, vptransfer)
+        post_mean, post_var = f_transfer(pres_mean, pres_var)
+
+        E = self.exprs = get_named_variables(locals())
+        self.output = [post_mean, post_var]
+
+
+class AugmentVariance(Stackable):
+
+    def __init__(self, name, vari=1e-16):
+        self.name = name
+        self.vari = vari
+
+    def _init_exprs(self, inpt):
+        vari = T.zeros_like(inpt) + self.vari
+        E = self.exprs = get_named_variables(locals())
+        self.output = [inpt, vari]
+
+
+class DiscardVariance(Stackable):
+
+    def __init__(self, name):
+        self.name = name
+
+    def _init_exprs(self, mean, var):
+        self.exprs = {'mean': mean}
+        self.output = mean,
 
 
 class SupervisedLoss(Stackable):

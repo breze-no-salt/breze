@@ -15,6 +15,7 @@ import numpy as np
 import theano
 import theano.tensor as T
 
+#from climin.util import iter_minibatches2 as iter_minibatches
 from climin.util import iter_minibatches
 
 
