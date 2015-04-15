@@ -535,6 +535,9 @@ class Model(object):
         updates = collections.defaultdict(lambda: {})
         if isinstance(exprs, (list, tuple)):
             for expr in exprs:
+                if isinstance(expr, list):
+                    expr = tuple(expr)
+
                 # TODO: last takes all, maybe should throw an error.
                 updates.update(self.updates[expr])
         else:
