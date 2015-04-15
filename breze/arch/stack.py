@@ -93,8 +93,7 @@ class Stack(Model):
         for incoming, outgoing in zip(self.layers[:-1], self.layers[1:]):
             outgoing.parameters = getattr(self.parameters, outgoing.name)
             outgoing._init_exprs(*incoming.output)
-
-
+            E[outgoing.name] = outgoing.exprs
 
         E['output'] = inpt
 
