@@ -51,9 +51,6 @@ class AffineNonlinear(Stackable):
         f_transfer = lookup(self.transfer, component.transfer)
         output = f_transfer(output_pre_transfer)
 
-        output_pre_transfer.name = 'output_pre_transfer'
-        output.name = 'output'
-
         E = self.exprs = get_named_variables(locals())
         self.output = [output]
 
