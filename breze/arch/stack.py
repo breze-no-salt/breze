@@ -8,6 +8,8 @@ import theano.tensor as T
 from breze.arch import component
 import component.transfer, component.loss
 from util import ParameterSet, Model, lookup, get_named_variables
+from breze.learn.base import (
+    SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase)
 
 
 class Stackable(object):
@@ -26,7 +28,8 @@ class AffineNonlinear(Stackable):
     def n_output(self):
         return self._n_output
 
-    def __init__(self, n_inpt, n_output, transfer='identity', bias=True):
+    def __init__(self, name, n_inpt, n_output, transfer='identity', bias=True):
+        self.name = name
         self._n_inpt = n_inpt
         self._n_output = n_output
         self.transfer = transfer
@@ -57,9 +60,9 @@ class AffineNonlinear(Stackable):
 
 class SupervisedLoss(Stackable):
 
-    def __init__(self, loss, target, comp_dim=1):
+    def __init__(self, loss, target_class=T.matrix, comp_dim=1):
         self.loss = loss
-        self.target = target
+        self.target = target_class('target')
         self.comp_dim = 1
 
     def _init_exprs(self, *inpt):
@@ -71,31 +74,63 @@ class SupervisedLoss(Stackable):
         total = sample_wise.mean()
 
         E = self.exprs = get_named_variables(locals())
+        E['target'] = self.target
+
 
 
 class Stack(Model):
 
-    def __init__(self):
+    def __init__(self, inpt_class=T.matrix):
+        self.inpt_class = inpt_class
+
         self.layers = []
+        self.loss = None
+        self._finalized = False
         super(Stack, self).__init__()
 
     def spec(self):
         return dict((i.name, i.spec()) for i in self.layers)
 
-    def finalize(self, *inpt):
+    def finalize(self):
+        if self._finalized:
+            raise ValueError('already finalized')
+
+        if self.loss is None:
+            raise ValueError('no loss specified')
+
+        # First part: predictive model.
+        inpt = self.inpt_class('inpt')
         E = self.exprs = {'inpt': inpt}
         spec = self.spec()
         self.parameters = ParameterSet(**spec)
 
-        self.layers[0].parameters = getattr(
-            self.parameters, self.layers[0].name)
-        self.layers[0]._init_exprs(*inpt)
-        for incoming, outgoing in zip(self.layers[:-1], self.layers[1:]):
-            outgoing.parameters = getattr(self.parameters, outgoing.name)
-            outgoing._init_exprs(*incoming.output)
-            E[outgoing.name] = outgoing.exprs
+        inpt = inpt,
+        for i in self.layers:
+            i.parameters = getattr(self.parameters, i.name)
+            i._init_exprs(*inpt)
+            E[i.name] = i.exprs
 
-        E['output'] = inpt
+            inpt = i.output
+
+        E['output'] = i.output
+
+        # Second part: loss function.
+        self.loss._init_exprs(i.output)
+        self.exprs['loss'] = self.loss.exprs['total']
+
+        self._finalized = True
+
+
+class SupervisedStack(Stack, SupervisedBrezeWrapperBase):
+
+    def predict(self, X):
+        if getattr(self, 'f_predict', None) is None:
+            self.f_predict = self.function(['inpt'], 'output')
+        return self.f_predict(X)
+
+    def finalize(self):
+        super(SupervisedStack, self).finalize()
+        self.exprs['target'] = self.loss.exprs['target']
 
 
 
