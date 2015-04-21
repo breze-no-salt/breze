@@ -49,17 +49,18 @@ def unpack_mean_var(arr):
 
 
 def discard_var_loss(loss):
-    def inner(target, prediction):
+    def inner_discard_var_loss(target, prediction):
         mean, var = unpack_mean_var(prediction)
         return loss(target, mean)
-    return inner
+    return inner_discard_var_loss
 
 
 squared = discard_var_loss(loss.squared)
 absolute = discard_var_loss(loss.absolute)
-nce = discard_var_loss(loss.nce)
-nnce = discard_var_loss(loss.nnce)
-nces = discard_var_loss(loss.nces)
+cat_ce = discard_var_loss(loss.cat_ce)
+ncat_ce = discard_var_loss(loss.ncat_ce)
+bern_ces = discard_var_loss(loss.bern_ces)
+fmeasure = discard_var_loss(loss.fmeasure)
 ncac = discard_var_loss(loss.ncac)
 ncar = discard_var_loss(loss.ncar)
 
@@ -95,10 +96,20 @@ expected_squared_hinge_1 = make_expected_squared_hinge(1)
 
 
 # TODO document
-def diag_gaussian_nll(target, prediction):
+def diag_gaussian_nll(target, prediction, var_offset=0):
     mean, var = unpack_mean_var(prediction)
+    var += var_offset
     residuals = target - mean
-    weighted_squares = -(residuals ** 2) / (2 * var + 1e-4)
-    normalization = T.log(T.sqrt(2 * np.pi * var + 1e-4))
+    weighted_squares = -(residuals ** 2) / (2 * var)
+    normalization = T.log(T.sqrt(2 * np.pi * var))
     ll = weighted_squares - normalization
+    return -ll
+
+def diag_laplace_nll(target, prediction, b_offset=0):
+    mean, b = unpack_mean_var(prediction)
+    b += b_offset
+    residuals = target - mean
+    exponent = abs(residuals) / (b)
+    normalization = T.log((2 * b))
+    ll = - normalization - exponent
     return -ll

@@ -3,20 +3,34 @@
 """Module containing several losses usable for supervised and unsupervised
 training.
 
-The only restriction that is imposed on losses in general is that they
-take Theano variables as arguments and return Theano variables as arguments
-as well.
+A loss is of the form::
 
-The API is agnostic about the exact definition how those arguments come
-to pass. Here are some abstrations.
+    def loss(target, prediction, ...):
+        ...
+
+The results depends on the exact nature of the loss. Some examples are:
+
+    - coordinate wise loss, such as a sum of squares or a Bernoulli cross
+      entropy with a one-of-k target,
+    - sample wise, such as neighbourhood component analysis.
+
+In case of the coordinate wise losses, the dimensionality of the result should
+be the same as that of the predictions and targets. In all other cases, it is
+important that the sample axes (usually the first axis) stays the same. The
+individual data points lie along the coordinate axis, which might change to 1.
+
+Some examples of valid shape transformations::
+
+    (n, d) -> (n, d)
+    (n, d) -> (n, 1)
+
+These are not valid::
+
+    (n, d) -> (1, d)
+    (n, d) -> (n,)
 
 
-- _Supervised pairwise losses_ take two arguments, the target and the given
-  prediction of a model (in that order) of the same shape. The elements of
-  the two variables are paired coordinate-wise. The return value is of the
-  same shape and contains the loss that results from the respective pairs
-  at the corresponding coordinates.
-
+For some examples, consult the source code of this module.
 """
 
 
@@ -25,67 +39,148 @@ import theano.tensor as T
 from misc import distance_matrix
 
 
+# TODO add hinge loss
+# TODO add huber loss
+
+def fmeasure(target, prediction, alpha=0.5):
+    """Return the approximated f-measure loss between the `target` and
+    the `prediction`. This is an overall loss, not a sample-wise one,
+    that is, the loss is computed for all the samples at once.
+
+    Jansche, Martin. "Maximum expected F-measure training of logistic
+    regression models." Proceedings of the conference on Human Language
+    Technology and Empirical Methods in Natural Language Processing.
+    Association for Computational Linguistics, 2005.
+
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of arbitrary shape representing representing the targets.
+
+    prediction : Theano variable
+        An array of arbitrary shape representing representing the predictions.
+
+    Returns
+    -------
+
+    res : Theano variable
+        An array of the same columns as ``target`` and ``prediction``
+        representing the overall f-measure loss."""
+    n_pos = target.sum(axis=0)
+    m_pos = prediction.sum(axis=0)
+    true_positives_approx = target*prediction
+    A = true_positives_approx.sum(axis=0)
+    return 1-A/(alpha*n_pos+(1-alpha)*m_pos)
+
 def squared(target, prediction):
     """Return the element wise squared loss between the `target` and
     the `prediction`.
 
-    :param target: An array of arbitrary shape representing representing
-        the targets.
-    :param prediction: An array of the same shape as `target`.
-    :returns: An array of the same size as `target` and `prediction`xi
-        representing the pairwise divergences."""
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of arbitrary shape representing representing the targets.
+
+    prediction : Theano variable
+        An array of arbitrary shape representing representing the predictions.
+
+    Returns
+    -------
+
+    res : Theano variable
+        An array of the same shape as ``target`` and ``prediction``
+        representing the pairwise distances."""
     return (target - prediction) ** 2
 
 
 def absolute(target, prediction):
-    """Return the element wise absolute difference between the `target` and
-    the `prediction`.
+    """Return the element wise absolute difference between the ``target`` and
+    the ``prediction``.
 
-    :param target: An array of arbitrary shape representing the targets.
-    :param prediction: An array of the same shape as `target`.
-    :returns: An array of the same size as `target` and `prediction`xi
-        representing the pairwise divergences."""
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of arbitrary shape representing representing the targets.
+
+    prediction : Theano variable
+        An array of arbitrary shape representing representing the predictions.
+
+    Returns
+    -------
+
+    res : Theano variable
+        An array of the same shape as ``target`` and ``prediction``
+        representing the pairwise distances."""
     return abs(target - prediction)
 
 
-def nce(target, prediction):
-    """Return the element wise negative cross entropy between the `target` and
-    the `prediction`.
+def cat_ce(target, prediction, eps=1e-8):
+    """Return the cross entropy between the ``target`` and the ``prediction``,
+    where ``prediction`` is a summary of the statistics of a categorial
+    distribution and ``target`` is a some outcome.
 
-    Used for classification purposes.
+    Used for multiclass classification purposes.
 
-    The loss is different to `nnce` by that `prediction` is not an array of
-    integers but a hot k coding.
+    The loss is different to ``ncat_ce`` by that ``target`` is not
+    an array of integers but a hot k coding.
 
-    :param target: An array of shape `(n, k)` where `n` is the number of
-        samples and k is the number of classes. Each row represents a hot k
+    Note that predictions are clipped between ``eps`` and ``1 - eps`` to ensure
+    numerical stability.
+
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of shape ``(n, k)`` where ``n`` is the number of samples and
+        ``k`` is the number of classes. Each row represents a hot k
         coding. It should be zero except for one element, which has to be
         exactly one.
-    :param prediction: An array of shape `(n, k)`. Each row is
-        interpreted as a categorical probability. Thus, each row has to sum
-        up to one and be strictly positive for this measure to make sense.
-    :returns: An array of the same size as `target` and `prediction`
-        representing the pairwise divergences."""
-    prediction = T.clip(prediction, 1e-8, 1 - 1e-8)
+
+    prediction : Theano variable
+        An array of shape ``(n, k)``. Each row is interpreted as a categorical
+        probability. Thus, each row has to sum up to one and be non-negative.
+
+    Returns
+    -------
+
+    res : Theano variable.
+        An array of the same size as ``target`` and ``prediction`` representing
+        the pairwise divergences."""
+    prediction = T.clip(prediction, eps, 1 - eps)
     return -(target * T.log(prediction))
 
 
-def nnce(target, prediction):
-    """Return the element wise negative cross entropy between the `target` and
-    the `prediction`.
+def ncat_ce(target, prediction):
+    """Return the cross entropy between the ``target`` and the ``prediction``,
+    where ``prediction`` is a summary of the statistics of the categorical
+    distribution and ``target`` is a some outcome.
 
     Used for classification purposes.
 
-    The loss is different to `nce` by that `prediction` is not a hot k coding
-    but an array of integers.
+    The loss is different to ``cat_ce`` by that ``target`` is not a hot
+    k coding but an array of integers.
 
-    :param target: An array of shape `(n,)` where `n` is the number of
-        samples. Each entry of the array should be an integer between `0` and
-        `k-1`, where `k` is the number of classes.
-    :param prediction: An array of shape `(n, k)`. Each row is
-        interpreted as a categorical probability. Thus, each row has to sum
-        up to one and be strictly positive for this measure to make sense.
-    :returns: An array of shape `(n, 1)` as `target` containing the log
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of shape ``(n,)`` where `n` is the number of samples. Each
+        entry of the array should be an integer between ``0`` and ``k-1``,
+        where ``k`` is the number of classes.
+    prediction : Theano variable
+        An array of shape ``(n, k)`` or ``(t, n , k)``. Each row (i.e. entry in
+        the last dimension) is interpreted as a categorical probability. Thus,
+        each row has to sum up to one and be non-negative.
+
+
+    Returns
+    -------
+
+    res : Theano variable
+        An array of shape ``(n, 1)`` as ``target`` containing the log
         probability that that example is classified correctly."""
 
     # The following code might seem more complicated as necessary. Yet,
@@ -123,39 +218,63 @@ def nnce(target, prediction):
     return loss
 
 
-def nces(target, prediction):
-    """Return the negative cross entropies between binary vectors (the targets)
-    and a number of Bernoulli variables (the predictions).
+def bern_ces(target, prediction):
+    """Return the Bernoulli cross entropies between binary vectors ``target``
+    and a number of Bernoulli variables ``prediction``.
 
     Used in regression on binary variables, not classification.
 
-    :param target: An array of shape `(n, k)` where `n` is the number of
-        samples and k is the number of outputs. Each entry should be either 0 or
-        1.
-    :param prediction: An array of shape `(n, k)`. Each row is
-        interpreted as a set of statistics of Bernoulli variables. Thus, each
-        element has to lie in (0, 1).
-    :returns: An array of the same size as `target` and `prediction`
-        representing the pairwise divergences."""
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of shape ``(n, k)`` where ``n`` is the number of samples and k
+        is the number of outputs. Each entry should be either 0 or 1.
+
+    prediction : Theano variable.
+        An array of shape ``(n, k)``. Each row is interpreted as a set of
+        statistics of Bernoulli variables. Thus, each element has to lie in
+        ``(0, 1)``.
+
+    Returns
+    -------
+
+    res : Theano variable
+        An array of the same size as ``target`` and ``prediction`` representing
+        the pairwise divergences.
+    """
+    prediction *= 0.999
+    prediction += 0.0005
     return -(target * T.log(prediction) + (1 - target) * T.log(1 - prediction))
 
 
-def bern_bern_kl(X, Y, axis=None):
+def bern_bern_kl(X, Y):
     """Return the Kullback-Leibler divergence between Bernoulli variables
     represented by their sufficient statistics.
 
-    :param X: An array of arbitrary shape where each element represents
-        the statistic of a Bernoulli variable and thus should lie in (0, 1).
-    :param Y: An array of the same shape as `target` where each element
-        represents the statistic of a Bernoulli variable and thus should lie in
-        (0, 1).
-    :returns: An array of the same size as `target` and `prediction`
-        representing the pairwise divergences."""
+    Parameters
+    ----------
+
+    X : Theano variable
+        An array of arbitrary shape where each element represents
+        the statistic of a Bernoulli variable and thus should lie in
+        ``(0, 1)``.
+    Y : Theano variable
+        An array of the same shape as ``target`` where each element represents
+        the statistic of a Bernoulli variable and thus should lie in
+        ``(0, 1)``.
+
+    Returns
+    -------
+
+     res : Theano variable
+        An array of the same size as ``target`` and ``prediction`` representing
+        the pairwise divergences."""
     return X * T.log(X / Y) + (1 - X) * T.log((1 - X) / (1 - Y))
 
 
 def ncac(target, embedding):
-    """Return the sample wise NCA for classification method.
+    """Return the NCA for classification loss.
 
     This corresponds to the probability that a point is correctly classified
     with a soft knn classifier using leave-one-out. Each neighbour is weighted
@@ -166,12 +285,22 @@ def ncac(target, embedding):
     'Neighbourhood Component Analysis' by
     J Goldberger, S Roweis, G Hinton, R Salakhutdinov (2004).
 
-    :param target: An array of shape `(n,)` where `n` is the number of
-        samples. Each entry of the array should be an integer between `0` and
-        `k-1`, where `k` is the number of classes.
-    :param embedding: An array of shape `(n, d)` where each row represents
-        a point in d dimensional space.
-    :returns: Array of shape `(n, 1)`.
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of shape ``(n,)`` where ``n`` is the number of samples. Each
+        entry of the array should be an integer between ``0`` and ``k - 1``,
+        where ``k`` is the number of classes.
+    embedding : Theano variable
+        An array of shape ``(n, d)`` where each row represents a point in``d``-dimensional space.
+
+    Returns
+    -------
+
+    res : Theano variable
+        Array of shape `(n, 1)` holding a probability that a point is
+        classified correclty.
     """
     # Matrix of the distances of points.
     dist = distance_matrix(embedding)
@@ -191,7 +320,7 @@ def ncac(target, embedding):
 
 
 def ncar(target, embedding):
-    """Return the sample wise NCA for regression loss.
+    """Return the NCA for regression loss.
 
     This is similar to NCA for classification, except that not soft KNN
     classification but regression performance is maximized. (Actually, the
@@ -203,14 +332,24 @@ def ncar(target, embedding):
     Taylor, G. and Fergus, R. and Williams, G. and Spiro, I. and Bregler, C.
     (2010)
 
-    :param target: An array of shape `(n, d)` where `n` is the number of
-        samples and `d` the dimensionalty of the target space.
-    :param embedding: An array of shape `(n, d)` where each row represents
-        a point in d dimensional space.
-    :returns: Array of shape `(n, 1)`.
+    Parameters
+    ----------
+
+    target : Theano variable
+        An array of shape ``(n, d)`` where ``n`` is the number of samples and
+        ``d`` the dimensionalty of the target space.
+    embedding : Theano variable
+        An array of shape ``(n, d)`` where each row represents a point in
+        ``d``-dimensional space.
+
+    Returns
+    -------
+
+    res : Theano variable
+        Array of shape ``(n, 1)``.
     """
     # Matrix of the distances of points.
-    dist = distance_matrix(embedding)
+    dist = distance_matrix(embedding) ** 2
     thisid = T.identity_like(dist)
 
     # Probability that a point is neighbour of another point based on

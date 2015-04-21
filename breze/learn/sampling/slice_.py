@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
 
-import itertools
-
 import numpy as np
 from numpy.random import uniform
+
+from breze.learn.utils import theano_floatx
 
 
 class Diverged(Exception):
@@ -24,8 +24,8 @@ def sample(f_ll, position, window_inc=1.0, max_widenings=1000):
     :window_inc: Amount by which the window size is increased or decreased.
     :returns: Array of the same size as `position` which is a new sample.
     """
-    direction = np.random.normal(0, 1, size=position.shape)
-    direction /= np.sqrt((direction**2).sum())
+    direction, = theano_floatx(np.random.normal(0, 1, size=position.shape))
+    direction /= np.sqrt((direction ** 2).sum())
 
     # Convenience function of the log likelihood along a direction.
     def ll_along_dir(step_size):

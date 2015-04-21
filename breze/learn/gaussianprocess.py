@@ -3,14 +3,16 @@
 
 import numpy as np
 import theano
+import theano.tensor as T
 
-from breze.arch.model.gaussianprocess import GaussianProcess as GaussianProcess_
-
+from breze.arch.model import gaussianprocess
+from breze.arch.util import ParameterSet, Model
 from breze.learn.base import SupervisedBrezeWrapperBase
 from breze.learn.sampling import slice_
+from breze.learn.utils import theano_floatx
 
 
-class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
+class GaussianProcess(Model, SupervisedBrezeWrapperBase):
     """GaussianProcess class.
 
     Parameters
@@ -56,18 +58,33 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
 
     def __init__(self, n_inpt, kernel='linear', optimizer='rprop',
                  max_iter=1000, verbose=False):
-        super(GaussianProcess, self).__init__(n_inpt, kernel=kernel)
+        self.n_inpt = n_inpt
+        self.kernel = kernel
 
         self.optimizer = optimizer
         self.max_iter = max_iter
         self.verbose = verbose
-
-        self.f_predict = None
-        self.f_predict_var = None
+        self._gram_matrix = None
         self.f_gram_matrix = None
 
-        self.parameters.data[:] = 0
-        self._gram_matrix = None
+        super(GaussianProcess, self).__init__()
+
+    def _init_pars(self):
+        spec = gaussianprocess.parameters(self.n_inpt)
+        self.parameters = ParameterSet(**spec)
+        self.parameters.data[:][...] = 0
+
+    def _init_exprs(self):
+        self.exprs = {
+            'inpt': T.matrix('inpt'),
+            'test_inpt': T.matrix('inpt'),
+            'target': T.matrix('target'),
+        }
+        P = self.parameters
+
+        self.exprs.update(gaussianprocess.exprs(
+            self.exprs['inpt'], self.exprs['test_inpt'], self.exprs['target'],
+            P.length_scales, P.noise, P.amplitude, self.kernel))
 
     def _make_predict_functions(self, stored_inpt, stored_target):
         """Return a function to predict targets from input sequences."""
@@ -123,7 +140,7 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         self.stored_X = (X - self.mean_x) / self.std_x
         self.stored_Z = (Z - self.mean_z) / self.std_z
 
-    def iter_fit(self, X, Z, mode=None):
+    def iter_fit(self, X, Z, mode=None, info_opt=None):
         self.store_dataset(X, Z)
 
         if 'diff' in self.exprs:
@@ -136,7 +153,7 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
             givens=givens, mode=mode, on_unused_input='warn')
 
         args = self._make_args(self.stored_X, self.stored_Z)
-        opt = self._make_optimizer(f_loss, f_d_loss, args)
+        opt = self._make_optimizer(f_loss, f_d_loss, args, info=info_opt)
 
         for i, info in enumerate(opt):
             yield info
@@ -180,8 +197,8 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
         X = (X - self.mean_x) / self.std_x
 
         if var:
-            Y = np.empty((X.shape[0], 1)).astype(theano.config.floatX)
-            Y_var = np.empty((X.shape[0], 1)).astype(theano.config.floatX)
+            Y, = theano_floatx(np.empty((X.shape[0], 1)))
+            Y_var, = theano_floatx(np.empty((X.shape[0], 1)))
 
             for start, stop in steps:
                 this_x = X[start:stop]
@@ -192,7 +209,7 @@ class GaussianProcess(GaussianProcess_, SupervisedBrezeWrapperBase):
             Y_var = Y_var * self.std_z
             return Y, Y_var
         else:
-            Y = np.empty((X.shape[0], 1)).astype(theano.config.floatX)
+            Y, = theano_floatx(np.empty((X.shape[0], 1)))
             for start, stop in steps:
                 this_x = X[start:stop]
                 Y[start:stop] = self.f_predict(this_x)

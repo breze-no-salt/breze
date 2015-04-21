@@ -36,7 +36,7 @@ def scatterplot_matrix(X, C=None, symb='o', alpha=1, fig=None):
     """
     N = X.shape[1]
     fig = plt.figure(figsize=figsize) if fig is None else fig
-    n_colors = len(set(C)) if C is not None else 0
+    #n_colors = len(set(C)) if C is not None else 0
 
     for i in range(N):
         for j in range(N):
@@ -47,10 +47,7 @@ def scatterplot_matrix(X, C=None, symb='o', alpha=1, fig=None):
                 ax.hist(X[:, i], 25)
             else:
                 if C is not None:
-                    for k in range(n_colors):
-                        select = C == k
-                        c = colors[k] + symb
-                        ax.plot(X[select, j], X[select, i], c, alpha=alpha)
+                    ax.scatter(X[:, j], X[:, i], c=C, alpha=alpha, lw=0)
                 else:
                     ax.plot(X[:, j], X[:, i], symb, alpha=alpha)
     return fig

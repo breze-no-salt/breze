@@ -21,8 +21,11 @@ from theano.tensor.extra_ops import repeat
 
 from ...util import lookup
 from ...component.varprop import transfer, loss as loss_
-from ...model.sequential.rnn import BaseRecurrentNetwork, SimpleRnnComponent
+from breze.arch.model.rnn import rnn
 import mlp
+
+
+# TODO check documentation
 
 
 def flat_time(x):
@@ -121,6 +124,8 @@ def forward_layer(in_mean, in_var, weights, mean_bias, var_bias_sqrt,
     """
     in_mean_flat = flat_time(in_mean)
     in_var_flat = flat_time(in_var)
+    if hasattr(p_dropout, 'ndim') and p_dropout.ndim == 3:
+        p_dropout = flat_time(p_dropout)
 
     omi_flat, ovi_flat, omo_flat, ovo_flat = mlp.mean_var_forward(
         in_mean_flat, in_var_flat, weights, mean_bias, var_bias_sqrt,
@@ -205,7 +210,8 @@ def int_forward_layer(in_mean, in_var, weights, mean_bias, var_bias_sqrt,
     return omi, ovi, omo, ovo
 
 
-def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
+def recurrent_layer(in_mean, in_var, weights, f,
+                    initial_hidden_mean, initial_hidden_var,
                     p_dropout):
     """Return a theano variable representing a recurrent layer.
 
@@ -270,15 +276,18 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
 
         return hom, hov, fhom, fhov
 
-    initial_hidden_mean = repeat(initial_hidden.dimshuffle('x', 0), in_mean.shape[1], axis=0)
-
-    initial_hidden_var = T.zeros_like(initial_hidden_mean) + 1e-8
+    if initial_hidden_mean.ndim == 1:
+        initial_hidden_mean = repeat(
+            initial_hidden_mean.dimshuffle('x', 0), in_mean.shape[1], axis=0)
+    if initial_hidden_var.ndim == 1:
+        initial_hidden_var = repeat(
+            initial_hidden_var.dimshuffle('x', 0), in_mean.shape[1], axis=0)
 
     (hidden_in_mean_rec, hidden_in_var_rec, hidden_mean_rec, hidden_var_rec), _ = theano.scan(
         step,
         sequences=[in_mean, in_var],
-        outputs_info=[T.zeros_like(initial_hidden_mean),
-                      T.zeros_like(initial_hidden_var),
+        outputs_info=[T.zeros_like(in_mean[0]),
+                      T.zeros_like(in_mean[0]),
                       initial_hidden_mean,
                       initial_hidden_var])
 
@@ -289,9 +298,34 @@ def recurrent_layer(in_mean, in_var, weights, f, initial_hidden,
             hidden_mean_rec, hidden_var_rec)
 
 
-def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
-        hidden_biases, hidden_var_biases_sqrt, initial_hiddens, recurrents,
-        out_bias, hidden_transfers, out_transfer, p_dropouts, hotk_inpt):
+def parameters(n_inpt, n_hiddens, n_output, skip_to_out=False,
+               hidden_transfers=None, out_transfer=None, prefix=''):
+    spec = rnn.parameters(n_inpt, n_hiddens, n_output, skip_to_out,
+                          hidden_transfers, out_transfer, prefix)
+
+    if hidden_transfers is not None:
+        hiddens_inoutsizes = [rnn.inout_size(i) for i in hidden_transfers]
+    else:
+        hiddens_inoutsizes = [(1, 1) for _ in n_hiddens]
+
+    hiddens_insizes, hiddens_outsizes = zip(*hiddens_inoutsizes)
+    total_hidden_outsizes = [i * j for i, j in zip(n_hiddens, hiddens_outsizes)]
+
+    for i, j in enumerate(total_hidden_outsizes):
+        spec['initial_hidden_means_%i' % i] = j
+        spec['initial_hidden_vars_%i' % i] = j
+        del spec['initial_hiddens_%i' % i]
+
+    return spec
+
+
+def exprs(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
+          hidden_biases, hidden_var_scales_sqrt,
+          initial_hidden_means, initial_hidden_vars,
+          recurrents,
+          out_bias, out_var_scale_sqrt, hidden_transfers, out_transfer,
+          in_to_out=None, skip_to_outs=None, p_dropouts=None,
+          hotk_inpt=False):
     """Return a dictionary containing Theano expressions for various components
     of a recurrent network with variance propagation.
 
@@ -319,12 +353,15 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
     hidden_biases : list of Theano variables
         Biases for the hidden layers.
 
-    hidden_var_biases_sqrt : Theano variable
+    hidden_var_scales_sqrt : Theano variable
         Biases for the variances. See ``forward_layer`` for an exact description
         of what it does.
 
-    initial_hiddens : list of Theano variables
-        List of vectors representing the initial hidden states.
+    initial_hidden_means : list of Theano variables
+        List of vectors representing the mean of the initial hidden states.
+
+    initial_hidden_vars : list of Theano variables
+        List of vectors representing the variance initial hidden states.
 
     recurrents : list of Theano variables
         List of matrices representing the recurrent weight matrices.
@@ -369,6 +406,16 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
          - ``output_var``: post-synaptic variance of output,
          - ``output``: concatenation of mean and variance of output
     """
+    if not len(set([len(hidden_to_hiddens) + 1,
+                    len(hidden_biases),
+                    len(hidden_var_scales_sqrt),
+                    len(initial_hidden_means),
+                    len(initial_hidden_vars),
+                    len(recurrents),
+                    len(hidden_transfers)])):
+        raise ValueError('one of the inputs has wrong length')
+
+    # TODO add skip to outs docs
     # TODO: add pooling
     # TODO: add leaky integration
     exprs = {}
@@ -380,19 +427,23 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
         # Scalar
         inpt_var = T.ones_like(inpt_mean) * inpt_var
 
+    inpt_mean *= 1 - p_dropouts[0]
+    inpt_var *= (1 - p_dropouts[0]) * p_dropouts[0]
+
     if hotk_inpt:
         hmi, hvi, hmo, hvo = int_forward_layer(
             inpt_mean, inpt_var, in_to_hidden,
-            hidden_biases[0], hidden_var_biases_sqrt[0],
-            f_hiddens[0], p_dropouts[0])
+            hidden_biases[0], hidden_var_scales_sqrt[0],
+            f_hiddens[0], p_dropouts[1])
     else:
         hmi, hvi, hmo, hvo = forward_layer(
             inpt_mean, inpt_var, in_to_hidden,
-            hidden_biases[0], hidden_var_biases_sqrt[0],
-            f_hiddens[0], p_dropouts[0])
+            hidden_biases[0], hidden_var_scales_sqrt[0],
+            f_hiddens[0], p_dropouts[1])
 
     hmi_rec, hvi_rec, hmo_rec, hvo_rec = recurrent_layer(
-        hmi, hvi, recurrents[0], f_hiddens[0], initial_hiddens[0],
+        hmi, hvi, recurrents[0], f_hiddens[0],
+        initial_hidden_means[0], initial_hidden_vars[0],
         p_dropouts[1])
 
     exprs.update({
@@ -403,17 +454,19 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
     })
 
     zipped = zip(
-        hidden_to_hiddens, hidden_biases[1:], hidden_var_biases_sqrt[1:],
-        recurrents[1:], f_hiddens[1:], initial_hiddens[1:], p_dropouts[1:])
+        hidden_to_hiddens, hidden_biases[1:], hidden_var_scales_sqrt[1:],
+        recurrents[1:], f_hiddens[1:],
+        initial_hidden_means[1:], initial_hidden_vars[1:],
+        p_dropouts[1:])
 
-    for i, (w, b, vb, r, t, j, d) in enumerate(zipped):
+    for i, (w, b, vb, r, t, j, k, d) in enumerate(zipped):
         hmo_rec_m1, hvo_rec_m1 = hmo_rec, hvo_rec
 
         hmi, hvi, hmo, hvo = forward_layer(
             hmo_rec_m1, hvo_rec_m1, w, b, vb, t, d)
 
         hmi_rec, hvi_rec, hmo_rec, hvo_rec = recurrent_layer(
-            hmi, hvi, r, t, j, d)
+            hmi, hvi, r, t, j, k, d)
 
         exprs.update({
             'hidden_in_mean_%i' % (i + 1): hmi,
@@ -422,10 +475,30 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
             'hidden_var_%i' % (i + 1): hvo
         })
 
-    output_in_mean, output_in_var, output_mean, output_var = forward_layer(
+    output_in_mean, output_in_var, _, _ = forward_layer(
         hmo_rec, hvo_rec, hidden_to_out,
-        out_bias, hidden_var_biases_sqrt[-1],
-        f_output, p_dropouts[-1])
+        out_bias, out_var_scale_sqrt,
+        lambda x,y: (x, y), p_dropouts[-1])
+
+    if in_to_out is not None:
+        output_mean_inc, output_var_inc, _, _= forward_layer(
+            inpt_mean, inpt_var, in_to_out,
+            T.zeros_like(out_bias), T.ones_like(out_bias),
+            lambda x, y: (x, y), p_dropouts[0])
+        output_in_mean += output_mean_inc
+        output_in_var += output_var_inc
+    if skip_to_outs is not None:
+        for i, s in enumerate(skip_to_outs):
+            output_mean_inc, output_var_inc, _, _= forward_layer(
+                exprs['hidden_mean_%i' % i], exprs['hidden_var_%i' % i], s,
+                T.zeros_like(out_bias), T.ones_like(out_bias),
+                lambda x, y: (x, y), p_dropouts[i + 1])
+            output_in_mean += output_mean_inc
+            output_in_var += output_var_inc
+
+    output_mean, output_var = f_output(output_in_mean, output_in_var)
+
+    # TODO: raise not implemented for out scale
 
     exprs.update({
         'inpt_mean': inpt_mean,
@@ -438,153 +511,3 @@ def rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens, hidden_to_out,
     })
 
     return exprs
-
-
-class SupervisedRecurrentNetwork(BaseRecurrentNetwork, SimpleRnnComponent):
-
-    def __init__(self, n_inpt, n_hiddens, n_output,
-                 hidden_transfers, out_transfer='identity', loss='squared',
-                 pooling=None, leaky_coeffs=None,
-                 p_dropout_inpt=.2, p_dropout_hidden=.5,
-                 p_dropout_hidden_to_out=None,
-                 use_varprop_at=None,
-                 hotk_inpt=False):
-        self.n_inpt = n_inpt
-        self.n_output = n_output
-
-        # If these are not lists, we implicitly assume that we are dealing
-        # with a single hidden layer architecture.
-        self.n_hiddens = (
-            n_hiddens if isinstance(n_hiddens, (list, tuple))
-            else [n_hiddens])
-        self.hidden_transfers = (
-            hidden_transfers if isinstance(hidden_transfers, (list, tuple))
-            else [hidden_transfers])
-
-        self.out_transfer = out_transfer
-        self.loss = loss
-
-        # FIXME: This is a quite dirty workaround for screwing up multiple
-        # inheritance. Basically, all bases except one should be MixIns with
-        # something like a init_pars() method instead of __init__.
-        if not hasattr(self, 'p_dropout_inpt'):
-            self.p_dropout_inpt = p_dropout_inpt
-        if not hasattr(self, 'p_dropout_hidden'):
-            self.p_dropout_hidden = p_dropout_hidden
-        if not hasattr(self, 'hotk_inpt'):
-            self.hotk_inpt = hotk_inpt
-
-        if p_dropout_hidden_to_out is None:
-            if not hasattr(self, 'p_dropout_hidden_to_out'):
-                self.p_dropout_hidden_to_out = p_dropout_hidden
-        else:
-            if not hasattr(self, 'p_dropout_hidden_to_out'):
-                self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
-
-        if use_varprop_at is None:
-            use_varprop_at = [True] * len(n_hiddens)
-        self.use_varprop_at = use_varprop_at
-
-        super(SupervisedRecurrentNetwork, self).__init__(
-            n_inpt, n_hiddens, n_output,
-            hidden_transfers, out_transfer, loss, pooling, leaky_coeffs)
-
-    def init_exprs(self):
-        inpt_mean = T.tensor3('inpt_mean')
-        inpt_var = T.tensor3('inpt_var')
-        target = T.tensor3('target')
-        pars = self.parameters
-
-        hidden_to_hiddens = [getattr(pars, 'hidden_to_hidden_%i' % i)
-                             for i in range(len(self.n_hiddens) - 1)]
-        hidden_biases = [getattr(pars, 'hidden_bias_%i' % i)
-                         for i in range(len(self.n_hiddens))]
-        hidden_var_biases_sqrt = [1 if i else 0 for i in self.use_varprop_at]
-        recurrents = [getattr(pars, 'recurrent_%i' % i)
-                      for i in range(len(self.n_hiddens))]
-        initial_hiddens = [getattr(pars, 'initial_hidden_%i' % i)
-                           for i in range(len(self.n_hiddens))]
-
-        self.exprs = self.make_exprs(
-            inpt_mean, inpt_var, target,
-            pars.in_to_hidden, hidden_to_hiddens, pars.hidden_to_out,
-            hidden_biases, hidden_var_biases_sqrt,
-            initial_hiddens, recurrents, pars.out_bias,
-            self.hidden_transfers, self.out_transfer, self.loss,
-            self.pooling, self.leaky_coeffs,
-            [self.p_dropout_inpt] + [self.p_dropout_hidden] * len(recurrents),
-            self.hotk_inpt)
-
-    @staticmethod
-    def make_exprs(inpt_mean, inpt_var, target, in_to_hidden, hidden_to_hiddens, hidden_to_out,
-                   hidden_biases, hidden_var_biases_sqrt,
-                   initial_hiddens, recurrents, out_bias,
-                   hidden_transfers, out_transfer, loss, pooling, leaky_coeffs,
-                   p_dropouts, hotk_inpt):
-        if pooling is not None:
-            raise NotImplementedError("I don't know about pooling yet.")
-        if leaky_coeffs is not None:
-            raise NotImplementedError("I don't know about leaky coefficiens "
-                                      "yet.")
-
-        exprs = rnn(inpt_mean, inpt_var, in_to_hidden, hidden_to_hiddens,
-                    hidden_to_out, hidden_biases, hidden_var_biases_sqrt,
-                    initial_hiddens, recurrents,
-                    out_bias, hidden_transfers, out_transfer, p_dropouts,
-                    hotk_inpt)
-        f_loss = lookup(loss, loss_)
-        sum_axis = 2
-        loss_row_wise = f_loss(target, exprs['output']).sum(axis=sum_axis)
-        loss = loss_row_wise.mean()
-        exprs['target'] = target
-        exprs['loss'] = loss
-        exprs['loss_row_wise'] = loss_row_wise
-        return exprs
-
-
-class FastDropoutRnn(SupervisedRecurrentNetwork):
-
-    inpt_var = 0
-
-    def init_exprs(self):
-        # HOTFIX for penn
-        #inpt_mean = T.matrix('inpt_mean')
-        #inpt_var = T.ones_like(T.repeat(inpt_mean, self.n_inpt)) * self.inpt_var
-        #inpt_var.name = 'inpt_var'
-        #target = T.matrix('target')
-        # / HOTFIX for penn
-
-        inpt_mean = T.tensor3('inpt_mean')
-        inpt_var = T.ones_like(inpt_mean) * self.inpt_var
-        inpt_var.name = 'inpt_var'
-
-        target = T.tensor3('target')
-
-        pars = self.parameters
-
-        hidden_to_hiddens = [getattr(self.parameters, 'hidden_to_hidden_%i' % i)
-                             for i in range(len(self.n_hiddens) - 1)]
-        hidden_biases = [getattr(self.parameters, 'hidden_bias_%i' % i)
-                         for i in range(len(self.n_hiddens))]
-        hidden_var_biases_sqrt = [1 if i else 1e-16
-                                  for i in self.use_varprop_at]
-        recurrents = [getattr(pars, 'recurrent_%i' % i)
-                      for i in range(len(self.n_hiddens))]
-        initial_hiddens = [getattr(pars, 'initial_hidden_%i' % i)
-                           for i in range(len(self.n_hiddens))]
-
-        p_dropouts = ([self.p_dropout_inpt]
-                      + [self.p_dropout_hidden] * len(recurrents)
-                      + [self.p_dropout_hidden_to_out])
-
-        self.exprs = self.make_exprs(
-            inpt_mean, inpt_var, target,
-            pars.in_to_hidden, hidden_to_hiddens, pars.hidden_to_out,
-            hidden_biases,
-            hidden_var_biases_sqrt,
-            initial_hiddens, recurrents, pars.out_bias,
-            self.hidden_transfers, self.out_transfer, self.loss,
-            self.pooling, self.leaky_coeffs, p_dropouts,
-            self.hotk_inpt)
-
-        self.exprs['inpt'] = inpt_mean

@@ -27,10 +27,14 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
+import datetime
 from functools import wraps
+import json
+import types
 
-import numpy as np
 import h5py
+import numpy as np
+import theano
 
 
 def scale_to_unit_interval(ndar, eps=1e-8):
@@ -249,3 +253,28 @@ def parameter_copy(source, sink, par_map):
     """
     for key, value in par_map.items():
         sink.parameters[key][...] = source.parameters[value]
+
+
+def theano_floatx(*arrs):
+    return [i.astype(theano.config.floatX) for i in arrs]
+
+
+class JsonForgivingEncoder(json.JSONEncoder):
+
+    unknown_types = (
+        types.FunctionType, types.GeneratorType, np.ndarray)
+
+    def default(self, obj):
+        if hasattr(obj,'as_numpy_array'):
+            # Assume gnumpy
+            obj = obj.as_numpy_array()
+        if isinstance(obj, np.ndarray) and obj.size == 1:
+            obj = float(obj.flatten()[0])
+            return obj
+        if isinstance(obj, datetime.datetime):
+            return obj.isoformat(' ')
+
+        if isinstance(obj, self.unknown_types):
+            return repr(obj)
+
+        return json.JSONEncoder.default(self, obj)

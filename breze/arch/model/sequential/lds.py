@@ -9,6 +9,9 @@ from theano.sandbox.linalg import det, matrix_inverse
 from ...util import ParameterSet, Model, lookup
 
 
+# TODO: revamp or deprecate
+
+
 def stacked_dot(X, Y):
     # Only works for matrices! not for vectors.
     if X.ndim == 2 and Y.ndim == 2:
@@ -42,7 +45,7 @@ def filter_and_prob(inpt, transition, emission,
     hidden_mean_0 = T.zeros_like(hidden_noise_mean).dimshuffle('x', 0)
     hidden_cov_0 = T.zeros_like(hidden_noise_cov).dimshuffle('x', 0, 1)
     f0, F0, ll0 = step(inpt[0], hidden_mean_0, hidden_cov_0)
-    replace = {hidden_noise_mean: initial_hidden, 
+    replace = {hidden_noise_mean: initial_hidden,
                hidden_noise_cov: initial_hidden_cov}
     f0 = theano.clone(f0, replace)
     F0 = theano.clone(F0, replace)
@@ -187,7 +190,7 @@ def backward_step(transition, hidden_noise_mean, hidden_noise_cov):
 
         smoothed_cov = stacked_dot(trans_rev,
                                    stacked_dot(smoothed_cov_p1, trans_rev_T))
-        
+
         smoothed_cov += cov_rev
 
         return smoothed_mean, smoothed_cov
@@ -232,7 +235,7 @@ class LinearDynamicalSystem(Model):
             hidden_cov_initial=(n_hidden, n_hidden))
 
     @staticmethod
-    def make_exprs(inpt, transition, emission, 
+    def make_exprs(inpt, transition, emission,
                    visible_noise_mean, visible_noise_cov,
                    hidden_noise_mean, hidden_noise_cov,
                    hidden_mean_initial, hidden_cov_initial):
@@ -242,7 +245,7 @@ class LinearDynamicalSystem(Model):
             hidden_noise_mean, hidden_noise_cov,
             hidden_mean_initial, hidden_cov_initial)
         smoothed_means, smoothed_covs = smooth(
-            filtered_means, filtered_covs, transition, 
+            filtered_means, filtered_covs, transition,
             hidden_noise_mean, hidden_noise_cov)
 
         return {
@@ -253,32 +256,3 @@ class LinearDynamicalSystem(Model):
             'smoothed_covs': smoothed_covs,
             'log_likelihood': prob
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

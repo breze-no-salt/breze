@@ -1,63 +1,83 @@
 # -*- coding: utf-8 -*-
 
 
+import numpy as np
 import theano.tensor as T
 
-from ...util import ParameterSet, Model
+from ...util import get_named_variables
 
 
-class SparseCoding(Model):
+# TODO docstring examples
 
-    # TODO: rename to c_sparsity
-    def __init__(self, n_inpt, n_feature, c_l1):
-        self.n_inpt = n_inpt
-        self.n_feature = n_feature
-        self.c_l1 = c_l1
 
-        super(SparseCoding, self).__init__()
+def parameters(n_feature, n_inpt):
+    """Return the parameter specification dictionary for a sparse coding
+    model.
 
-    def init_pars(self):
-        parspec = self.get_parameter_spec(self.n_inpt, self.n_feature)
-        self.parameters = ParameterSet(**parspec)
+    Parameters
+    ----------
 
-    def init_exprs(self):
-        self.exprs = self.make_exprs(
-            T.matrix('inpt'), self.parameters.feature_to_in, self.c_l1)
+    n_inpt : integer
+        Number of inpus to the model.
 
-    @staticmethod
-    def get_parameter_spec(n_inpt, n_feature):
-        return dict(feature_to_in=(n_feature, n_inpt))
+    n_output : integer
+        Number of outputs of the model.
 
-    @staticmethod
-    def make_exprs(inpt, feature_to_in, c_l1):
-        feature_flat = T.vector('feature_flat')
-        feature = feature_flat.reshape((inpt.shape[0], feature_to_in.shape[0]))
+    Returns
+    -------
 
-        reconstruction = T.dot(feature, feature_to_in)
-        residual = inpt - reconstruction
+    res : dict
+        Specification of the parameters.
+    """
 
-        reconstruct_loss_rowwise = (residual**2).sum(axis=1)
-        sparsity_loss_rowwise = T.sqrt((feature**2) + 1e-4).sum(axis=1)
-        loss_rowwise = reconstruct_loss_rowwise + c_l1 * sparsity_loss_rowwise
+    return dict(feature_to_in=(n_feature, n_inpt))
 
-        reconstruct_loss = reconstruct_loss_rowwise.mean()
-        sparsity_loss = sparsity_loss_rowwise.mean()
-        loss = loss_rowwise.mean()
 
-        # TODO normalize/constrain columns of weight matrix.
+def exprs(inpt, feature_to_in, c_sparsity):
+    """Return a dictionary containing various expressions for the model.
 
-        return {
-            'inpt': inpt,
-            'feature_flat': feature_flat,
-            'feature': feature,
-            'reconstruction': reconstruction,
-            'residual': residual,
+    Parameters
+    ----------
 
-            'reconstruct_loss_rowwise': reconstruct_loss_rowwise,
-            'sparsity_loss_rowwise': sparsity_loss_rowwise,
-            'loss_rowwise': loss_rowwise,
+    inpt : Theano variable
+        Array of shape ``(n, d)`` where ``n`` is the number of samples and
+        ``d`` is the dimensionality of the data.
 
-            'reconstruct_loss': reconstruct_loss,
-            'sparsity_loss': sparsity_loss,
-            'loss': loss
-        }
+    feature_to_in : Theano variable
+        Array of shape ``(d, e)`` that is the transformation applied to the
+        data.
+
+    c_sparsity : float or Theano variable
+        Coefficient for the sparsity penalty.
+
+    Returns
+    -------
+
+    res : dict
+        Dictionary containing expressions with various fields. The
+        reconstruction is given as ``reconstruction`` and the corresponding loss
+        coordinate wise, sample wise and for the whole data set via
+        ``rec_loss_coord_wise``, ``rec_loss_sample_wise`` and ``rec_loss``.
+        The sparsity loss is given accordingly as ``sparsity_loss_coord_wise``,
+        ``sparsity_loss_sample_wise`` and ``sparsity_loss``. The complete loss
+        is given via ``loss``.
+    """
+    feature_flat = T.vector('feature_flat')
+    feature_flat.tag.test_value = np.zeros((inpt.tag.test_value.shape[0],
+                                            feature_to_in.tag.test_value.shape[0]))
+    feature = feature_flat.reshape((inpt.shape[0], feature_to_in.shape[0]))
+
+    reconstruction = T.dot(feature, feature_to_in)
+    residual = inpt - reconstruction
+
+    rec_loss_coord_wise = residual ** 2
+    rec_loss_sample_wise = rec_loss_coord_wise.sum(axis=1)
+    rec_loss = rec_loss_sample_wise.mean()
+
+    sparsity_loss_coord_wise = T.sqrt((feature ** 2) + 1e-4)
+    sparsity_loss_sample_wise = sparsity_loss_coord_wise.sum(axis=1)
+    sparsity_loss = sparsity_loss_sample_wise.mean()
+
+    loss = rec_loss + c_sparsity * sparsity_loss
+
+    return get_named_variables(locals())

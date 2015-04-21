@@ -12,136 +12,92 @@ References
    2011.
 """
 
+from climin import mathadapt as ma
 import numpy as np
 import theano
 
-from breze.arch.model.feature import Rica as _Rica
+from breze.arch.model.feature import rica
 from breze.learn.base import (
     UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin,
     ReconstructBrezeWrapperMixin)
+from breze.arch.util import ParameterSet, Model, lookup, get_named_variables
+import autoencoder
 
 
-class Rica(_Rica, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin,
-           ReconstructBrezeWrapperMixin):
+class Rica(autoencoder.AutoEncoder):
     """Class implementing ICA with reconstruction cost.
+
+    All attributes of ``AutoEncoder`` objects apply as well.
 
     Attributes
     ----------
 
-    parameters : ParamterSet object
-        Parameters of the model.
-
-    n_inpt : integer
-        Input dimensionality of the data.
-
-    n_feature : integer
-        Dimensionality of the hidden feature dimension.
-
-    hidden_transfer : string or function
-        Transfer function to use for the hidden units. Can be a string
-        referring any function found in ``breze.component.transfer`` or a
-        function that given an ``(n, d)`` array returns an ``(n, d)`` array
-        as theano expressions.
-
-    feature_transfer : string or function
-        Transfer function to use for the features. Can be a string
-        referring any function found in ``breze.component.transfer`` or a
-        function that given an (n, d) array returns an (n, d) array as
+    code_transfer : string or function
+        Transfer function to use for the features before the loss. Can be a
+        string referring any function found in ``breze.component.transfer`` or
+        a function that given an (n, d) array returns an (n, d) array as
         theano expressions.
 
-    out_transfer : string or function
-        Output transfer function of the linear auto encoder for calculation
-        of the reconstruction cost.
-
-    loss : string or function
-        Loss which is going to be optimized. This can either be a string
-        and reference a loss function found in ``breze.component.loss`` or
-        a function which takes two theano tensors (one being the output of
-        the network, the other some target) and returns a theano scalar.
-
     c_ica : float, optional, [default: 0.5]
-        Weight of the ICA cost, cost of linear reconstruction is 1.
+        Weight of the ICA cost, cost of reconstruction is 1.
 
-    optimizer : string or pair
-        Can be either a string or a pair. In any case,
-        ``climin.util.optimizer`` is used to construct an optimizer. In the
-        case of a string, the string is used as an identifier for the
-        optimizer which is then instantiated with default arguments. If a
-        pair, expected to be ``(identifier, kwargs)`` for more fine control
-        of the optimizer.
-
-    max_iter : integer
-        Maximum number of optimization iterations to perform.
-
-    verbose : boolean
-        Flag indicating whether to print out information during fitting.
+    fit_project_weights :  boolean
+        If set to True, the length of an weight vector coming into a code unit
+        will be set to 1 after each training iteration.
     """
 
-    def __init__(self, n_inpt, n_feature, hidden_transfer='identity',
-                 feature_transfer='softabs', out_transfer='identity',
-                 loss='squared', c_ica=0.5, optimizer='lbfgs',
+    def __init__(self, n_inpt, n_hidden, hidden_transfer='identity',
+                 code_transfer='softabs', out_transfer='identity',
+                 loss='squared', c_ica=0.5,
+                 fit_project_weights=True,
+                 tied_weights=True,
+                 batch_size=None,
+                 optimizer='lbfgs',
                  max_iter=1000, verbose=False):
         """Create a Rica object.
 
-        n_inpt : integer
-            Input dimensionality of the data.
+        Parameters
+        ----------
 
-        n_feature : integer
-            Dimensionality of the hidden feature dimension.
+        All parameters from the ``AutoEncoder`` class apply as well.
 
-        hidden_transfer : string or function
-            Transfer function to use for the hidden units. Can be a string
-            referring any function found in ``breze.component.transfer`` or a
-            function that given an ``(n, d)`` array returns an ``(n, d)`` array
-            as theano expressions.
-
-        feature_transfer : string or function
-            Transfer function to use for the features. Can be a string
-            referring any function found in ``breze.component.transfer`` or a
-            function that given an (n, d) array returns an (n, d) array as
+        code_transfer : string or function
+            Transfer function to use for the features before the loss. Can be a
+            string referring any function found in ``breze.component.transfer``
+            or a function that given an (n, d) array returns an (n, d) array as
             theano expressions.
-
-        out_transfer : string or function
-            Output transfer function of the linear auto encoder for calculation
-            of the reconstruction cost.
-
-        loss : string or function
-            Loss which is going to be optimized. This can either be a string
-            and reference a loss function found in ``breze.component.loss`` or
-            a function which takes two theano tensors (one being the output of
-            the network, the other some target) and returns a theano scalar.
 
         c_ica : float, optional, [default: 0.5]
             Weight of the ICA cost, cost of linear reconstruction is 1.
 
-        optimizer : string or pair
-            Can be either a string or a pair. In any case,
-            ``climin.util.optimizer`` is used to construct an optimizer. In the
-            case of a string, the string is used as an identifier for the
-            optimizer which is then instantiated with default arguments. If a
-            pair, expected to be ``(identifier, kwargs)`` for more fine control
-            of the optimizer.
-
-        max_iter : integer
-            Maximum number of optimization iterations to perform.
-
-        verbose : boolean
-            Flag indicating whether to print out information during fitting.
+        fit_project_weights : boolean
+            If set to True, the length of an weight vector coming into a code
+            unit will be set to 1 after each training iteration.
         """
+        self.code_transfer = code_transfer
+        self.c_ica = c_ica
+        self.fit_project_weights = fit_project_weights
         super(Rica, self).__init__(
-            n_inpt, n_feature, hidden_transfer, feature_transfer,
-            out_transfer, loss, c_ica)
-        self.optimizer = optimizer
-        self.f_transform = None
-        self.f_reconstruct = None
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
-        self.max_iter = max_iter
-        self.verbose = verbose
+            n_inpt, [n_hidden], [hidden_transfer],
+            out_transfer, loss, tied_weights=tied_weights,
+            batch_size=batch_size,
+            code_idx=None)
+
+    def _init_exprs(self):
+        super(Rica, self)._init_exprs()
+        self.exprs.update(rica.loss(self.exprs['layer-0-output'],
+                                    self.code_transfer))
+
+        self.exprs['loss_coord_wise'] += self.exprs['ica_loss_coord_wise']
+        self.exprs['loss_sample_wise'] += self.exprs['ica_loss_sample_wise']
+        self.exprs['loss'] += self.exprs['ica_loss']
+
+    def project_weights(self):
+        w = self.parameters['in_to_hidden']
+        w /= ma.sqrt((w ** 2).sum(axis=0) + 1e-4)[np.newaxis, :]
 
     def iter_fit(self, X):
-        w = self.parameters['in_to_hidden']
-        f_weights_normed = self.function([], 'in_to_hidden_normed')
         for info in super(Rica, self).iter_fit(X):
-            w[...] = f_weights_normed()
+            if self.fit_project_weights:
+                self.project_weights()
             yield info

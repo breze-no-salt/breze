@@ -179,6 +179,8 @@ def build_loss(embeddings):
     q = T.maximum(q, 1E-12)
 
     p_ji_var = T.matrix('neighbour_probabilities')
+    p_ji_var.tag.test_value = np.random.random(
+            (10, 10)).astype(theano.config.floatX)
     p_ji_var_floored = T.maximum(p_ji_var, 1E-12)
 
     # t-distributed stochastic neighbourhood embedding loss.
@@ -268,6 +270,7 @@ def tsne(X, low_dim, perplexity=40, early_exaggeration=50, max_iter=1000,
 
     # Create loss expression and its gradient.
     loss, p_ji_var = build_loss(embeddings)
+
     d_loss_wrt_embeddings_flat = T.grad(loss, embeddings_flat)
 
     # Compile functions.

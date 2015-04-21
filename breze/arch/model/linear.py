@@ -1,54 +1,60 @@
 # -*- coding: utf-8 -*-
 
-import numpy as np
-import theano.tensor as T
 
-from ..util import ParameterSet, Model, lookup
-from ..component import transfer, loss as loss_
+from ..util import get_named_variables
+from ..component import layer
 
 
-class Linear(Model):
+def parameters(n_inpt, n_output):
+    """Return the parameter specification for a linear model.
 
-    def __init__(self, n_inpt, n_output, out_transfer, loss):
-        self.n_inpt = n_inpt
-        self.n_output = n_output
-        self.out_transfer = out_transfer
-        self.loss = loss
+    Parameters
+    ----------
 
-        super(Linear, self).__init__()
+    n_inpt : integer
+        Number of inputs of the model.
 
-    def init_pars(self):
-        parspec = self.get_parameter_spec(self.n_inpt, self.n_output)
-        self.parameters = ParameterSet(**parspec)
+    n_output : integer
+        Number of outputs of the model.
 
-    def init_exprs(self):
-        self.exprs = self.make_exprs(
-            T.matrix('inpt'), self.parameters.in_to_out, self.parameters.bias,
-            self.out_transfer, self.loss)
+    Returns
+    -------
 
-    @staticmethod
-    def get_parameter_spec(n_inpt, n_output):
-        return {'in_to_out': (n_inpt, n_output),
-                'bias': n_output}
+    res : dict
+        Dictionary containing a map from parameters to their shape.
+    """
+    return {'in_to_out': (n_inpt, n_output),
+            'bias': n_output}
 
-    @staticmethod
-    def make_exprs(inpt, in_to_out, bias, out_transfer, loss):
-        f_out = lookup(out_transfer, transfer)
-        f_loss = lookup(loss, loss_)
 
-        target = T.matrix('target')
+def exprs(inpt, weights, bias, out_transfer):
+    """Return the expressions for a linear model.
 
-        output_in = T.dot(inpt, in_to_out) + bias
-        output = f_out(output_in)
+    Parameters
+    ----------
 
-        loss_rowwise = f_loss(target, output).sum(axis=1)
-        loss = loss_rowwise.mean()
+    inpt : Theano variable.
+        Theano matrix of shape ``(n, d)`` representing the input to the model.
 
-        return {
-            'inpt': inpt,
-            'target': target,
-            'output_in': output_in,
-            'output': output,
-            'loss_rowwise': loss_rowwise,
-            'loss': loss
-        }
+    weights : Theano variable
+        Theano matrix of shape ``(d, e)`` representing the linear transform.
+
+    bias : Theano variable
+        Theano vector of shape ``(e,)`` representing the offset.
+
+    out_transfer : function or string
+        If function should map a Theano variable to another Theano variable of
+        the same shape. If string, should be the name of a function in
+        ``breze.arch.component.transfer``.
+
+    Returns
+    -------
+
+    exprs : dict
+        Containing ``output_in`` and ``output``, which represent the output of
+        the model before and after application of ``transfer``.
+    """
+    exprs = layer.simple(inpt, weights, bias, out_transfer)
+    output_in, output = exprs['output_in'], exprs['output']
+
+    return get_named_variables(locals())

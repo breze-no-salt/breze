@@ -1,42 +1,51 @@
 # -*- coding: utf-8 -*-
 
+"""Module that offers functionality for RIM.
+
+The relevant reference is
+
+    Gomes, Ryan, Andreas Krause, and Pietro Perona.
+    "Discriminative Clustering by Regularized Information Maximization."
+    NIPS. 2010.
+"""
+
+
 import theano.tensor as T
 
 from ..component import misc
-from linear import Linear
+from ..util import lookup, get_named_variables
+from linear import parameters, exprs as linear_exprs
 
 
-class Rim(Linear):
+def loss(posterior, pars_to_penalize, c_rim):
+    """Return the Regularized Information Maximization (RIM) loss of a set of
+    categorical distributions.
 
-    def __init__(self, n_inpt, n_output, c_rim):
-        self.c_rim = c_rim
-        super(Rim, self).__init__(
-            n_inpt=n_inpt,
-            n_output=n_output, out_transfer='softmax',
-            loss='nce')
+    Parameters
+    ----------
 
-    def init_exprs(self):
-        self.exprs = self.make_exprs(
-            T.matrix('inpt'),
-            self.parameters.in_to_out, self.parameters.bias,
-            self.out_transfer, self.loss, self.c_rim)
+    posterior : Theano variable
+        Array of the shape ``(n, d)``. The array describes ``n`` catgorical
+        distributions over ``d`` categories. Each row has thus to sum up to 1
+        and each entry has to be non-negative.
 
-    @staticmethod
-    def make_exprs(inpt, in_to_out, bias, out_transfer, loss, c_rim):
-        exprs = Linear.make_exprs(inpt, in_to_out, bias, out_transfer, loss)
-        output = exprs['output']
+    pars_to_penalize : list of Theano variables
+        Each of the items is a Theano variable that is being penalized with its
+        squared L2 norm.
 
-        marginal = output.mean(axis=0)
-        cond_entropy = misc.discrete_entropy(output, axis=1).mean()
-        entropy = misc.discrete_entropy(marginal)
+    c_rim : float
+        Weight of the L2 penalties.
+    """
+    marginal = posterior.mean(axis=0)
+    cond_entropy = misc.cat_entropy(posterior).mean()
+    entropy = misc.cat_entropy(marginal.dimshuffle('x', 0)).sum()
 
-        # negative mutual information -> we are minimizing
-        neg_mi = cond_entropy - entropy
-        l2 = (in_to_out**2).sum()
+    nmi = cond_entropy - entropy
 
-        exprs['neg_mi'] = neg_mi
-        exprs['l2'] = l2
+    n_samples = posterior.shape[0]
+    penalties = [(i ** 2).sum() / n_samples for i in pars_to_penalize]
+    penalty = sum(penalties)
 
-        exprs['loss'] = neg_mi + c_rim * l2
+    loss = nmi + c_rim * penalty
 
-        return exprs
+    return get_named_variables(locals())

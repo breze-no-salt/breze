@@ -15,16 +15,18 @@ since an optimization has to be performed.
 
 import itertools
 
+import climin.mathadapt as ma
 import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.arch.model.feature import SparseCoding as _SparseCoding
+from breze.arch.model.feature import sparsecoding
+from breze.arch.util import ParameterSet, Model
 from breze.learn.base import (
     UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin)
 
 
-class SparseCoding(_SparseCoding, UnsupervisedBrezeWrapperBase,
+class SparseCoding(Model, UnsupervisedBrezeWrapperBase,
                    TransformBrezeWrapperMixin):
     """Simple implementation of sparse coding.
 
@@ -92,7 +94,7 @@ class SparseCoding(_SparseCoding, UnsupervisedBrezeWrapperBase,
             to the amount of alternations between solving the least squares
             problem for the weight matrix and finding codes.
         """
-        super(SparseCoding, self).__init__(n_inpt, n_feature, c_sparsity)
+        self.n_inpt = n_inpt
         self.n_feature = n_feature
         self.c_sparsity = c_sparsity
 
@@ -100,10 +102,26 @@ class SparseCoding(_SparseCoding, UnsupervisedBrezeWrapperBase,
         self.optimizer = optimizer
         self.max_iter = max_iter
 
-        self.parameters.data[:] = np.random.normal(0, 1e-5,
-            self.parameters.data.shape).astype(theano.config.floatX)
         self.f_loss = None
         self.f_d_loss_wrt_feature = None
+
+        super(SparseCoding, self).__init__()
+
+    def _init_pars(self):
+        spec = sparsecoding.parameters(self.n_feature, self.n_inpt)
+        self.parameters = ParameterSet(**spec)
+        self.parameters.data[:] = np.random.normal(
+            0, 1e-5, self.parameters.data.shape).astype(theano.config.floatX)
+
+    def _init_exprs(self):
+        self.exprs = {
+            'inpt': T.matrix('inpt'),
+        }
+        self.exprs['inpt'].tag.test_value = np.zeros((5, self.n_inpt)).astype(
+            theano.config.floatX)
+        P = self.parameters
+        self.exprs = sparsecoding.exprs(
+            self.exprs['inpt'], P.feature_to_in, self.c_sparsity)
 
     def _make_loss_functions(self):
         if self.f_loss is None:
@@ -114,10 +132,9 @@ class SparseCoding(_SparseCoding, UnsupervisedBrezeWrapperBase,
             self.f_d_loss_wrt_feature = self.function(
                 ['feature_flat', 'inpt'], d_loss_wrt_feature)
 
-
-    def _project_weights(self):
+    def project_weights(self):
         w = self.parameters['feature_to_in']
-        w /= np.sqrt((w**2).sum(axis=0) + 1e-4)[np.newaxis]
+        w /= ma.sqrt((w ** 2).sum(axis=0) + 1e-4)[np.newaxis]
 
     def fit(self, X):
         """Fit the parameters of the model.
@@ -131,6 +148,9 @@ class SparseCoding(_SparseCoding, UnsupervisedBrezeWrapperBase,
         for i, _ in enumerate(self.iter_fit(X)):
             if i == self.max_iter:
                 break
+
+    def powerfit(self, *args, **kwargs):
+        raise NotImplementedError("no powerfit for this class available")
 
     def iter_fit(self, X):
         self._make_loss_functions()
@@ -146,7 +166,7 @@ class SparseCoding(_SparseCoding, UnsupervisedBrezeWrapperBase,
             w[...], _, _, _ = np.linalg.lstsq(feature, this_X)
 
             # Normalize it to prevent degenerate solutions.
-            self._project_weights()
+            self.project_weights()
 
             yield {'n_iter': i,
                    'loss': self.f_loss(feature.ravel(), this_X)}

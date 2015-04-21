@@ -26,6 +26,11 @@ SQRT_2 = np.array(np.sqrt(2.), dtype=theano.config.floatX)
 epsilon = np.array(1e-4, dtype=theano.config.floatX)
 
 
+# TODO some tidying up could be done here. Consider (a) closed form version of
+# transfers, (b) crude deterministic approximations which ignore the variance
+# and (c) sampling approximations.
+
+
 def safe_sigmoid(x):
     """Return the sigmoid with result truly between 0 and 1."""
     y = _sigmoid(x)
@@ -95,11 +100,7 @@ def rectifier(mean, var):
     B = (mean ** 2 + std ** 2) * normal.cdf(ratio)
     exp_of_squared = A + B
 
-    mean_ = T.clip(mean_, 1e-8, 100)
-
-    var_ = exp_of_squared - mean_ ** 2 + 0.05
-    var_ = T.clip(var_, 1e-8, 100)
-
+    var_ = exp_of_squared - mean_ ** 2
 
     return mean_, var_
 
@@ -128,6 +129,15 @@ def make_sampling_transfer(f, axis=1, rng=None):
 
 sampling_softmax = make_sampling_transfer(safe_softmax)
 sampling_sigmoid = make_sampling_transfer(safe_sigmoid)
+
+
+# TODO there is no consistency here, really. There should be many det_ or none.
+
+def det_softmax(mean, var):
+    mean_flat = mean.reshape((mean.shape[0] * mean.shape[1], mean.shape[2]))
+    softmaxed = _softmax(mean_flat).reshape(mean.shape)
+
+    return T.clip(softmaxed, 1e-8, 1 - 1e-8), T.zeros_like(var) + 1e-8
 
 
 def sigmoid(mean, var):
