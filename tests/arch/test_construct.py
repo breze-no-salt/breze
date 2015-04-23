@@ -5,6 +5,7 @@ import numpy as np
 
 import theano.tensor as T
 from breze.arch.construct import base
+from breze.arch.construct.layer  import simple
 
 
 X = np.zeros((10, 2))
@@ -16,11 +17,11 @@ def test_simple_stack():
     target = T.matrix('target')
 
     layers = [
-        base.AffineNonlinear(2, 2),
-        base.AffineNonlinear(2, 2),
-        base.AffineNonlinear(2, 3),
+        simple.AffineNonlinear(2, 2),
+        simple.AffineNonlinear(2, 2),
+        simple.AffineNonlinear(2, 3),
     ]
-    loss = base.SupervisedLoss('squared', target=target)
+    loss = simple.SupervisedLoss('squared', target=target)
 
     s = base.SupervisedStack(layers=layers, loss=loss)
 

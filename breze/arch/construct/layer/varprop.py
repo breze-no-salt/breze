@@ -46,7 +46,7 @@ class VarpropAffineNonLinear(AffineNonlinear):
 
 class AugmentVariance(Layer):
 
-    def __init__(self, name, vari=1e-16):
+    def __init__(self, vari=1e-16, name=None):
         self.vari = vari
         super(AugmentVariance, self).__init__(name)
 
