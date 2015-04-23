@@ -20,6 +20,7 @@ class Layer(object):
 
     def __init__(self, name=None):
         self.make_name(name)
+        self._forwarded = False
 
     def spec(self):
         return {}
@@ -35,6 +36,12 @@ class Layer(object):
                 self.__class__.__name__, self._counter.next())
         else:
             self.name = name
+
+    def forward(self, *inpt):
+        if self._forwarded:
+            raise ValueError('already forwarded')
+
+        self._forwarded = True
 
 
 class AffineNonlinear(Layer):
@@ -62,8 +69,8 @@ class AffineNonlinear(Layer):
             spec['bias'] = self.n_output,
         return spec
 
-    def forward(self, *inpt):
-        inpt, = inpt
+    def forward(self, inpt):
+        super(AffineNonlinear, self).forward(inpt)
         P = self.parameters
 
         output_pre_transfer = T.dot(inpt, P.weights)
@@ -94,6 +101,7 @@ class VarpropAffineNonLinear(AffineNonlinear):
         return spec
 
     def forward(self, inpt_mean, inpt_var):
+        Layer.forward(self, inpt_mean, inpt_var)
         P = self.parameters
         wm, ws = P.weights.mean, make_std(P.weights.std)
         bm, bs = P.bias.mean, make_std(P.bias.std)
@@ -118,6 +126,7 @@ class AugmentVariance(Layer):
         super(AugmentVariance, self).__init__(name)
 
     def forward(self, inpt):
+        super(AugmentVariance, self).forward(inpt)
         vari = T.zeros_like(inpt) + self.vari
         E = self.exprs = get_named_variables(locals())
         self.output = [inpt, vari]
@@ -126,6 +135,7 @@ class AugmentVariance(Layer):
 class DiscardVariance(Layer):
 
     def forward(self, mean, var):
+        super(DiscardVariance, self).forward(mean, variance)
         self.exprs = {'mean': mean}
         self.output = mean,
 
@@ -140,6 +150,7 @@ class SupervisedLoss(Layer):
         super(SupervisedLoss, self).__init__(name)
 
     def forward(self, inpt):
+        super(SupervisedLoss, self).forward(inpt)
         f_loss = lookup(self.loss, _loss)
 
         coord_wise = f_loss(self.target, inpt)
@@ -152,27 +163,18 @@ class SupervisedLoss(Layer):
 
 class Stack(Model, Layer):
 
-    def __init__(self, inpt_class=T.matrix, name=None):
-        self.inpt_class = inpt_class
-
-        self.layers = []
-        self.loss = None
-        self._finalized = False
-        super(Stack, self).__init__()
+    def __init__(self, layers, name=None):
+        self.layers = layers
+        Model.__init__(self)
         Layer.__init__(self, name)
 
     def spec(self):
         return dict((i.name, i.spec()) for i in self.layers)
 
-    def finalize(self):
-        if self._finalized:
-            raise ValueError('already finalized')
-
-        if self.loss is None:
-            raise ValueError('no loss specified')
+    def forward(self, inpt):
+        Layer.forward(self, inpt)
 
         # First part: predictive model.
-        inpt = self.inpt_class('inpt')
         E = self.exprs = {'inpt': inpt}
         spec = self.spec()
         self.parameters = ParameterSet(**spec)
@@ -185,22 +187,27 @@ class Stack(Model, Layer):
 
             inpt = i.output
 
-        E['output'] = i.output
-
-        # Second part: loss function.
-        self.loss.forward(i.output)
-        self.exprs['loss'] = self.loss.exprs['total']
-
-        self._finalized = True
+        self.output = E['output'] = i.output
 
 
 class SupervisedStack(Stack, SupervisedBrezeWrapperBase):
+
+    def __init__(self, layers, loss, name=None):
+        self.loss = loss
+        super(SupervisedStack, self).__init__(
+            layers, name)
 
     def predict(self, X):
         if getattr(self, 'f_predict', None) is None:
             self.f_predict = self.function(['inpt'], 'output')
         return self.f_predict(X)
 
-    def finalize(self):
-        super(SupervisedStack, self).finalize()
+    def forward(self, inpt):
+        if self.loss is None:
+            raise ValueError('no loss specified')
+
+        super(SupervisedStack, self).forward(inpt)
+
+        self.loss.forward(self.output[0])
+        self.exprs['loss'] = self.loss.exprs['total']
         self.exprs['target'] = self.loss.exprs['target']
