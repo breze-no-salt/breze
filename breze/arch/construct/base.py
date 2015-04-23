@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-"""Module that allows the stacking of components."""
-
 
 import itertools
 
@@ -78,7 +76,8 @@ class AffineNonlinear(Layer):
     def n_output(self):
         return self._n_output
 
-    def __init__(self, n_inpt, n_output, transfer='identity', bias=True, name=None):
+    def __init__(self, n_inpt, n_output, transfer='identity', bias=True,
+                 name=None):
         self._n_inpt = n_inpt
         self._n_output = n_output
         self.transfer = transfer
@@ -166,9 +165,9 @@ class DiscardVariance(Layer):
 
 class SupervisedLoss(Layer):
 
-    def __init__(self, loss, target_class=T.matrix, comp_dim=1, name=None):
+    def __init__(self, loss, target, comp_dim=1, name=None):
         self.loss = loss
-        self.target = target_class('target')
+        self.target = target
         self.comp_dim = 1
 
         super(SupervisedLoss, self).__init__(name)
