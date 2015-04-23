@@ -210,7 +210,9 @@ class Stack(Model, Layer):
 
             inpt = i.output
 
-        self.output = E['output'] = i.output
+        assert len(i.output) == 1, 'last layer of stack may only have one output'
+
+        self.output = E['output'] = i.output[0]
 
 
 class SupervisedStack(Stack, SupervisedBrezeWrapperBase):
