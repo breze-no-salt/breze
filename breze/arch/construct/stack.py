@@ -3,23 +3,41 @@
 """Module that allows the stacking of components."""
 
 
+import itertools
+
 import theano.tensor as T
 
-from breze.arch import component
 from breze.arch.component.varprop import transfer as vptransfer
-import component.transfer, component.loss
-from util import ParameterSet, Model, lookup, get_named_variables
+from breze.arch.component import transfer as _transfer, loss as _loss
+from breze.arch.util import ParameterSet, Model, lookup, get_named_variables
 from breze.learn.base import (
     SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase)
 
 
-class Stackable(object):
+class Layer(object):
+
+    _counter = itertools.count()
+
+    def __init__(self, name=None):
+        self.make_name(name)
 
     def spec(self):
         return {}
 
+    def make_name(self, name):
+        """Give the layer a unique name.
 
-class AffineNonlinear(Stackable):
+        If ``name`` is None, construct a name of the form 'N-#' where N is the
+        class name and # is a global counter to avoid collisions.
+        """
+        if name is None:
+            self.name = '%s-%i' % (
+                self.__class__.__name__, self._counter.next())
+        else:
+            self.name = name
+
+
+class AffineNonlinear(Layer):
 
     @property
     def n_inpt(self):
@@ -29,12 +47,12 @@ class AffineNonlinear(Stackable):
     def n_output(self):
         return self._n_output
 
-    def __init__(self, name, n_inpt, n_output, transfer='identity', bias=True):
-        self.name = name
+    def __init__(self, n_inpt, n_output, transfer='identity', bias=True, name=None):
         self._n_inpt = n_inpt
         self._n_output = n_output
         self.transfer = transfer
         self.bias = True
+        super(AffineNonlinear, self).__init__(name=name)
 
     def spec(self):
         spec = {
@@ -44,7 +62,7 @@ class AffineNonlinear(Stackable):
             spec['bias'] = self.n_output,
         return spec
 
-    def _init_exprs(self, *inpt):
+    def forward(self, *inpt):
         inpt, = inpt
         P = self.parameters
 
@@ -52,7 +70,7 @@ class AffineNonlinear(Stackable):
         if self.bias:
             output_pre_transfer += P.bias
 
-        f_transfer = lookup(self.transfer, component.transfer)
+        f_transfer = lookup(self.transfer, _transfer)
         output = f_transfer(output_pre_transfer)
 
         E = self.exprs = get_named_variables(locals())
@@ -75,7 +93,7 @@ class VarpropAffineNonLinear(AffineNonlinear):
             }
         return spec
 
-    def _init_exprs(self, inpt_mean, inpt_var):
+    def forward(self, inpt_mean, inpt_var):
         P = self.parameters
         wm, ws = P.weights.mean, make_std(P.weights.std)
         bm, bs = P.bias.mean, make_std(P.bias.std)
@@ -93,38 +111,36 @@ class VarpropAffineNonLinear(AffineNonlinear):
         self.output = [post_mean, post_var]
 
 
-class AugmentVariance(Stackable):
+class AugmentVariance(Layer):
 
     def __init__(self, name, vari=1e-16):
-        self.name = name
         self.vari = vari
+        super(AugmentVariance, self).__init__(name)
 
-    def _init_exprs(self, inpt):
+    def forward(self, inpt):
         vari = T.zeros_like(inpt) + self.vari
         E = self.exprs = get_named_variables(locals())
         self.output = [inpt, vari]
 
 
-class DiscardVariance(Stackable):
+class DiscardVariance(Layer):
 
-    def __init__(self, name):
-        self.name = name
-
-    def _init_exprs(self, mean, var):
+    def forward(self, mean, var):
         self.exprs = {'mean': mean}
         self.output = mean,
 
 
-class SupervisedLoss(Stackable):
+class SupervisedLoss(Layer):
 
-    def __init__(self, loss, target_class=T.matrix, comp_dim=1):
+    def __init__(self, loss, target_class=T.matrix, comp_dim=1, name=None):
         self.loss = loss
         self.target = target_class('target')
         self.comp_dim = 1
 
-    def _init_exprs(self, *inpt):
-        inpt, = inpt
-        f_loss = lookup(self.loss, component.loss)
+        super(SupervisedLoss, self).__init__(name)
+
+    def forward(self, inpt):
+        f_loss = lookup(self.loss, _loss)
 
         coord_wise = f_loss(self.target, inpt)
         sample_wise = coord_wise.sum(self.comp_dim)
@@ -134,16 +150,16 @@ class SupervisedLoss(Stackable):
         E['target'] = self.target
 
 
+class Stack(Model, Layer):
 
-class Stack(Model):
-
-    def __init__(self, inpt_class=T.matrix):
+    def __init__(self, inpt_class=T.matrix, name=None):
         self.inpt_class = inpt_class
 
         self.layers = []
         self.loss = None
         self._finalized = False
         super(Stack, self).__init__()
+        Layer.__init__(self, name)
 
     def spec(self):
         return dict((i.name, i.spec()) for i in self.layers)
@@ -164,7 +180,7 @@ class Stack(Model):
         inpt = inpt,
         for i in self.layers:
             i.parameters = getattr(self.parameters, i.name)
-            i._init_exprs(*inpt)
+            i.forward(*inpt)
             E[i.name] = i.exprs
 
             inpt = i.output
@@ -172,7 +188,7 @@ class Stack(Model):
         E['output'] = i.output
 
         # Second part: loss function.
-        self.loss._init_exprs(i.output)
+        self.loss.forward(i.output)
         self.exprs['loss'] = self.loss.exprs['total']
 
         self._finalized = True
@@ -188,15 +204,3 @@ class SupervisedStack(Stack, SupervisedBrezeWrapperBase):
     def finalize(self):
         super(SupervisedStack, self).finalize()
         self.exprs['target'] = self.loss.exprs['target']
-
-
-
-
-
-
-
-
-
-
-
-
