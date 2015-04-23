@@ -6,18 +6,18 @@ from breze.arch.construct.base import Layer
 from breze.arch.util import lookup, get_named_variables
 from breze.arch.component.varprop import transfer
 
-from simple import AffineNonlinear
+from simple import AffineNonlinear as AffineNonlinear_
 
 
 def make_std(std):
     return (std ** 2 + 1e-8) ** 0.5
 
 
-class VarpropAffineNonLinear(AffineNonlinear):
+class AffineNonLinear(AffineNonlinear_):
 
     def spec(self):
         spec = {}
-        other_spec = super(VarpropAffineNonLinear, self).spec()
+        other_spec = super(AffineNonLinear, self).spec()
         for name, shape in other_spec.items():
             spec[name] = {
                 'mean': shape,
