@@ -17,7 +17,8 @@ import theano.tensor.shared_randomstreams
 from breze.arch.component.varprop import loss as loss_
 from breze.arch.util import lookup
 from breze.arch.construct.base import SupervisedStack
-from breze.arch.construct.layer import simple, varprop, sequential
+from breze.arch.construct.layer import simple, sequential
+from breze.arch.construct.layer.varprop import simple as vp_simple
 
 
 # TODO Mlp docs are loss missing
@@ -289,10 +290,10 @@ class FastDropoutNetwork(Mlp):
         transfers = self.hidden_transfers + [self.out_transfer]
         p_dropouts = [self.p_dropout_inpt] + self.p_dropout_hiddens
 
-        layers = [varprop.AugmentVariance(self.inpt_var)]
+        layers = [vp_simple.AugmentVariance(self.inpt_var)]
         for n, m, f, d in zip(n_incoming, n_outgoing, transfers, p_dropouts):
-            layers.append(varprop.FastDropout(d))
-            layers.append(varprop.AffineNonlinear(n, m, f))
+            layers.append(vp_simple.FastDropout(d))
+            layers.append(vp_simple.AffineNonlinear(n, m, f))
         layers.append(simple.Concatenate())
 
         f_loss = lookup(self._loss, loss_)
