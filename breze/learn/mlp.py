@@ -17,7 +17,7 @@ import theano.tensor.shared_randomstreams
 from breze.arch.component.varprop import loss as loss_
 from breze.arch.util import lookup
 from breze.arch.construct.base import SupervisedStack
-from breze.arch.construct.layer import simple, varprop
+from breze.arch.construct.layer import simple, varprop, sequential
 
 
 # TODO Mlp docs are loss missing
