@@ -97,6 +97,7 @@ class Mlp(SupervisedStack):
         self._init_layers()
 
     def _init_layers(self):
+        inpt = T.matrix('inpt')
         target = T.matrix('target')
         imp_weight = T.matrix('imp_weight') if self.imp_weight else None
 
@@ -109,7 +110,6 @@ class Mlp(SupervisedStack):
         loss = simple.SupervisedLoss(self._loss, target, imp_weight=imp_weight)
 
         super(Mlp, self).__init__(layers, loss)
-        inpt = T.matrix('inpt')
 
         inpt.tag.test_value = np.zeros(
             (10, self.n_inpt)).astype(theano.config.floatX)
