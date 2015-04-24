@@ -13,7 +13,24 @@ def make_std(std):
     return (std ** 2 + 1e-8) ** 0.5
 
 
-class AffineNonLinear(AffineNonlinear_):
+class AffineNonlinear(AffineNonlinear_):
+
+    def forward(self, inpt_mean, inpt_var):
+        Layer.forward(self, inpt_mean, inpt_var)
+        P = self.parameters
+        w, b = P.weights, P.bias
+
+        pres_mean = T.dot(inpt_mean, w) + b
+        pres_var = T.dot(inpt_var, w ** 2)
+
+        f_transfer = lookup(self.transfer, transfer)
+        post_mean, post_var = f_transfer(pres_mean, pres_var)
+
+        E = self.exprs = get_named_variables(locals())
+        self.output = [post_mean, post_var]
+
+
+class StochasticAffineNonlinear(AffineNonlinear_):
 
     def spec(self):
         spec = {}

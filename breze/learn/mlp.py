@@ -8,21 +8,16 @@ import itertools
 import climin
 import climin.util
 import climin.gd
-from climin.project import max_length_columns
 
 import numpy as np
 import theano
 import theano.tensor as T
 import theano.tensor.shared_randomstreams
 
-from breze.arch.util import ParameterSet, Model
-from breze.arch.model.neural import mlp
-from breze.arch.model.varprop import mlp as varprop_mlp
-from breze.arch.component.varprop.common import supervised_loss as varprop_supervised_loss
-from breze.arch.component.common import supervised_loss
-from breze.learn.base import SupervisedBrezeWrapperBase
+from breze.arch.component.varprop import loss as loss_
+from breze.arch.util import lookup
 from breze.arch.construct.base import SupervisedStack
-from breze.arch.construct.layer import simple
+from breze.arch.construct.layer import simple, varprop
 
 
 # TODO Mlp docs are loss missing
@@ -211,7 +206,7 @@ class DropoutMlp(Mlp):
             verbose=verbose)
 
 
-class FastDropoutNetwork(Model, SupervisedBrezeWrapperBase):
+class FastDropoutNetwork(Mlp):
     """Class representing an MLP that is trained with fast dropout [FD]_.
 
     This method employs a smooth approximation of dropout training.
@@ -243,11 +238,11 @@ class FastDropoutNetwork(Model, SupervisedBrezeWrapperBase):
 
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
+                 imp_weight=False,
                  optimizer='lbfgs',
                  batch_size=None,
                  p_dropout_inpt=.2,
                  p_dropout_hiddens=.5,
-                 max_length=None,
                  inpt_var=1e-8,
                  max_iter=1000, verbose=False):
         """Create a FastDropoutMlp object.
@@ -269,99 +264,49 @@ class FastDropoutNetwork(Model, SupervisedBrezeWrapperBase):
             update, the weight vectors will projected to be shorter.
             If None, no projection is performed.
         """
-        self.n_inpt = n_inpt
-        self.n_hiddens = n_hiddens
-        self.n_output = n_output
-        self.hidden_transfers = hidden_transfers
-        self.out_transfer = out_transfer
-        self.loss = loss
-
         self.p_dropout_inpt = p_dropout_inpt
         if isinstance(p_dropout_hiddens, float):
-            self.p_dropout_hiddens = [p_dropout_hiddens]
+            self.p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens)
         else:
             self.p_dropout_hiddens = p_dropout_hiddens
 
-        if not all(0 < i < 1 for i in [p_dropout_inpt] + self.p_dropout_hiddens):
+        p_dropouts = [p_dropout_inpt] + self.p_dropout_hiddens
+        if not all(0 < i < 1 for i in p_dropouts):
             raise ValueError('dropout rates have to be in (0, 1)')
 
-        self.max_length = max_length
         self.inpt_var = inpt_var
 
-        self.optimizer = optimizer
-        self.batch_size = batch_size
-        self.max_iter = max_iter
-        self.verbose = verbose
+        super(FastDropoutNetwork, self).__init__(
+            n_inpt, n_hiddens, n_output, hidden_transfers, out_transfer, loss,
+            imp_weight, optimizer, batch_size, max_iter, verbose)
 
-        super(FastDropoutNetwork, self).__init__()
+    def _init_layers(self):
+        target = T.matrix('target')
+        imp_weight = T.matrix('imp_weight') if self.imp_weight else None
 
-    def _init_pars(self):
-        spec = varprop_mlp.parameters(
-            self.n_inpt, self.n_hiddens, self.n_output, False)
-        self.parameters = ParameterSet(**spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
+        n_incoming = [self.n_inpt] + self.n_hiddens
+        n_outgoing = self.n_hiddens + [self.n_output]
+        transfers = self.hidden_transfers + [self.out_transfer]
+        p_dropouts = [self.p_dropout_inpt] + self.p_dropout_hiddens
 
-    def _init_exprs(self):
-        self.exprs = {
-            'inpt_mean': T.matrix('inpt_mean'),
-            'target': T.matrix('target')}
-        P = self.parameters
+        layers = [varprop.AugmentVariance(self.inpt_var)]
+        for n, m, f, d in zip(n_incoming, n_outgoing, transfers, p_dropouts):
+            layers.append(varprop.FastDropout(d))
+            layers.append(varprop.AffineNonlinear(n, m, f))
+        layers.append(simple.Concatenate())
 
-        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                             for i in range(len(self.n_hiddens) - 1)]
-        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
-                         for i in range(len(self.n_hiddens))]
-        inpt_var = T.zeros_like(self.exprs['inpt_mean']) + self.inpt_var
+        f_loss = lookup(self._loss, loss_)
+        loss = simple.SupervisedLoss(f_loss, target, imp_weight=imp_weight)
 
-        self.exprs.update(varprop_mlp.exprs(
-            self.exprs['inpt_mean'], inpt_var,
-            P.in_to_hidden,
-            hidden_to_hiddens,
-            P.hidden_to_out,
-            hidden_biases,
-            [1 for _ in hidden_biases],
-            P.out_bias,
-            1,
-            self.hidden_transfers, self.out_transfer,
-            self.p_dropout_inpt, self.p_dropout_hiddens))
+        super(Mlp, self).__init__(layers, loss)
+        inpt = T.matrix('inpt')
 
-        self.exprs['inpt'] = self.exprs['inpt_mean']
+        inpt.tag.test_value = np.zeros(
+            (10, self.n_inpt)).astype(theano.config.floatX)
+        target.tag.test_value = np.zeros(
+            (10, self.n_output)).astype(theano.config.floatX)
+        if imp_weight is not None:
+            imp_weight.tag.test_value = np.zeros(
+                (10, self.n_output)).astype(theano.config.floatX)
 
-        self.exprs.update(varprop_supervised_loss(
-            self.exprs['target'], self.exprs['output'], self.loss))
-
-    def iter_fit(self, X, Z, info_opt=None):
-        """Iteratively fit the parameters of the model to the given data with
-        the given error function.
-
-        Each iteration of the learning algorithm is an iteration of the returned
-        iterator. The model is in a valid state after each iteration, so that
-        the optimization can be broken any time by the caller.
-
-        This method does `not` respect the max_iter attribute.
-
-        Parameters
-        ----------
-
-        X : array_like
-            Input data. 2D array of the shape ``(n ,d)`` where ``n`` is the
-            number of data samples and ``d`` is the dimensionality of a single
-            data sample.
-        Z : array_like
-            Target data. 2D array of the shape ``(n, l)`` array where ``n`` is
-            defined as in ``X``, but ``l`` is the dimensionality of a single
-            output.
-        """
-        for info in super(FastDropoutNetwork, self).iter_fit(X, Z, info_opt=info_opt):
-            yield info
-            if self.max_length is not None:
-                W = self.parameters['in_to_hidden']
-                max_length_columns(W, self.max_length)
-
-                n_layers = len(self.n_hiddens)
-                for i in range(n_layers - 1):
-                    W = self.parameters['hidden_to_hidden_%i' % i]
-                    max_length_columns(W, self.max_length)
-                W = self.parameters['hidden_to_out']
-                max_length_columns(W, self.max_length)
+        self.forward(inpt)
