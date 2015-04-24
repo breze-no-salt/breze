@@ -67,7 +67,7 @@ class SupervisedLoss(Layer):
         self.loss = loss
         self.target = target
         self.imp_weight = imp_weight
-        self.comp_dim = 1
+        self.comp_dim = comp_dim
 
         super(SupervisedLoss, self).__init__(name)
 
