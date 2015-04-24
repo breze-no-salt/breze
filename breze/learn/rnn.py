@@ -10,13 +10,16 @@ import theano.tensor as T
 from breze.arch.component.misc import project_into_l2_ball
 from breze.arch.component.common import supervised_loss, unsupervised_loss
 from breze.arch.component.varprop.common import supervised_loss as varprop_supervised_loss
+from breze.arch.component.varprop import loss as vp_loss
 from breze.arch.model.varprop import rnn as varprop_rnn
 from breze.arch.model.rnn import rnn, lstm
-from breze.arch.util import ParameterSet, Model
+from breze.arch.util import ParameterSet, Model, lookup
 from breze.learn.base import (
     SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase)
 from breze.arch.construct.base import SupervisedStack
-from breze.arch.construct.layer import simple, varprop, sequential
+from breze.arch.construct.layer import simple, sequential
+from breze.arch.construct.layer.varprop import (
+        simple as vp_simple, sequential as vp_sequential)
 #varprop import rnn as varprop_rnn
 
 
@@ -355,28 +358,24 @@ class UnsupervisedLstmRnn(BaseLstmRnn, UnsupervisedBrezeWrapperBase):
         self.exprs.update(unsupervised_loss(self.exprs['output'], self.loss, 2))
 
 
-class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
+class SupervisedFastDropoutRnn(BaseRnn, SupervisedStack):
 
     sample_dim = 1, 1
 
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer='identity',
                  loss='squared', pooling=None,
-                 leaky_coeffs=None,
                  gradient_clip=False,
-                 skip_to_out=False,
                  p_dropout_inpt=.2, p_dropout_hiddens=.5,
                  p_dropout_hidden_to_out=None,
-                 use_varprop_at=None,
-                 hotk_inpt=False,
                  imp_weight=False,
                  optimizer='rprop',
                  batch_size=None,
                  max_iter=1000,
                  verbose=False):
-
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hiddens = p_dropout_hiddens
+
         if isinstance(self.p_dropout_hiddens, float):
             self.p_dropout_hiddens = [self.p_dropout_hiddens]
         else:
@@ -386,84 +385,46 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedBrezeWrapperBase):
         else:
             self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
 
-        if use_varprop_at is None:
-            use_varprop_at = [True] * (len(n_hiddens) + 1)
-        self.use_varprop_at = use_varprop_at
-
-        self.hotk_inpt = hotk_inpt
-        if hotk_inpt or leaky_coeffs or pooling:
-            raise NotImplementedError('not implemented')
-
         super(SupervisedFastDropoutRnn, self).__init__(
             n_inpt, n_hiddens, n_output,
             hidden_transfers, out_transfer, loss, pooling=pooling,
-            leaky_coeffs=leaky_coeffs,
-            gradient_clip=gradient_clip, skip_to_out=skip_to_out,
+            gradient_clip=gradient_clip,
             optimizer=optimizer, batch_size=batch_size, max_iter=max_iter,
             verbose=verbose, imp_weight=imp_weight)
 
-    def _init_pars(self):
-        spec = varprop_rnn.parameters(
-            self.n_inpt, self.n_hiddens, self.n_output, self.skip_to_out,
-            self.hidden_transfers, self.out_transfer)
-        self.parameters = ParameterSet(**spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
+    def _init_layers(self):
+        inpt = T.tensor3('inpt')
+        target = T.tensor3('target')
+        imp_weight = None if not self.imp_weight else T.tensor3('imp_weight')
 
-    def _init_exprs(self):
-        self.exprs = {'inpt': T.tensor3('inpt'),
-                      'target': T.tensor3('target')}
-        self.exprs['inpt'].tag.test_value = np.zeros((5, 2, self.n_inpt)
-            ).astype(theano.config.floatX)
-        self.exprs['target'].tag.test_value = np.zeros((5, 2, self.n_output)
-            ).astype(theano.config.floatX)
+        n_incoming = [self.n_inpt] + self.n_hiddens[:-1]
+        n_outgoing = self.n_hiddens
+        transfers = self.hidden_transfers
+        p_dropouts = self.p_dropout_hiddens
 
-        if self.imp_weight:
-            self.exprs['imp_weight'] = T.tensor3('imp_weight')
-            self.exprs['imp_weight'].tag.test_value = np.zeros(
-                (5, 2, self.n_output)).astype(theano.config.floatX)
+        s2s = sequential.SequentialToStatic()
+        layers = [s2s,
+                  vp_simple.AugmentVariance(),
+                  vp_simple.FastDropout(self.p_dropout_inpt),
+                  s2s.inverse]
 
+        for n, m, t, d in zip(n_incoming, n_outgoing, transfers, p_dropouts):
+            layers += [s2s,
+                       vp_simple.AffineNonlinear(n, m),
+                       vp_simple.FastDropout(d),
+                       s2s.inverse,
+                       vp_sequential.FDRecurrent(m, t, d)]
+        layers += [
+            s2s,
+            vp_simple.FastDropout(self.p_dropout_hidden_to_out),
+            vp_simple.AffineNonlinear(
+                n_outgoing[-1], self.n_output, self.out_transfer),
+            s2s.inverse,
+            simple.Concatenate(2)]
 
-        P = self.parameters
-        n_layers = len(self.n_hiddens)
-        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                             for i in range(n_layers - 1)]
-        recurrents = [getattr(P, 'recurrent_%i' % i)
-                      for i in range(n_layers)]
-        initial_hidden_means = [getattr(P, 'initial_hidden_means_%i' % i)
-                                for i in range(n_layers)]
-        initial_hidden_vars = [getattr(P, 'initial_hidden_vars_%i' % i) ** 2 + 1e-4
-                               for i in range(n_layers)]
-        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
-                         for i in range(n_layers)]
+        loss_ = lookup(self._loss, vp_loss)
+        loss = simple.SupervisedLoss(
+            loss_, target, imp_weight=imp_weight, comp_dim=2)
 
-        if self.skip_to_out:
-            skip_to_outs = [getattr(P, 'hidden_%i_to_out' % i)
-                            for i in range(n_layers)]
-            in_to_out = P.in_to_out
-        else:
-            in_to_out = skip_to_outs = None
-
-        inpt_var = T.zeros_like(self.exprs['inpt'])
-
-        p_dropouts = ([self.p_dropout_inpt]
-                      + self.p_dropout_hiddens
-                      + [self.p_dropout_hidden_to_out])
-
-        hidden_var_scales_sqrt = [int(i) for i in self.use_varprop_at[:-1]]
-        out_var_scale_sqrt = int(self.use_varprop_at[-1])
-
-        self.exprs.update(varprop_rnn.exprs(
-            self.exprs['inpt'], inpt_var, P.in_to_hidden, hidden_to_hiddens,
-            P.hidden_to_out, hidden_biases,
-            hidden_var_scales_sqrt, initial_hidden_means, initial_hidden_vars,
-            recurrents, P.out_bias, out_var_scale_sqrt,
-            self.hidden_transfers, self.out_transfer,
-            in_to_out=in_to_out, skip_to_outs=skip_to_outs,
-            p_dropouts=p_dropouts, hotk_inpt=False))
-
-
-        imp_weight = False if not self.imp_weight else self.exprs['imp_weight']
-        self.exprs.update(varprop_supervised_loss(
-            self.exprs['target'], self.exprs['output'],
-            self.loss, 2, imp_weight=imp_weight))
+        SupervisedStack.__init__(self, layers, loss)
+        self.forward(inpt)
