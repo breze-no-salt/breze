@@ -3,12 +3,8 @@
 
 import itertools
 
-import theano.tensor as T
-
-from breze.arch.component import transfer as _transfer, loss as _loss
-from breze.arch.util import ParameterSet, Model, lookup, get_named_variables
-from breze.learn.base import (
-    SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase)
+from breze.arch.util import ParameterSet, Model
+from breze.learn.base import SupervisedBrezeWrapperBase
 
 
 class Layer(object):
@@ -28,6 +24,10 @@ class Layer(object):
 
     Further, ``.forward`` may only be called once. After that, an error will be
     thrown.
+
+    A shorthand is to just use ``__call__()``, which will return the output
+    expressions. The use of this is that we can use arbitrary functions that
+    receive Theano variables and return Theano variables as layers.
 
     Layer can be parameterised, i.e. have adaptable parameters that an outer
     learning algorithm can tune. For that, the ``.spec()`` method is supposed to
@@ -64,6 +64,10 @@ class Layer(object):
 
         self._forwarded = True
 
+    def __call__(self, *inpt):
+        self.forward(*inpt)
+        return self.output
+
 
 class Stack(Model, Layer):
 
@@ -73,7 +77,9 @@ class Stack(Model, Layer):
         Layer.__init__(self, name)
 
     def spec(self):
-        return dict((i.name, i.spec()) for i in self.layers)
+        return dict((i.name, i.spec())
+                    for i in self.layers
+                    if hasattr(i, 'spec'))
 
     def forward(self, inpt):
         Layer.forward(self, inpt)
@@ -85,15 +91,19 @@ class Stack(Model, Layer):
 
         inpt = inpt,
         for i in self.layers:
-            i.parameters = getattr(self.parameters, i.name)
-            i.forward(*inpt)
-            E[i.name] = i.exprs
+            if isinstance(i, Layer):
+                i.parameters = getattr(self.parameters, i.name)
+                inpt = i(*inpt)
+                E[i.name] = i.exprs
+            else:
+                inpt = i(*inpt)
+                if not isinstance(inpt, (list, tuple)):
+                    inpt = [inpt]
 
-            inpt = i.output
+        if len(inpt) != 1:
+            raise ValueError('last layer of stack may only have one output')
 
-        assert len(i.output) == 1, 'last layer of stack may only have one output'
-
-        self.output = E['output'] = i.output[0]
+        self.output = E['output'] = inpt[0]
 
 
 class SupervisedStack(Stack, SupervisedBrezeWrapperBase):
@@ -111,6 +121,6 @@ class SupervisedStack(Stack, SupervisedBrezeWrapperBase):
     def forward(self, inpt):
         super(SupervisedStack, self).forward(inpt)
 
-        self.loss.forward(self.output)
+        self.loss(self.output)
         self.exprs['loss'] = self.loss.exprs['total']
         self.exprs['target'] = self.loss.exprs['target']
