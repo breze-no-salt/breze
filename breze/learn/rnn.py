@@ -15,13 +15,15 @@ from breze.arch.model.rnn import rnn, lstm
 from breze.arch.util import ParameterSet, Model
 from breze.learn.base import (
     SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase)
+from breze.arch.construct.base import SupervisedStack
+from breze.arch.construct.layer import simple, varprop, sequential
 #varprop import rnn as varprop_rnn
 
 
 # TODO check docstrings (e.g. loss is wrong)
 
 
-class BaseRnn(Model):
+class BaseRnn(object):
     """Base class for RNNs.
 
     Parameters
@@ -59,18 +61,9 @@ class BaseRnn(Model):
         not None, the output is pooled over the time dimension, essentially
         making the network return a tensor2 instead of a tensor3.
 
-    leaky_coeffs : list of arrays or list of scalars
-        Coefficients for leaky integration, given in a list for each layer. If
-        a list of arrays, the length of the array should be the same as the
-        number of hidden units in that layer.
-
     gradient_clip : float, optional [default: False]
         If the length of a gradient ever exceeds this value during training,
         the gradient is renormalized to this value.
-
-    skip_to_out : boolean, optional [default: False[
-        Flag indicating whether to use skip connections from the input and each
-        hidden layer into the output layer.
 
     imp_weight : boolean
         Flag indicating whether importance weights are used.
@@ -95,9 +88,7 @@ class BaseRnn(Model):
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer='identity',
                  loss='squared', pooling=None,
-                 leaky_coeffs=None,
                  gradient_clip=False,
-                 skip_to_out=False,
                  optimizer='rprop',
                  batch_size=None,
                  imp_weight=False,
@@ -108,55 +99,16 @@ class BaseRnn(Model):
         self.n_output = n_output
         self.hidden_transfers = hidden_transfers
         self.out_transfer = out_transfer
-        self.loss = loss
+        self._loss = loss
         self.pooling = pooling
-        self.leaky_coeffs = leaky_coeffs
         self.gradient_clip = gradient_clip
-        self.skip_to_out = skip_to_out
         self.imp_weight = imp_weight
         self.optimizer = optimizer
         self.batch_size = batch_size
         self.max_iter = max_iter
         self.verbose = verbose
 
-        super(BaseRnn, self).__init__()
-
-    def _init_pars(self):
-        spec = rnn.parameters(
-            self.n_inpt, self.n_hiddens, self.n_output, self.skip_to_out,
-            self.hidden_transfers)
-        self.parameters = ParameterSet(**spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
-
-    def _init_exprs(self):
-        self.exprs = {'inpt': T.tensor3('inpt')}
-        self.exprs['inpt'].tag.test_value = np.zeros((5, 2, self.n_inpt)
-            ).astype(theano.config.floatX)
-        P = self.parameters
-
-        n_layers = len(self.n_hiddens)
-        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                             for i in range(n_layers - 1)]
-        recurrents = [getattr(P, 'recurrent_%i' % i)
-                      for i in range(n_layers)]
-        initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
-                           for i in range(n_layers)]
-        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
-                         for i in range(n_layers)]
-
-        if self.skip_to_out:
-            skip_to_outs = [getattr(P, 'hidden_%i_to_out' % i)
-                            for i in range(n_layers)]
-            in_to_out = P.in_to_out
-        else:
-            in_to_out = skip_to_outs = None
-
-        self.exprs.update(rnn.exprs(
-            self.exprs['inpt'], P.in_to_hidden, hidden_to_hiddens,
-            P.hidden_to_out, hidden_biases, initial_hiddens,
-            recurrents, P.out_bias, self.hidden_transfers, self.out_transfer,
-            self.pooling, self.leaky_coeffs, in_to_out,  skip_to_outs))
+        self._init_layers()
 
     def _gauss_newton_product(self):
         """Return a theano expression for the product of the networks
@@ -195,12 +147,8 @@ class BaseRnn(Model):
         return f_loss, f_d_loss
 
 
-class SupervisedRnn(BaseRnn, SupervisedBrezeWrapperBase):
-    """Class implementing recurrent neural networks for supervised learning.
-
-    The class inherits from breze's RecurrentNetwork class and adds several
-    sklearn like methods.
-    """
+class SupervisedRnn(BaseRnn, SupervisedStack):
+    # TODO document
 
     @property
     def sample_dim(self):
@@ -209,27 +157,38 @@ class SupervisedRnn(BaseRnn, SupervisedBrezeWrapperBase):
         else:
             return 1, 0
 
-    def _init_exprs(self):
-        super(SupervisedRnn, self)._init_exprs()
-
-        if self.imp_weight:
-            self.exprs['imp_weight'] = T.tensor3('imp_weight')
-            self.exprs['imp_weight'].tag.test_value = np.zeros((5, 2, self.n_output)
-                ).astype(theano.config.floatX)
-
+    def _init_layers(self):
+        inpt = T.tensor3('inpt')
         if self.pooling:
-            self.exprs['target'] = T.matrix('target')
-            self.exprs['target'].tag.test_value = np.zeros((2, self.n_output)
-                ).astype(theano.config.floatX)
+            raise NotImplemented()
+            target = T.matrix('target')
+            imp_weight = T.matrix('imp_weight') if self.imp_weight else None
         else:
-            self.exprs['target'] = T.tensor3('target')
-            self.exprs['target'].tag.test_value = np.zeros((5, 2, self.n_output)
-                ).astype(theano.config.floatX)
+            target = T.tensor3('target')
+            imp_weight = T.tensor3('imp_weight') if self.imp_weight else None
 
-        imp_weight = False if not self.imp_weight else self.exprs['imp_weight']
-        self.exprs.update(supervised_loss(
-            self.exprs['target'], self.exprs['output'], self.loss, 2,
-            imp_weight=imp_weight))
+        n_incoming = [self.n_inpt] + self.n_hiddens[:-1]
+        n_outgoing = self.n_hiddens
+        transfers = self.hidden_transfers
+
+        layers = []
+        s2s = sequential.SequentialToStatic()
+        for n, m, t in zip(n_incoming, n_outgoing, transfers):
+            layers += [s2s,
+                       simple.AffineNonlinear(n, m),
+                       s2s.inverse,
+                       sequential.Recurrent(m, t)]
+        layers += [
+            s2s,
+            simple.AffineNonlinear(
+                n_outgoing[-1], self.n_output, self.out_transfer),
+            s2s.inverse]
+
+        loss = simple.SupervisedLoss(
+            self._loss, target, imp_weight=imp_weight, comp_dim=2)
+
+        SupervisedStack.__init__(self, layers, loss)
+        self.forward(inpt)
 
 
 
