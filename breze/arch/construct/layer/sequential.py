@@ -4,6 +4,7 @@
 from breze.arch.component import transfer as _transfer
 from breze.arch.construct.base import Layer
 from breze.arch.model.rnn.rnn import recurrent_layer
+from breze.arch.model.rnn.pooling import pooling_layer
 from breze.arch.util import get_named_variables, lookup
 
 
@@ -41,4 +42,16 @@ class Recurrent(Layer):
             inpt, P.weights, f_transfer, P.initial)
 
         E = self.exprs = get_named_variables(locals())
+        self.output = [output]
+
+
+class Pooling(Layer):
+
+    def __init__(self, typ='mean', name=None):
+        self.typ = typ
+        super(Pooling, self).__init__(name)
+
+    def forward(self, inpt):
+        output = pooling_layer(inpt, self.typ)
+        self.exprs = get_named_variables(locals())
         self.output = [output]

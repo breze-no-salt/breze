@@ -160,7 +160,6 @@ class SupervisedRnn(BaseRnn, SupervisedStack):
     def _init_layers(self):
         inpt = T.tensor3('inpt')
         if self.pooling:
-            raise NotImplemented()
             target = T.matrix('target')
             imp_weight = T.matrix('imp_weight') if self.imp_weight else None
         else:
@@ -184,8 +183,13 @@ class SupervisedRnn(BaseRnn, SupervisedStack):
                 n_outgoing[-1], self.n_output, self.out_transfer),
             s2s.inverse]
 
+        if self.pooling:
+            layers.append(sequential.Pooling(self.pooling))
+
+        comp_dim = 1 if self.pooling else 2
+
         loss = simple.SupervisedLoss(
-            self._loss, target, imp_weight=imp_weight, comp_dim=2)
+            self._loss, target, imp_weight=imp_weight, comp_dim=comp_dim)
 
         SupervisedStack.__init__(self, layers, loss)
         self.forward(inpt)
