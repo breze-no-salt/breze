@@ -17,7 +17,9 @@ theano.config.compute_test_value = 'raise'
 
 def test_simple_stack():
     inpt = T.matrix('inpt')
+    inpt.tag.test_value = X
     target = T.matrix('target')
+    target.tag.test_value = Z
 
     layers = [
         simple.AffineNonlinear(2, 2),
@@ -40,7 +42,6 @@ def test_sequential():
     inpt.tag.test_value = np.zeros((2, 3, 4))
     seq_to_static = sequential.SequentialToStatic()
     output = seq_to_static(inpt)
-    print output
     recons = seq_to_static.inverse(*output)
 
     assert output[0].tag.test_value.shape == (6, 4)
