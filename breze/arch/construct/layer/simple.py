@@ -83,4 +83,6 @@ class SupervisedLoss(Layer):
 
         E = self.exprs = get_named_variables(locals())
         E['target'] = self.target
+        if self.imp_weight is not None:
+            E['imp_weight'] = self.imp_weight
         self.output = total,

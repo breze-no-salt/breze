@@ -15,18 +15,20 @@ import theano
 import theano.tensor as T
 import theano.tensor.shared_randomstreams
 
+from breze.arch.util import ParameterSet, Model
 from breze.arch.model.neural import mlp
 from breze.arch.model.varprop import mlp as varprop_mlp
 from breze.arch.component.varprop.common import supervised_loss as varprop_supervised_loss
 from breze.arch.component.common import supervised_loss
 from breze.learn.base import SupervisedBrezeWrapperBase
-from breze.arch.util import ParameterSet, Model
+from breze.arch.construct.base import SupervisedStack
+from breze.arch.construct.layer import simple
 
 
 # TODO Mlp docs are loss missing
 
 
-class Mlp(Model, SupervisedBrezeWrapperBase):
+class Mlp(SupervisedStack):
     """Multilayer perceptron class.
 
     This implementation uses a stack of affine mappings with a subsequent
@@ -86,7 +88,7 @@ class Mlp(Model, SupervisedBrezeWrapperBase):
         self.n_output = n_output
         self.hidden_transfers = hidden_transfers
         self.out_transfer = out_transfer
-        self.loss = loss
+        self._loss = loss
 
         self.optimizer = optimizer
         self.batch_size = batch_size
@@ -97,47 +99,32 @@ class Mlp(Model, SupervisedBrezeWrapperBase):
 
         self.f_predict = None
 
-        super(Mlp, self).__init__()
+        self._init_layers()
 
-    def _init_pars(self):
-        spec = mlp.parameters(self.n_inpt, self.n_hiddens, self.n_output)
-        self.parameters = ParameterSet(**spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
+    def _init_layers(self):
+        target = T.matrix('target')
+        imp_weight = T.matrix('imp_weight') if self.imp_weight else None
 
-    def _init_exprs(self):
-        self.exprs = {
-            'inpt': T.matrix('inpt'),
-            'target': T.matrix('target')
-        }
-        self.exprs['inpt'].tag.test_value = np.zeros(
+        n_incoming = [self.n_inpt] + self.n_hiddens
+        n_outgoing = self.n_hiddens + [self.n_output]
+        transfers = self.hidden_transfers + [self.out_transfer]
+
+        layers = [simple.AffineNonlinear(n, m, f) for n, m, f
+                  in zip(n_incoming, n_outgoing, transfers)]
+        loss = simple.SupervisedLoss(self._loss, target, imp_weight=imp_weight)
+
+        super(Mlp, self).__init__(layers, loss)
+        inpt = T.matrix('inpt')
+
+        inpt.tag.test_value = np.zeros(
             (10, self.n_inpt)).astype(theano.config.floatX)
-        self.exprs['target'].tag.test_value = np.zeros(
+        target.tag.test_value = np.zeros(
             (10, self.n_output)).astype(theano.config.floatX)
-
-        if self.imp_weight:
-            self.exprs['imp_weight'] = T.matrix('imp_weight')
-            self.exprs['imp_weight'].tag.test_value = np.zeros(
+        if imp_weight is not None:
+            imp_weight.tag.test_value = np.zeros(
                 (10, self.n_output)).astype(theano.config.floatX)
 
-        P = self.parameters
-
-        n_layers = len(self.n_hiddens)
-        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                             for i in range(n_layers - 1)]
-        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
-                         for i in range(n_layers)]
-
-        self.exprs.update(mlp.exprs(
-            self.exprs['inpt'],
-            P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
-            hidden_biases, P.out_bias,
-            self.hidden_transfers, self.out_transfer))
-
-        imp_weight = False if not self.imp_weight else self.exprs['imp_weight']
-        self.exprs.update(supervised_loss(
-            self.exprs['target'], self.exprs['output'], self.loss,
-            imp_weight=imp_weight))
+        self.forward(inpt)
 
 
 def dropout_optimizer_conf(

@@ -124,3 +124,5 @@ class SupervisedStack(Stack, SupervisedBrezeWrapperBase):
         self.loss(self.output)
         self.exprs['loss'] = self.loss.exprs['total']
         self.exprs['target'] = self.loss.exprs['target']
+        if 'imp_weight' in self.loss.exprs:
+            self.exprs['imp_weight'] = self.loss.exprs['imp_weight']
