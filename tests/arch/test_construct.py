@@ -76,3 +76,35 @@ def test_rnn():
     Z = np.zeros((10, 5, 3))
     Y = s.predict(X)
     assert Y.shape == (10, 5, 3), 'shape of output not right'
+
+
+def test_supervised_loss():
+    prediction = T.matrix('prediction')
+    y = prediction.tag.test_value = np.zeros((2, 3))
+
+    target = T.matrix('target')
+    z = target.tag.test_value = prediction.tag.test_value.copy()
+    z[0, 0] -= 1
+
+    loss_layer = simple.SupervisedLoss('squared', target)
+    loss_expr, = loss_layer(prediction)
+
+    l = loss_expr.eval({prediction: y, target: z})
+    assert l == 1. / y.shape[0], 'loss calculation wrong'
+
+    imp_weight = T.matrix('imp_weight')
+    w = np.zeros_like(y)
+    imp_weight.tag.test_value = w
+    w[0, 0,] = 1
+
+    loss_layer = simple.SupervisedLoss('squared', target, imp_weight=imp_weight)
+    loss_expr, = loss_layer(prediction)
+
+    l = loss_expr.eval({prediction: y, target: z, imp_weight: w})
+    assert l == 1. / y.shape[0], 'loss calculation with imp weights wrong'
+
+    l = loss_expr.eval({prediction: y, target: z, imp_weight: np.zeros_like(w)})
+    assert l == 0, 'loss calculation with imp weights wrong'
+
+    l = loss_expr.eval({prediction: y, target: z, imp_weight: np.ones_like(w)})
+    assert l == 1. / y.shape[0], 'loss calculation with imp weights wrong'

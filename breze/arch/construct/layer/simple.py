@@ -62,9 +62,11 @@ class Concatenate(Layer):
 
 class SupervisedLoss(Layer):
 
-    def __init__(self, loss, target, comp_dim=1, name=None):
+    def __init__(self, loss, target, comp_dim=1, imp_weight=None,
+                 name=None):
         self.loss = loss
         self.target = target
+        self.imp_weight = imp_weight
         self.comp_dim = 1
 
         super(SupervisedLoss, self).__init__(name)
@@ -74,6 +76,8 @@ class SupervisedLoss(Layer):
         f_loss = lookup(self.loss, _loss)
 
         coord_wise = f_loss(self.target, inpt)
+        if self.imp_weight is not None:
+            coord_wise *= self.imp_weight
         sample_wise = coord_wise.sum(self.comp_dim)
         total = sample_wise.mean()
 
