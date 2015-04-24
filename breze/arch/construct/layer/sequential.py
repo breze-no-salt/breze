@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 
+from breze.arch.component import transfer as _transfer
 from breze.arch.construct.base import Layer
-from breze.arch.util import get_named_variables
+from breze.arch.model.rnn.rnn import recurrent_layer
+from breze.arch.util import get_named_variables, lookup
 
 
 class SequentialToStatic(Layer):
@@ -15,3 +17,28 @@ class SequentialToStatic(Layer):
 
     def inverse(self, *args):
         return [i.reshape((self.n_time_steps, -1, i.shape[1])) for i in args]
+
+
+class Recurrent(Layer):
+
+    def __init__(self, n_inpt, transfer='identity', name=None):
+        self.n_inpt = n_inpt
+        self.transfer = transfer
+        super(Recurrent, self).__init__(name)
+
+    def spec(self):
+        return {
+            'weights': (self.n_inpt, self.n_inpt),
+            'initial': (self.n_inpt,),
+        }
+
+    def forward(self, inpt):
+        super(Recurrent, self).forward(inpt)
+        P = self.parameters
+
+        f_transfer = lookup(self.transfer, _transfer)
+        presynaptic, output = recurrent_layer(
+            inpt, P.weights, f_transfer, P.initial)
+
+        E = self.exprs = get_named_variables(locals())
+        self.output = [output]
