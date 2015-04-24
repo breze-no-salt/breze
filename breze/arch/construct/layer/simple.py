@@ -48,6 +48,18 @@ class AffineNonlinear(Layer):
         self.output = [output]
 
 
+class Concatenate(Layer):
+
+    def __init__(self, axis=1, name=None):
+        self.axis = axis
+        super(Concatenate, self).__init__(name)
+
+    def forward(self, *inpts):
+        concatenated = T.concatenate(inpts, self.axis)
+        E = self.exprs = get_named_variables(locals())
+        self.output = [concatenated]
+
+
 class SupervisedLoss(Layer):
 
     def __init__(self, loss, target, comp_dim=1, name=None):
@@ -67,3 +79,4 @@ class SupervisedLoss(Layer):
 
         E = self.exprs = get_named_variables(locals())
         E['target'] = self.target
+        self.output = total,
