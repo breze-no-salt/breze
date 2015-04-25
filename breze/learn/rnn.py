@@ -411,7 +411,6 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedStack):
         for n, m, t, d in zip(n_incoming, n_outgoing, transfers, p_dropouts):
             layers += [s2s,
                        vp_simple.AffineNonlinear(n, m),
-                       vp_simple.FastDropout(d),
                        s2s.inverse,
                        vp_sequential.FDRecurrent(m, t, d)]
         layers += [
