@@ -4,7 +4,8 @@
 import itertools
 
 from breze.arch.util import ParameterSet, Model
-from breze.learn.base import SupervisedBrezeWrapperBase
+from breze.learn.base import (
+    SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase)
 
 
 class Layer(object):
@@ -124,5 +125,19 @@ class SupervisedStack(Stack, SupervisedBrezeWrapperBase):
         self.loss(self.output)
         self.exprs['loss'] = self.loss.exprs['total']
         self.exprs['target'] = self.loss.exprs['target']
+        if 'imp_weight' in self.loss.exprs:
+            self.exprs['imp_weight'] = self.loss.exprs['imp_weight']
+
+
+class UnsupervisedStack(Stack, UnsupervisedBrezeWrapperBase):
+
+    def __init__(self, layers, loss, name=None):
+        self.loss = loss
+        super(UnsupervisedStack, self).__init__(layers, name)
+
+    def forward(self, inpt):
+        super(UnsupervisedStack, self).forward(inpt)
+        self.loss(self.output)
+        self.exprs['loss'] = self.loss.exprs['total']
         if 'imp_weight' in self.loss.exprs:
             self.exprs['imp_weight'] = self.loss.exprs['imp_weight']

@@ -86,3 +86,29 @@ class SupervisedLoss(Layer):
         if self.imp_weight is not None:
             E['imp_weight'] = self.imp_weight
         self.output = total,
+
+
+class UnsupervisedLoss(Layer):
+
+    def __init__(self, loss, comp_dim=1, imp_weight=None,
+                 name=None):
+        self.loss = loss
+        self.imp_weight = imp_weight
+        self.comp_dim = comp_dim
+
+        super(UnsupervisedLoss, self).__init__(name)
+
+    def forward(self, inpt):
+        super(UnsupervisedLoss, self).forward(inpt)
+        f_loss = lookup(self.loss, _loss)
+
+        coord_wise = f_loss(inpt)
+        if self.imp_weight is not None:
+            coord_wise *= self.imp_weight
+        sample_wise = coord_wise.sum(self.comp_dim)
+        total = sample_wise.mean()
+
+        E = self.exprs = get_named_variables(locals())
+        if self.imp_weight is not None:
+            E['imp_weight'] = self.imp_weight
+        self.output = total,
