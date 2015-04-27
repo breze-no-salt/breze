@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import numpy as np
 import theano.tensor as T
 
 from breze.arch.component import transfer as _transfer, loss as _loss
@@ -46,6 +47,23 @@ class AffineNonlinear(Layer):
 
         E = self.exprs = get_named_variables(locals())
         self.output = [output]
+
+
+class Split(Layer):
+
+    def __init__(self, lengths, axis=1, name=None):
+        self.lengths = lengths
+        self.axis = axis
+        super(Split, self).__init__(name)
+
+    def forward(self, inpt):
+        starts = [0] + np.add.accumulate(self.lengths).tolist()
+        stops = starts[1:]
+        starts = starts[:-1]
+
+        E = self.exprs = get_named_variables(locals())
+        self.output = [inpt[:, start:stop]
+                       for start, stop in zip(starts, stops)]
 
 
 class Concatenate(Layer):
