@@ -136,10 +136,10 @@ class Stack(Model, Layer):
         spec = self.spec()
         self.parameters = ParameterSet(**spec)
 
-        def recursive_replace(exprs,replaceby):
+        def recursive_replace(exprs, replaceby):
             for i in exprs:
-                if type(exprs[i]) == dict:
-                    recursive_replace(exprs[i],replaceby)
+                if isinstance(exprs[i], dict):
+                    recursive_replace(exprs[i], replaceby)
                 else:
                     exprs[i] = theano.clone(exprs[i], replaceby)
 
@@ -147,12 +147,11 @@ class Stack(Model, Layer):
         for i in self.layers:
             if isinstance(i, Layer):
                 for p in i._parameterized:
-
                     up = {i._parameterized[p]:
-                            getattr(getattr(self.parameters,i.name), p)}
+                          getattr(getattr(self.parameters, i.name), p)}
                     replaceby.update(up)
 
-        recursive_replace(self.exprs,replaceby)
+        recursive_replace(self.exprs, replaceby)
 
 
 class SupervisedStack(Stack, SupervisedBrezeWrapperBase):
