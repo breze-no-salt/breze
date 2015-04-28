@@ -3,6 +3,10 @@
 
 import itertools
 
+import numpy as np
+import theano
+import theano.tensor as T
+
 from breze.arch.util import ParameterSet, Model
 from breze.learn.base import (
     SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase)
@@ -43,9 +47,11 @@ class Layer(object):
     def __init__(self, name=None):
         self.make_name(name)
         self._forwarded = False
+        self._spec = {}
+        self._parameterized = {}
 
     def spec(self):
-        return {}
+        return self._spec
 
     def make_name(self, name):
         """Give the layer a unique name.
@@ -69,6 +75,29 @@ class Layer(object):
         self.forward(*inpt)
         return self.output
 
+    def parameterized(self, name, shape):
+        # Theano replaces tensors with shape (1, x) or (x, 1) with T.col and
+        # T.row repsectively.
+        if len(shape) == 2:
+            x = T.matrix()
+            if shape == (1, 1):
+                x = T.TensorType(theano.config.floatX, (True,))()
+            elif shape[1] == 1:
+                x = T.col()
+            elif shape[0] == 1:
+                x = T.row()
+
+        if len(shape) == 1:
+            x = T.vector()
+            if shape[0] == 1:
+                x = T.TensorType(theano.config.floatX, (True,))()
+
+        x.tag.test_value = np.zeros(shape).astype(theano.config.floatX)
+
+        self._spec.update({name: shape})
+        self._parameterized.update({name: x})
+        return x
+
 
 class Stack(Model, Layer):
 
@@ -87,13 +116,10 @@ class Stack(Model, Layer):
 
         # First part: predictive model.
         E = self.exprs = {'inpt': inpt}
-        spec = self.spec()
-        self.parameters = ParameterSet(**spec)
 
         inpt = inpt,
         for i in self.layers:
             if isinstance(i, Layer):
-                i.parameters = getattr(self.parameters, i.name)
                 inpt = i(*inpt)
                 E[i.name] = i.exprs
             else:
@@ -105,6 +131,28 @@ class Stack(Model, Layer):
             raise ValueError('last layer of stack may only have one output')
 
         self.output = E['output'] = inpt[0]
+
+    def _replace_param_dummies(self):
+        spec = self.spec()
+        self.parameters = ParameterSet(**spec)
+
+        def recursive_replace(exprs,replaceby):
+            for i in exprs:
+                if type(exprs[i]) == dict:
+                    recursive_replace(exprs[i],replaceby)
+                else:
+                    exprs[i] = theano.clone(exprs[i], replaceby)
+
+        replaceby = {}
+        for i in self.layers:
+            if isinstance(i, Layer):
+                for p in i._parameterized:
+
+                    up = {i._parameterized[p]:
+                            getattr(getattr(self.parameters,i.name), p)}
+                    replaceby.update(up)
+
+        recursive_replace(self.exprs,replaceby)
 
 
 class SupervisedStack(Stack, SupervisedBrezeWrapperBase):

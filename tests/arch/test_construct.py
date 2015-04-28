@@ -9,8 +9,9 @@ from breze.arch.construct import base
 from breze.arch.construct.layer import simple, sequential
 
 
-X = np.zeros((10, 2))
-Z = np.zeros((10, 3))
+X = np.zeros((10, 2)).astype(theano.config.floatX)
+Z = np.zeros((10, 3)).astype(theano.config.floatX)
+
 
 theano.config.compute_test_value = 'raise'
 
@@ -31,6 +32,7 @@ def test_simple_stack():
     s = base.SupervisedStack(layers=layers, loss=loss)
 
     s.forward(inpt)
+    s._replace_param_dummies()
 
     s.function(['inpt', 'target'], 'loss')
     Y = s.predict(X)

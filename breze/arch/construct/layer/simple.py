@@ -26,21 +26,16 @@ class AffineNonlinear(Layer):
         self.bias = True
         super(AffineNonlinear, self).__init__(name=name)
 
-    def spec(self):
-        spec = {
-            'weights': (self.n_inpt, self.n_output)
-        }
-        if self.bias:
-            spec['bias'] = self.n_output,
-        return spec
-
     def forward(self, inpt):
         super(AffineNonlinear, self).forward(inpt)
-        P = self.parameters
 
-        output_pre_transfer = T.dot(inpt, P.weights)
+        weights = self.parameterized('weights', (self.n_inpt, self.n_output))
+
+        output_pre_transfer = T.dot(inpt, weights)
+
         if self.bias:
-            output_pre_transfer += P.bias
+            bias = self.parameterized('bias', (self.n_output,))
+            output_pre_transfer += bias
 
         f_transfer = lookup(self.transfer, _transfer)
         output = f_transfer(output_pre_transfer)
