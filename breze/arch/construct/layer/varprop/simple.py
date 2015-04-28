@@ -12,15 +12,18 @@ from breze.arch.construct.layer.simple import AffineNonlinear as AffineNonlinear
 def make_std(std):
     return (std ** 2 + 1e-8) ** 0.5
 
+
 class AffineNonlinear(AffineNonlinear_):
 
     def forward(self, inpt_mean, inpt_var):
         Layer.forward(self, inpt_mean, inpt_var)
         P = self.parameters
         w, b = P.weights, P.bias
+        weights = self.parameterized('weights', (self.n_inpt, self.n_output))
+        bias = self.parameterized('bias', (self.n_output,)) if self.bias else 0
 
-        pres_mean = T.dot(inpt_mean, w) + b
-        pres_var = T.dot(inpt_var, w ** 2)
+        pres_mean = T.dot(inpt_mean, weights) + bias
+        pres_var = T.dot(inpt_var, weights ** 2)
 
         f_transfer = lookup(self.transfer, transfer)
         post_mean, post_var = f_transfer(pres_mean, pres_var)
@@ -31,27 +34,24 @@ class AffineNonlinear(AffineNonlinear_):
 
 class StochasticAffineNonlinear(AffineNonlinear_):
 
-    def spec(self):
-        spec = {}
-        other_spec = super(AffineNonLinear, self).spec()
-        for name, shape in other_spec.items():
-            spec[name] = {
-                'mean': shape,
-                'std': shape
-            }
-        return spec
-
     def forward(self, inpt_mean, inpt_var):
         Layer.forward(self, inpt_mean, inpt_var)
         P = self.parameters
-        wm, ws = P.weights.mean, make_std(P.weights.std)
-        bm, bs = P.bias.mean, make_std(P.bias.std)
+        weights_mean = self.parameterized(
+            'weights_mean', (self.n_inpt, self.n_output))
+        weights_std = self.parameterized(
+            'weights_std', (self.n_inpt, self.n_output))
+        if self.bias:
+            bias_mean = self.parameterized('bias_mean', (self.n_output,))
+            bias_std = self.parameterized('bias_std', (self.n_output,))
+        else:
+            bias_mean = bias_std = 0
 
-        pres_mean = T.dot(inpt_mean, wm) + bm
-        pres_var = (T.dot(inpt_mean ** 2, ws ** 2)
-                    + T.dot(inpt_var, wm ** 2)
-                    + T.dot(inpt_var, ws ** 2)
-                    + bs ** 2)
+        pres_mean = T.dot(inpt_mean, weights_mean) + bias_mean
+        pres_var = (T.dot(inpt_mean ** 2, weights_std ** 2)
+                    + T.dot(inpt_var, weights_mean ** 2)
+                    + T.dot(inpt_var, weights_std ** 2)
+                    + bias_std ** 2)
 
         f_transfer = lookup(self.transfer, transfer)
         post_mean, post_var = f_transfer(pres_mean, pres_var)

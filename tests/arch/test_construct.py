@@ -41,7 +41,7 @@ def test_simple_stack():
 
 def test_sequential():
     inpt = T.tensor3('inpt')
-    inpt.tag.test_value = np.zeros((2, 3, 4))
+    inpt.tag.test_value = np.zeros((2, 3, 4)).astype(theano.config.floatX)
     seq_to_static = sequential.SequentialToStatic()
     output = seq_to_static(inpt)
     recons = seq_to_static.inverse(*output)
@@ -52,10 +52,10 @@ def test_sequential():
 
 def test_rnn():
     inpt = T.tensor3('inpt')
-    inpt.tag.test_value = np.empty((10, 5, 2))
+    inpt.tag.test_value = np.empty((10, 5, 2)).astype(theano.config.floatX)
 
     target = T.tensor3('target')
-    target.tag.test_value = np.empty((10, 5, 3))
+    target.tag.test_value = np.empty((10, 5, 3)).astype(theano.config.floatX)
 
     seq_to_static = sequential.SequentialToStatic()
 
@@ -73,17 +73,18 @@ def test_rnn():
     s = base.SupervisedStack(layers=layers, loss=loss)
 
     s.forward(inpt)
+    s._replace_param_dummies()
 
     s.function(['inpt', 'target'], 'loss')
-    X = np.zeros((10, 5, 2))
-    Z = np.zeros((10, 5, 3))
+    X = np.zeros((10, 5, 2)).astype(theano.config.floatX)
     Y = s.predict(X)
     assert Y.shape == (10, 5, 3), 'shape of output not right'
 
 
 def test_supervised_loss():
     prediction = T.matrix('prediction')
-    y = prediction.tag.test_value = np.zeros((2, 3))
+    y = prediction.tag.test_value = np.zeros((2, 3)).astype(theano.config.floatX)
+
 
     target = T.matrix('target')
     z = target.tag.test_value = prediction.tag.test_value.copy()
@@ -96,7 +97,7 @@ def test_supervised_loss():
     assert l == 1. / y.shape[0], 'loss calculation wrong'
 
     imp_weight = T.matrix('imp_weight')
-    w = np.zeros_like(y)
+    w = np.zeros_like(y).astype(theano.config.floatX)
     imp_weight.tag.test_value = w
     w[0, 0,] = 1
 
@@ -106,8 +107,15 @@ def test_supervised_loss():
     l = loss_expr.eval({prediction: y, target: z, imp_weight: w})
     assert l == 1. / y.shape[0], 'loss calculation with imp weights wrong'
 
-    l = loss_expr.eval({prediction: y, target: z, imp_weight: np.zeros_like(w)})
+    l = loss_expr.eval({prediction: y,
+                        target: z,
+                        imp_weight:
+                            np.zeros_like(w).astype(theano.config.floatX)
+})
     assert l == 0, 'loss calculation with imp weights wrong'
 
-    l = loss_expr.eval({prediction: y, target: z, imp_weight: np.ones_like(w)})
+    l = loss_expr.eval({prediction: y,
+                        target: z,
+                        imp_weight:
+                            np.ones_like(w).astype(theano.config.floatX)})
     assert l == 1. / y.shape[0], 'loss calculation with imp weights wrong'

@@ -35,11 +35,13 @@ class Recurrent(Layer):
 
     def forward(self, inpt):
         super(Recurrent, self).forward(inpt)
-        P = self.parameters
+
+        weights = self.parameterized('weights', (self.n_inpt, self.n_inpt))
+        initial = self.parameterized('initial', (self.n_inpt,))
 
         f_transfer = lookup(self.transfer, _transfer)
         presynaptic, output = recurrent_layer(
-            inpt, P.weights, f_transfer, P.initial)
+            inpt, weights, f_transfer, initial)
 
         E = self.exprs = get_named_variables(locals())
         self.output = [output]
