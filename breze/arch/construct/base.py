@@ -4,9 +4,9 @@
 import itertools
 
 from breze.arch.util import ParameterSet, Model
-from breze.learn.base import (
-    SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase)
-
+from breze.learn.base import SupervisedBrezeWrapperBase
+import theano
+import theano.tensor as T
 
 class Layer(object):
     """Layer class.
@@ -43,9 +43,11 @@ class Layer(object):
     def __init__(self, name=None):
         self.make_name(name)
         self._forwarded = False
+        self._spec = {}
+        self._parameterized = {}
 
     def spec(self):
-        return {}
+        return self._spec
 
     def make_name(self, name):
         """Give the layer a unique name.
@@ -65,6 +67,28 @@ class Layer(object):
 
         self._forwarded = True
 
+    def parameterized(self, name, shape):
+        # theano replaces tensors with shape (1,x) or (x,1) to col and row
+        if len(shape) == 2:
+            x = T.matrix()
+            if shape[1] == 1 and shape[0] == 1:
+                # TODO: replace 'float32'
+                x = T.TensorType('float32', (True,))()
+            elif shape[1] == 1:
+                x = T.col()
+            elif shape[0] == 1:
+                x = T.row()
+
+        if len(shape) == 1:
+            x = T.vector()
+            if shape[0] == 1:
+                # TODO: replace 'float32'
+                x = T.TensorType('float32', (True,))()
+
+        self._spec.update({name: shape})
+        self._parameterized.update({name: x})
+        return x
+        
     def __call__(self, *inpt):
         self.forward(*inpt)
         return self.output
@@ -82,18 +106,34 @@ class Stack(Model, Layer):
                     for i in self.layers
                     if hasattr(i, 'spec'))
 
+    def _replace_param_dummies(self):
+        spec = self.spec()
+        self.parameters = ParameterSet(**spec)
+
+        def recursive_replace(exprs,replaceby):
+            for i in exprs:
+                if type(exprs[i]) == dict:
+                    recursive_replace(exprs[i],replaceby)
+                else:
+                    exprs[i] = theano.clone(exprs[i], replaceby)
+
+        replaceby = {}
+        for i in self.layers:
+            if isinstance(i, Layer):
+                for p in i._parameterized:
+                    replaceby.update({i._parameterized[p]:getattr(getattr(self.parameters,i.name),p)})
+
+        recursive_replace(self.exprs,replaceby)
+
     def forward(self, inpt):
         Layer.forward(self, inpt)
 
         # First part: predictive model.
         E = self.exprs = {'inpt': inpt}
-        spec = self.spec()
-        self.parameters = ParameterSet(**spec)
 
         inpt = inpt,
         for i in self.layers:
             if isinstance(i, Layer):
-                i.parameters = getattr(self.parameters, i.name)
                 inpt = i(*inpt)
                 E[i.name] = i.exprs
             else:
@@ -120,24 +160,10 @@ class SupervisedStack(Stack, SupervisedBrezeWrapperBase):
         return self.f_predict(X)
 
     def forward(self, inpt):
-        super(SupervisedStack, self).forward(inpt)
+        E = super(SupervisedStack, self).forward(inpt)
 
         self.loss(self.output)
         self.exprs['loss'] = self.loss.exprs['total']
         self.exprs['target'] = self.loss.exprs['target']
-        if 'imp_weight' in self.loss.exprs:
-            self.exprs['imp_weight'] = self.loss.exprs['imp_weight']
-
-
-class UnsupervisedStack(Stack, UnsupervisedBrezeWrapperBase):
-
-    def __init__(self, layers, loss, name=None):
-        self.loss = loss
-        super(UnsupervisedStack, self).__init__(layers, name)
-
-    def forward(self, inpt):
-        super(UnsupervisedStack, self).forward(inpt)
-        self.loss(self.output)
-        self.exprs['loss'] = self.loss.exprs['total']
         if 'imp_weight' in self.loss.exprs:
             self.exprs['imp_weight'] = self.loss.exprs['imp_weight']
