@@ -302,44 +302,57 @@ class ParameterSet(object):
         in this dictionary.
     """
 
-    def __init__(self, **kwargs):
-        dictlist.replace(kwargs, lambda x: (x,) if isinstance(x, int) else x)
-        self.n_pars = n_pars_by_partition(kwargs)
+    def __init__(self):
+        self._alloced = False
+        self._n_pars = 0
+        self._var_to_slice = {}
+        self._var_to_shape = {}
 
-        # Create two representations of the parameters of the object. The first
-        # is the symbolic theano variable (of which the type is GPU/CPU
-        # specific), the second either a gnumpy or numpy array (depending on
-        # GPU/CPU again). Also set a default size for testing.
         if GPU:
-            self.data = gnumpy.zeros(self.n_pars)
             self.flat = theano.sandbox.cuda.fvector('parameters')
         else:
-            self.data = np.empty(self.n_pars).astype(theano.config.floatX)
             self.flat = T.vector('parameters')
+
+    def declare(self, shape, group=None):
+        if group is not None:
+            raise NotImplementedError()
+
+        shape = (shape,) if isinstance(shape, int) else shape
+        size = np.prod(shape)
+        start, stop = self._n_pars, self._n_pars + size
+        self._n_pars = stop
+        x = self.flat[start:stop].reshape(shape)
+        self._var_to_slice[x] = (start, stop)
+        self._var_to_shape[x] = shape
+        return x
+
+    def view(self, variable, flat_arr=None):
+        if flat_arr is None:
+            flat_arr = self.data
+
+        start, stop = self._var_to_slice[variable]
+        return flat_arr[start:stop].reshape(self._var_to_shape[variable])
+
+    def alloc(self):
+        if self._alloced:
+            raise ValueError('cannot alloc ParameterSet more than once')
+        self._alloced = True
+
+        if GPU:
+            self.data = gnumpy.zeros(self._n_pars)
+        else:
+            self.data = np.empty(self._n_pars).astype(theano.config.floatX)
 
         self.flat.tag.test_value = self.data
 
-        # Go through parameters and assign space and variable.
-        self.views = array_partition_views(self.data, kwargs)
-
-        # Make sure the keys are legit -- that they do not overwrite
-        # anything.
-        for key in kwargs:
-            if hasattr(self, key):
-                raise ValueError("%s is an illegal name for a variable")
-
-        variables = array_partition_views(self.flat, kwargs)
-        variables = dictlist.copy(variables, dct_maker=attrdict.AttrDict)
-        self.__dict__.update(variables)
-
     def __contains__(self, key):
-        return key in self.views
+        return key in self._var_to_slice
 
     def __getitem__(self, key):
-        return self.views[key]
+        return self.view(key)
 
     def __setitem__(self, key, value):
-        self.views[key][:] = value
+        self.view(key)[...] = value
 
 
 class Model(object):
@@ -390,6 +403,7 @@ class Model(object):
     updates : dict
         Containing update variables, e.g. due to the use of ``theano.scan``.
     """
+
     def __init__(self):
         self.updates = collections.defaultdict(dict)
         self._init_pars()

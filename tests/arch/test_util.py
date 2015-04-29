@@ -13,14 +13,29 @@ from breze.arch.util import (ParameterSet, Model, array_partition_views,
                              n_pars_by_partition)
 
 
-def test_parameter_set_init():
-    pars = ParameterSet(matrix=(10, 10),
-                        vector=10)
+def test_parameter_set_init_declare():
+    pars = ParameterSet()
+
+    matrix = pars.declare((10, 10))
+    vector = pars.declare((10,))
+    pars.alloc()
+
     assert pars.data.shape == (110,), 'wrong size for flat pars allocated'
-    assert (pars['matrix'].shape == (10, 10)), ('wrong size for 2d array in pars '
+    assert (pars[matrix].shape == (10, 10)), ('wrong size for 2d array in pars '
                                                 'allocated')
-    assert (pars['vector'].shape == (10,)), ('wrong size for 1d array in pars '
+    assert (pars[vector].shape == (10,)), ('wrong size for 1d array in pars '
                                              'allocated')
+
+
+def test_parameter_set_init_overwrite():
+    pars = ParameterSet()
+
+    matrix = pars.declare((10, 10))
+    pars.alloc()
+
+    pars[matrix] = np.eye(10)
+    assert np.allclose(pars.data.reshape(pars[matrix].shape), pars[matrix])
+
 
 
 def test_parameter_set_data_change():
