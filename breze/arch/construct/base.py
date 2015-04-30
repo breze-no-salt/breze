@@ -7,9 +7,7 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.arch.util import ParameterSet, Model
-from breze.learn.base import (
-    SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase)
+from breze.arch.util import ParameterSet
 
 
 class Layer(object):
@@ -66,94 +64,3 @@ class Layer(object):
                 self.__class__.__name__, self._counter.next())
         else:
             self.name = name
-
-
-class Stack(Model, Layer):
-
-    def __init__(self, layers, name=None):
-        self.layers = layers
-        Model.__init__(self)
-        Layer.__init__(self, name)
-
-    def spec(self):
-        return dict((i.name, i.spec())
-                    for i in self.layers
-                    if hasattr(i, 'spec'))
-
-    def forward(self, inpt):
-        Layer.forward(self, inpt)
-
-        # First part: predictive model.
-        E = self.exprs = {'inpt': inpt}
-
-        inpt = inpt,
-        for i in self.layers:
-            if isinstance(i, Layer):
-                inpt = i(*inpt)
-                E[i.name] = i.exprs
-            else:
-                inpt = i(*inpt)
-                if not isinstance(inpt, (list, tuple)):
-                    inpt = [inpt]
-
-        if len(inpt) != 1:
-            raise ValueError('last layer of stack may only have one output')
-
-        self.output = E['output'] = inpt[0]
-
-    def _replace_param_dummies(self):
-        spec = self.spec()
-        self.parameters = ParameterSet(**spec)
-
-        def recursive_replace(exprs, replaceby):
-            for i in exprs:
-                if isinstance(exprs[i], dict):
-                    recursive_replace(exprs[i], replaceby)
-                else:
-                    exprs[i] = theano.clone(exprs[i], replaceby)
-
-        replaceby = {}
-        for i in self.layers:
-            if isinstance(i, Layer):
-                for p in i._parameterized:
-                    up = {i._parameterized[p]:
-                          getattr(getattr(self.parameters, i.name), p)}
-                    replaceby.update(up)
-
-        recursive_replace(self.exprs, replaceby)
-
-
-class SupervisedStack(Stack, SupervisedBrezeWrapperBase):
-
-    def __init__(self, layers, loss, name=None):
-        self.loss = loss
-        super(SupervisedStack, self).__init__(
-            layers, name)
-
-    def predict(self, X):
-        if getattr(self, 'f_predict', None) is None:
-            self.f_predict = self.function(['inpt'], 'output')
-        return self.f_predict(X)
-
-    def forward(self, inpt):
-        super(SupervisedStack, self).forward(inpt)
-
-        self.loss(self.output)
-        self.exprs['loss'] = self.loss.exprs['total']
-        self.exprs['target'] = self.loss.exprs['target']
-        if 'imp_weight' in self.loss.exprs:
-            self.exprs['imp_weight'] = self.loss.exprs['imp_weight']
-
-
-class UnsupervisedStack(Stack, UnsupervisedBrezeWrapperBase):
-
-    def __init__(self, layers, loss, name=None):
-        self.loss = loss
-        super(UnsupervisedStack, self).__init__(layers, name)
-
-    def forward(self, inpt):
-        super(UnsupervisedStack, self).forward(inpt)
-        self.loss(self.output)
-        self.exprs['loss'] = self.loss.exprs['total']
-        if 'imp_weight' in self.loss.exprs:
-            self.exprs['imp_weight'] = self.loss.exprs['imp_weight']
