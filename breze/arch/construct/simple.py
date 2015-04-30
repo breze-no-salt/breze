@@ -18,30 +18,27 @@ class AffineNonlinear(Layer):
     def n_output(self):
         return self._n_output
 
-    def __init__(self, n_inpt, n_output, transfer='identity', bias=True,
-                 name=None):
+    def __init__(self, inpt, n_inpt, n_output, transfer='identity', use_bias=True,
+                 declare=None, name=None):
+        self.inpt = inpt
         self._n_inpt = n_inpt
         self._n_output = n_output
         self.transfer = transfer
-        self.bias = True
-        super(AffineNonlinear, self).__init__(name=name)
+        self.use_bias = use_bias
+        super(AffineNonlinear, self).__init__(declare=declare, name=name)
 
-    def forward(self, inpt):
-        super(AffineNonlinear, self).forward(inpt)
+    def _forward(self):
+        self.weights = self._declare((self.n_inpt, self.n_output))
 
-        weights = self.parameterized('weights', (self.n_inpt, self.n_output))
+        self.output_in = T.dot(self.inpt, self.weights)
 
-        output_pre_transfer = T.dot(inpt, weights)
+        if self.use_bias:
+            self.bias = self._declare(self.n_output)
+            self.output_in += self.bias
 
-        if self.bias:
-            bias = self.parameterized('bias', (self.n_output,))
-            output_pre_transfer += bias
+        f = lookup(self.transfer, _transfer)
 
-        f_transfer = lookup(self.transfer, _transfer)
-        output = f_transfer(output_pre_transfer)
-
-        E = self.exprs = get_named_variables(locals())
-        self.output = [output]
+        self.output = f(self.output_in)
 
 
 class Split(Layer):

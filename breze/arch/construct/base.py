@@ -44,14 +44,16 @@ class Layer(object):
 
     _counter = itertools.count()
 
-    def __init__(self, name=None):
+    def __init__(self, declare=None, name=None):
         self.make_name(name)
-        self._forwarded = False
-        self._spec = {}
-        self._parameterized = {}
 
-    def spec(self):
-        return self._spec
+        if declare is None:
+            self.parameters = ParameterSet()
+            self._declare = self.parameters.declare
+        else:
+            self._declare = declare
+
+        self._forward()
 
     def make_name(self, name):
         """Give the layer a unique name.
@@ -64,39 +66,6 @@ class Layer(object):
                 self.__class__.__name__, self._counter.next())
         else:
             self.name = name
-
-    def forward(self, *inpt):
-        if self._forwarded:
-            raise ValueError('already forwarded')
-
-        self._forwarded = True
-
-    def __call__(self, *inpt):
-        self.forward(*inpt)
-        return self.output
-
-    def parameterized(self, name, shape):
-        # Theano replaces tensors with shape (1, x) or (x, 1) with T.col and
-        # T.row repsectively.
-        if len(shape) == 2:
-            x = T.matrix()
-            if shape == (1, 1):
-                x = T.TensorType(theano.config.floatX, (True,))()
-            elif shape[1] == 1:
-                x = T.col()
-            elif shape[0] == 1:
-                x = T.row()
-
-        if len(shape) == 1:
-            x = T.vector()
-            if shape[0] == 1:
-                x = T.TensorType(theano.config.floatX, (True,))()
-
-        x.tag.test_value = np.zeros(shape).astype(theano.config.floatX)
-
-        self._spec.update({name: shape})
-        self._parameterized.update({name: x})
-        return x
 
 
 class Stack(Model, Layer):
