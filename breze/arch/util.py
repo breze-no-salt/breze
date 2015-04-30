@@ -406,18 +406,10 @@ class Model(object):
 
     def __init__(self):
         self.updates = collections.defaultdict(dict)
-        self._init_pars()
-        self._init_exprs()
 
         # This is a dictionary which is supposed to hold substitions of
         # variables from .exprs for the use with the GPU.
         self.gpu_variable_subs = {}
-
-    def _init_pars(self):
-        pass
-
-    def _init_exprs(self):
-        pass
 
     def _lookup(self, container, ident):
         tensor_types = (theano.tensor.basic.TensorVariable,

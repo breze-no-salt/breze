@@ -72,30 +72,28 @@ class Concatenate(Layer):
 
 class SupervisedLoss(Layer):
 
-    def __init__(self, loss, target, comp_dim=1, imp_weight=None,
-                 name=None):
-        self.loss = loss
+    def __init__(self, target, prediction, loss, comp_dim=1, imp_weight=None,
+                 declare=None, name=None):
         self.target = target
+        self.prediction = prediction
+        self.loss_ident = loss
+
         self.imp_weight = imp_weight
         self.comp_dim = comp_dim
 
-        super(SupervisedLoss, self).__init__(name)
+        super(SupervisedLoss, self).__init__(declare, name)
 
-    def forward(self, inpt):
-        super(SupervisedLoss, self).forward(inpt)
-        f_loss = lookup(self.loss, _loss)
+    def _forward(self):
+        f_loss = lookup(self.loss_ident, _loss)
 
-        coord_wise = f_loss(self.target, inpt)
+        self.coord_wise = f_loss(self.target, self.prediction)
+
         if self.imp_weight is not None:
-            coord_wise *= self.imp_weight
-        sample_wise = coord_wise.sum(self.comp_dim)
-        total = sample_wise.mean()
+            self.coord_wise *= self.imp_weight
 
-        E = self.exprs = get_named_variables(locals())
-        E['target'] = self.target
-        if self.imp_weight is not None:
-            E['imp_weight'] = self.imp_weight
-        self.output = total,
+        self.sample_wise = self.coord_wise.sum(self.comp_dim)
+
+        self.total = self.sample_wise.mean()
 
 
 class UnsupervisedLoss(Layer):
