@@ -3,13 +3,12 @@
 
 import theano.tensor as T
 
-from breze.arch.model.simple import SupervisedModel
 from breze.arch.construct.simple import AffineNonlinear, SupervisedLoss
 from breze.arch.util import ParameterSet
-from breze.learn.base import SupervisedBrezeWrapperBase
+from breze.learn.base import SupervisedModel
 
 
-class Linear(SupervisedModel, SupervisedBrezeWrapperBase):
+class Linear(SupervisedModel):
     """Class to represent a linear model."""
 
     def __init__(self, n_inpt, n_output,

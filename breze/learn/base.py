@@ -24,6 +24,9 @@ if GPU:
     import gnumpy as gp
 
 
+from breze.arch.util import Model
+
+
 def cast_array_to_local_type(arr):
     """Given an array (HDF5, numpy, gnumpy) return an array that matches the
     current theano configuration.
@@ -171,7 +174,7 @@ class BrezeWrapperBase(object):
         self.CTRL_C_FLAG = True
 
 
-class SupervisedBrezeWrapperBase(BrezeWrapperBase):
+class SupervisedModel(Model, BrezeWrapperBase):
 
     data_arguments = 'inpt', 'target'
     sample_dim = 0, 0
@@ -186,6 +189,35 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
     _f_dloss = None
 
     gradient_clip_threshold = None
+
+    @property
+    def inpt(self):
+        return self.exprs['inpt']
+
+    @property
+    def output(self):
+        return self.exprs['output']
+
+    @property
+    def target(self):
+        return self.exprs['target']
+
+    @property
+    def loss(self):
+        return self.exprs['loss']
+
+    def __init__(self, inpt, target, output, loss, parameters):
+        self.parameters = parameters
+        self.parameters.alloc()
+
+        self.exprs = {
+            'inpt': inpt,
+            'target': target,
+            'output': output,
+            'loss': loss,
+        }
+
+        super(SupervisedModel, self).__init__()
 
     def _make_loss_functions(self, mode=None, givens=None,
                              on_unused_input='raise', imp_weight=False):
@@ -351,7 +383,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         return self.f_score(X, Z, imp_weight)
 
 
-class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
+class UnsupervisedModel(Model, BrezeWrapperBase):
 
     data_arguments = 'inpt',
     sample_dim = 0,
@@ -360,6 +392,30 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
     _f_dloss = None
 
     gradient_clip_threshold = None
+
+    @property
+    def inpt(self):
+        return self.exprs['inpt']
+
+    @property
+    def output(self):
+        return self.exprs['output']
+
+    @property
+    def loss(self):
+        return self.exprs['loss']
+
+    def __init__(self, inpt, output, loss, parameters):
+        self.parameters = parameters
+        self.parameters.alloc()
+
+        self.exprs = {
+            'inpt': inpt,
+            'output': output,
+            'loss': loss,
+        }
+
+        super(UnsupervisedModel, self).__init__()
 
     def _make_loss_functions(self, mode=None, givens=None,
                              on_unused_input='raise', imp_weight=False):
