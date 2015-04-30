@@ -5,7 +5,7 @@ import theano.tensor as T
 
 from breze.arch.component import transfer as _transfer, loss as _loss
 from breze.arch.construct.base import Layer
-from breze.arch.util import lookup, get_named_variables
+from breze.arch.util import lookup
 
 
 class AffineNonlinear(Layer):
@@ -18,8 +18,8 @@ class AffineNonlinear(Layer):
     def n_output(self):
         return self._n_output
 
-    def __init__(self, inpt, n_inpt, n_output, transfer='identity', use_bias=True,
-                 declare=None, name=None):
+    def __init__(self, inpt, n_inpt, n_output, transfer='identity',
+                 use_bias=True, declare=None, name=None):
         self.inpt = inpt
         self._n_inpt = n_inpt
         self._n_output = n_output
@@ -28,12 +28,12 @@ class AffineNonlinear(Layer):
         super(AffineNonlinear, self).__init__(declare=declare, name=name)
 
     def _forward(self):
-        self.weights = self._declare((self.n_inpt, self.n_output))
+        self.weights = self.declare((self.n_inpt, self.n_output))
 
         self.output_in = T.dot(self.inpt, self.weights)
 
         if self.use_bias:
-            self.bias = self._declare(self.n_output)
+            self.bias = self.declare(self.n_output)
             self.output_in += self.bias
 
         f = lookup(self.transfer, _transfer)
@@ -43,31 +43,31 @@ class AffineNonlinear(Layer):
 
 class Split(Layer):
 
-    def __init__(self, lengths, axis=1, name=None):
+    def __init__(self, inpt, lengths, axis=1, declare=None, name=None):
+        self.inpt = inpt
         self.lengths = lengths
         self.axis = axis
-        super(Split, self).__init__(name)
+        super(Split, self).__init__(declare, name)
 
-    def forward(self, inpt):
+    def _forward(self):
         starts = [0] + np.add.accumulate(self.lengths).tolist()
         stops = starts[1:]
         starts = starts[:-1]
 
-        E = self.exprs = get_named_variables(locals())
-        self.output = [inpt[:, start:stop]
-                       for start, stop in zip(starts, stops)]
+        self.outputs = [self.inpt[:, start:stop] for start, stop
+                        in zip(starts, stops)]
 
 
 class Concatenate(Layer):
 
-    def __init__(self, axis=1, name=None):
+    def __init__(self, inpts, axis=1, declare=None, name=None):
+        self.inpts = inpts
         self.axis = axis
-        super(Concatenate, self).__init__(name)
+        super(Concatenate, self).__init__(declare, name)
 
-    def forward(self, *inpts):
-        concatenated = T.concatenate(inpts, self.axis)
-        E = self.exprs = get_named_variables(locals())
-        self.output = [concatenated]
+    def _forward(self):
+        concatenated = T.concatenate(self.inpts, self.axis)
+        self.output = concatenated
 
 
 class SupervisedLoss(Layer):

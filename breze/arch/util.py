@@ -315,7 +315,7 @@ class ParameterSet(object):
 
     def declare(self, shape, group=None):
         if group is not None:
-            raise NotImplementedError()
+            raise NotImplementedError('we do not know about groups yet')
 
         shape = (shape,) if isinstance(shape, int) else shape
         size = np.prod(shape)

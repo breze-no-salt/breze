@@ -47,9 +47,9 @@ class Layer(object):
 
         if declare is None:
             self.parameters = ParameterSet()
-            self._declare = self.parameters.declare
+            self.declare = self.parameters.declare
         else:
-            self._declare = declare
+            self.declare = declare
 
         self._forward()
 

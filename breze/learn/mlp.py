@@ -14,17 +14,20 @@ import theano
 import theano.tensor as T
 import theano.tensor.shared_randomstreams
 
-from breze.arch.component.varprop import loss as loss_
+from breze.arch.component.varprop import loss as vp_loss
 from breze.arch.util import lookup
-from breze.arch.construct.base import SupervisedStack
-from breze.arch.construct.layer import simple, sequential
+from breze.arch.construct import neural
 from breze.arch.construct.layer.varprop import simple as vp_simple
+
+from breze.arch.util import ParameterSet
+from breze.arch.construct.simple import SupervisedLoss
+from breze.learn.base import SupervisedModel
 
 
 # TODO Mlp docs are loss missing
 
 
-class Mlp(SupervisedStack):
+class Mlp(SupervisedModel):
     """Multilayer perceptron class.
 
     This implementation uses a stack of affine mappings with a subsequent
@@ -84,7 +87,7 @@ class Mlp(SupervisedStack):
         self.n_output = n_output
         self.hidden_transfers = hidden_transfers
         self.out_transfer = out_transfer
-        self._loss = loss
+        self.loss_ident = loss
 
         self.optimizer = optimizer
         self.batch_size = batch_size
@@ -95,32 +98,36 @@ class Mlp(SupervisedStack):
 
         self.f_predict = None
 
-        self._init_layers()
+        self._init_exprs()
 
-    def _init_layers(self):
+    def _init_exprs(self):
         inpt = T.matrix('inpt')
         target = T.matrix('target')
-        imp_weight = T.matrix('imp_weight') if self.imp_weight else None
+        parameters = ParameterSet()
 
-        n_incoming = [self.n_inpt] + self.n_hiddens
-        n_outgoing = self.n_hiddens + [self.n_output]
-        transfers = self.hidden_transfers + [self.out_transfer]
+        self.mlp = neural.Mlp(
+            inpt,
+            self.n_inpt, self.n_hiddens, self.n_output,
+            self.hidden_transfers, self.out_transfer,
+            declare=parameters.declare)
 
-        layers = [simple.AffineNonlinear(n, m, f) for n, m, f
-                  in zip(n_incoming, n_outgoing, transfers)]
-        loss = simple.SupervisedLoss(self._loss, target, imp_weight=imp_weight)
+        if self.imp_weight:
+            imp_weight = T.matrix('imp_weight')
+        else:
+            imp_weight = None
 
-        super(Mlp, self).__init__(layers, loss)
 
-        inpt.tag.test_value = np.zeros(
-            (10, self.n_inpt)).astype(theano.config.floatX)
-        target.tag.test_value = np.zeros(
-            (10, self.n_output)).astype(theano.config.floatX)
-        if imp_weight is not None:
-            imp_weight.tag.test_value = np.zeros(
-                (10, self.n_output)).astype(theano.config.floatX)
+        self.loss_layer = SupervisedLoss(
+            target, self.mlp.output, loss=self.loss_ident,
+            imp_weight=imp_weight,
+            declare=parameters.declare,
+        )
 
-        self.forward(inpt)
+        SupervisedModel.__init__(self, inpt=inpt, target=target,
+                                 output=self.mlp.output,
+                                 loss=self.loss_layer.total,
+                                 parameters=parameters)
+        self.exprs['imp_weight'] = imp_weight
 
 
 def dropout_optimizer_conf(
@@ -207,7 +214,7 @@ class DropoutMlp(Mlp):
             verbose=verbose)
 
 
-class FastDropoutNetwork(Mlp):
+class FastDropoutNetwork(SupervisedModel):
     """Class representing an MLP that is trained with fast dropout [FD]_.
 
     This method employs a smooth approximation of dropout training.
@@ -244,10 +251,8 @@ class FastDropoutNetwork(Mlp):
                  batch_size=None,
                  p_dropout_inpt=.2,
                  p_dropout_hiddens=.5,
-                 inpt_var=1e-8,
                  max_iter=1000, verbose=False):
         """Create a FastDropoutMlp object.
-
 
         Parameters
         ----------
@@ -275,39 +280,48 @@ class FastDropoutNetwork(Mlp):
         if not all(0 < i < 1 for i in p_dropouts):
             raise ValueError('dropout rates have to be in (0, 1)')
 
-        self.inpt_var = inpt_var
+        self.n_inpt = n_inpt
+        self.n_hiddens = n_hiddens
+        self.n_output = n_output
+        self.hidden_transfers = hidden_transfers
+        self.out_transfer = out_transfer
+        self.loss_ident = loss
+        self.imp_weight = imp_weight
+        self.optimizer = optimizer
+        self.batch_size = batch_size
+        self.max_iter = max_iter
+        self.verbose = verbose
 
-        super(FastDropoutNetwork, self).__init__(
-            n_inpt, n_hiddens, n_output, hidden_transfers, out_transfer, loss,
-            imp_weight, optimizer, batch_size, max_iter, verbose)
+        self._init_exprs()
 
-    def _init_layers(self):
-        target = T.matrix('target')
-        imp_weight = T.matrix('imp_weight') if self.imp_weight else None
-
-        n_incoming = [self.n_inpt] + self.n_hiddens
-        n_outgoing = self.n_hiddens + [self.n_output]
-        transfers = self.hidden_transfers + [self.out_transfer]
-        p_dropouts = [self.p_dropout_inpt] + self.p_dropout_hiddens
-
-        layers = [vp_simple.AugmentVariance(self.inpt_var)]
-        for n, m, f, d in zip(n_incoming, n_outgoing, transfers, p_dropouts):
-            layers.append(vp_simple.FastDropout(d))
-            layers.append(vp_simple.AffineNonlinear(n, m, f))
-        layers.append(simple.Concatenate())
-
-        f_loss = lookup(self._loss, loss_)
-        loss = simple.SupervisedLoss(f_loss, target, imp_weight=imp_weight)
-
-        super(Mlp, self).__init__(layers, loss)
+    def _init_exprs(self):
         inpt = T.matrix('inpt')
+        target = T.matrix('target')
+        parameters = ParameterSet()
 
-        inpt.tag.test_value = np.zeros(
-            (10, self.n_inpt)).astype(theano.config.floatX)
-        target.tag.test_value = np.zeros(
-            (10, self.n_output)).astype(theano.config.floatX)
-        if imp_weight is not None:
-            imp_weight.tag.test_value = np.zeros(
-                (10, self.n_output)).astype(theano.config.floatX)
+        self.mlp = neural.FastDropoutMlp(
+            inpt,
+            self.n_inpt, self.n_hiddens, self.n_output,
+            self.hidden_transfers, self.out_transfer,
+            self.p_dropout_inpt, self.p_dropout_hiddens,
+            declare=parameters.declare)
 
-        self.forward(inpt)
+        if self.imp_weight:
+            imp_weight = T.matrix('imp_weight')
+        else:
+            imp_weight = None
+
+        output = T.concatenate(self.mlp.outputs, 1)
+
+        self.loss_layer = SupervisedLoss(
+            target, output, loss=lookup(self.loss_ident, vp_loss),
+            imp_weight=imp_weight,
+            declare=parameters.declare,
+        )
+
+        SupervisedModel.__init__(self, inpt=inpt, target=target,
+                                 output=output,
+                                 loss=self.loss_layer.total,
+                                 parameters=parameters)
+        self.exprs['imp_weight'] = imp_weight
+
