@@ -14,13 +14,15 @@ from breze.arch.component.varprop import loss as vp_loss
 from breze.arch.model.varprop import rnn as varprop_rnn
 from breze.arch.model.rnn import rnn, lstm
 from breze.arch.util import ParameterSet, Model, lookup
-from breze.learn.base import (
-    SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase)
-from breze.arch.construct.base import SupervisedStack
-from breze.arch.construct.layer import simple, sequential
-from breze.arch.construct.layer.varprop import (
-        simple as vp_simple, sequential as vp_sequential)
+from breze.learn.base import SupervisedModel
+from breze.arch.construct.simple import SupervisedLoss
+    #SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase)
+from breze.arch.construct import simple, sequential, neural
+#from breze.arch.construct.layer.varprop import (
+        #simple as vp_simple, sequential as vp_sequential)
 #varprop import rnn as varprop_rnn
+
+SupervisedStack = SupervisedBrezeWrapperBase = UnsupervisedBrezeWrapperBase = object
 
 
 # TODO check docstrings (e.g. loss is wrong)
@@ -102,7 +104,7 @@ class BaseRnn(object):
         self.n_output = n_output
         self.hidden_transfers = hidden_transfers
         self.out_transfer = out_transfer
-        self._loss = loss
+        self.loss_ident = loss
         self.pooling = pooling
         self.gradient_clip = gradient_clip
         self.imp_weight = imp_weight
@@ -111,7 +113,7 @@ class BaseRnn(object):
         self.max_iter = max_iter
         self.verbose = verbose
 
-        self._init_layers()
+        self._init_exprs()
 
     def _gauss_newton_product(self):
         """Return a theano expression for the product of the networks
@@ -150,7 +152,7 @@ class BaseRnn(object):
         return f_loss, f_d_loss
 
 
-class SupervisedRnn(BaseRnn, SupervisedStack):
+class SupervisedRnn(BaseRnn, SupervisedModel):
     # TODO document
 
     @property
@@ -160,7 +162,7 @@ class SupervisedRnn(BaseRnn, SupervisedStack):
         else:
             return 1, 0
 
-    def _init_layers(self):
+    def _init_exprs(self):
         inpt = T.tensor3('inpt')
         if self.pooling:
             target = T.matrix('target')
@@ -169,193 +171,27 @@ class SupervisedRnn(BaseRnn, SupervisedStack):
             target = T.tensor3('target')
             imp_weight = T.tensor3('imp_weight') if self.imp_weight else None
 
-        n_incoming = [self.n_inpt] + self.n_hiddens[:-1]
-        n_outgoing = self.n_hiddens
-        transfers = self.hidden_transfers
+        parameters = ParameterSet()
 
-        layers = []
-        s2s = sequential.SequentialToStatic()
-        for n, m, t in zip(n_incoming, n_outgoing, transfers):
-            layers += [s2s,
-                       simple.AffineNonlinear(n, m),
-                       s2s.inverse,
-                       sequential.Recurrent(m, t)]
-        layers += [
-            s2s,
-            simple.AffineNonlinear(
-                n_outgoing[-1], self.n_output, self.out_transfer),
-            s2s.inverse]
+        self.rnn = neural.Rnn(
+            inpt,
+            self.n_inpt, self.n_hiddens, self.n_output,
+            self.hidden_transfers, self.out_transfer,
+            pooling=self.pooling,
+            declare=parameters.declare)
 
-        if self.pooling:
-            layers.append(sequential.Pooling(self.pooling))
+        self.loss_layer = SupervisedLoss(
+            target, self.rnn.output, loss=self.loss_ident,
+            imp_weight=imp_weight,
+            declare=parameters.declare)
 
-        comp_dim = 1 if self.pooling else 2
+        SupervisedModel.__init__(
+            self, inpt=inpt, target=target, output=self.rnn.output,
+            loss=self.loss_layer.total,
+            parameters=parameters)
 
-        loss = simple.SupervisedLoss(
-            self._loss, target, imp_weight=imp_weight, comp_dim=comp_dim)
-
-        SupervisedStack.__init__(self, layers, loss)
-        self.forward(inpt)
-
-
-
-class UnsupervisedRnn(BaseRnn, UnsupervisedBrezeWrapperBase):
-    """Class implementing recurrent neural networks for unsupervised learning.
-
-    The class inherits from breze's RecurrentNetwork class and adds several
-    sklearn like methods.
-    """
-
-    sample_dim = 1,
-
-    def _init_exprs(self):
-        super(UnsupervisedRnn, self)._init_exprs()
-        self.exprs.update(unsupervised_loss(self.exprs['output'], self.loss, 2))
-
-
-class BaseLstmRnn(Model):
-    """Base class for LSTM-RNNs.
-
-    Parameters
-    ----------
-
-    n_inpt : integer
-        Number of inputs per time step to the network.
-
-    n_hidden : integer
-        Size of the hidden state.
-
-    n_output : integer
-        Size of the output of the network.
-
-    out_transfer : string or functions
-        Output function to use for the network. This can either (a) be a string
-        and reference a transfer function from ``breze.arch.component.transfer``
-        or (b) a function which takes a theano tensor3 and returns a tensor of equal
-        size.
-
-    loss : string or function
-        Loss which is going to be optimized. This can either be a string and
-        reference a loss function found in ``breze.arch.component.distance`` or
-        a function which takes two theano tensors (one being the output of the
-        network, the other some target) and returns a theano scalar.
-
-    pooling: string
-        One of ``sum``, ``mean``, ``prod``, ``min``, ``max`` or ``None``. If
-        not None, the output is pooled over the time dimension, essentially
-        making the network return a tensor2 instead of a tensor3.
-
-    optimizer : string, pair
-        Argument is passed to ``climin.util.optimizer`` to construct an
-        optimizer.
-
-    batch_size : integer, None
-        Number of examples per batch when calculting the loss
-        and its derivatives. None means to use all samples every time.
-
-    gradient_clip : float, optional [default: False]
-        If the length of a gradient ever exceeds this value during training,
-        the gradient is renormalized to this value.
-
-    max_iter : int
-        Maximum number of optimization iterations to perform. Only respected
-        during``.fit()``, not ``.iter_fit()``.
-
-    verbose : boolean
-        Flag indicating whether to print out information during fitting.
-    """
-
-    def __init__(self, n_inpt, n_hiddens, n_output,
-                 hidden_transfers, out_transfer='identity',
-                 loss='squared', pooling=None,
-                 leaky_coeffs=None,
-                 gradient_clip=False,
-                 optimizer='rprop',
-                 batch_size=None,
-                 max_iter=1000,
-                 verbose=False):
-        self.n_inpt = n_inpt
-        self.n_hiddens = n_hiddens
-        self.n_output = n_output
-        self.hidden_transfers = hidden_transfers
-        self.out_transfer = out_transfer
-        self.loss = loss
-        self.pooling = pooling
-        self.gradient_clip = gradient_clip
-        self.optimizer = optimizer
-        self.batch_size = batch_size
-        self.max_iter = max_iter
-        self.verbose = verbose
-
-        super(BaseLstmRnn, self).__init__()
-
-    def _init_pars(self):
-        spec = lstm.parameters(self.n_inpt, self.n_hiddens, self.n_output)
-        self.parameters = ParameterSet(**spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
-
-    def _init_exprs(self):
-        self.exprs = {'inpt': T.tensor3('inpt')}
-        P = self.parameters
-
-        n_layers = len(self.n_hiddens)
-        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                             for i in range(n_layers - 1)]
-        recurrents = [getattr(P, 'recurrent_%i' % i)
-                      for i in range(n_layers)]
-        #initial_hiddens = [getattr(P, 'initial_hiddens_%i' % i)
-        #                   for i in range(n_layers)]
-        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
-                         for i in range(n_layers)]
-
-        ingate_peepholes = [getattr(P, 'ingate_peephole_%i' % i)
-                            for i in range(n_layers)]
-        outgate_peepholes = [getattr(P, 'outgate_peephole_%i' % i)
-                             for i in range(n_layers)]
-        forgetgate_peepholes = [getattr(P, 'forgetgate_peephole_%i' % i)
-                                for i in range(n_layers)]
-
-        self.exprs.update(lstm.exprs(
-            self.exprs['inpt'], P.in_to_hidden, hidden_to_hiddens,
-            P.hidden_to_out, hidden_biases,
-            recurrents, P.out_bias, ingate_peepholes, outgate_peepholes,
-            forgetgate_peepholes, self.hidden_transfers, self.out_transfer,
-            self.pooling))
-
-
-class SupervisedLstmRnn(BaseLstmRnn, SupervisedBrezeWrapperBase):
-    """Class implementing recurrent neural networks with LSTM cells for
-    supervised learning.
-
-    The class inherits from breze's RecurrentNetwork class and adds several
-    sklearn like methods.
-    """
-
-    sample_dim = 1, 1
-
-    def _init_exprs(self):
-        super(SupervisedLstmRnn, self)._init_exprs()
-        if self.pooling:
-            self.exprs['target'] = T.matrix('target')
-        else:
-            self.exprs['target'] = T.tensor3('target')
-        self.exprs.update(supervised_loss(
-            self.exprs['target'], self.exprs['output'], self.loss, 2))
-
-
-class UnsupervisedLstmRnn(BaseLstmRnn, UnsupervisedBrezeWrapperBase):
-    """Class implementing recurrent neural networks with LSTM cells for
-    unsupervised learning.
-
-    The class inherits from breze's RecurrentNetwork class and adds several
-    sklearn like methods.
-    """
-    sample_dim = 1,
-
-    def _init_exprs(self):
-        super(UnsupervisedLstmRnn, self)._init_exprs()
-        self.exprs.update(unsupervised_loss(self.exprs['output'], self.loss, 2))
+        if self.imp_weight:
+            self.exprs['imp_weight'] = imp_weight
 
 
 class SupervisedFastDropoutRnn(BaseRnn, SupervisedStack):
