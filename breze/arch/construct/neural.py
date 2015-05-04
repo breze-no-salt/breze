@@ -7,7 +7,8 @@ from breze.arch.construct.base import Layer
 
 from breze.arch.construct import simple
 from breze.arch.construct import sequential
-from breze.arch.construct.layer.varprop import simple as vp_simple
+from breze.arch.construct.layer.varprop import (
+    simple as vp_simple, sequential as vp_sequential)
 
 
 class Mlp(Layer):
@@ -128,6 +129,75 @@ class Rnn(Layer):
 
         if self.pooling:
             self.pre_pooling = output
-            self.output = sequential.Pooling(self.pooling).output
+            self.output = sequential.Pooling(output, self.pooling).output
         else:
             self.output = output
+
+
+class FastDropoutRnn(Layer):
+
+    def __init__(self, inpt,
+                 n_inpt, n_hiddens, n_output,
+                 hidden_transfers, out_transfer='identity',
+                 p_dropout_inpt=.2,
+                 p_dropout_hiddens=.5,
+                 p_dropout_hidden_to_out=None,
+                 pooling=None,
+                 declare=None, name=None):
+        self.inpt = inpt
+        self.n_inpt = n_inpt
+        self.n_hiddens = n_hiddens
+        self.n_output = n_output
+        self.hidden_transfers = hidden_transfers
+        self.out_transfer = out_transfer
+        self.pooling = pooling
+
+        self.p_dropout_inpt = p_dropout_inpt
+        self.p_dropout_hiddens = p_dropout_hiddens
+        self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
+
+        super(FastDropoutRnn, self).__init__(declare, name)
+
+    def _forward(self):
+        n_incoming = [self.n_inpt] + self.n_hiddens[:-1]
+        n_outgoing = self.n_hiddens
+        transfers = self.hidden_transfers
+        p_dropouts = self.p_dropout_hiddens
+
+        n_time_steps, _, _ = self.inpt.shape
+
+        self.layers = []
+        inpt_var = T.zeros_like(self.inpt)
+
+        x_mean, x_var = vp_simple.FastDropout(
+            self.inpt, inpt_var, self.p_dropout_inpt).outputs
+
+        for m, n, t, d in zip(n_incoming, n_outgoing, transfers, p_dropouts):
+            x_mean_flat = x_mean.reshape((-1, m))
+            x_var_flat = x_var.reshape((-1, m))
+
+            pre_rec_mean_flat, pre_rec_var_flat = vp_simple.AffineNonlinear(
+                x_mean_flat, x_var_flat, m, n, t, declare=self.declare).outputs
+
+            pre_rec_mean = pre_rec_mean_flat.reshape((n_time_steps, -1, n))
+            pre_rec_var = pre_rec_var_flat.reshape((n_time_steps, -1, n))
+
+            x_mean, x_var = vp_sequential.FDRecurrent(
+                pre_rec_mean, pre_rec_var, n, t, p_dropout=d,
+                declare=self.declare).outputs
+
+        x_mean_flat = x_mean.reshape((-1, n))
+        x_var_flat = x_var.reshape((-1, n))
+        output_mean_flat, output_var_flat = vp_simple.AffineNonlinear(
+            x_mean_flat, x_var_flat, n, self.n_output, self.out_transfer,
+            declare=self.declare).outputs
+
+        output_mean = output_mean_flat.reshape(
+            (n_time_steps, -1, self.n_output))
+        output_var = output_var_flat.reshape(
+            (n_time_steps, -1, self.n_output))
+
+        if self.pooling:
+            raise NotImplemented()
+
+        self.outputs = output_mean, output_var

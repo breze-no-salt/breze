@@ -30,6 +30,7 @@ class Recurrent(Layer):
 class Pooling(Layer):
 
     def __init__(self, inpt, typ='mean', declare=None, name=None):
+        self.inpt = inpt
         self.typ = typ
         super(Pooling, self).__init__(declare=None, name=name)
 

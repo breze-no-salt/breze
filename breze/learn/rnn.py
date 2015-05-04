@@ -4,25 +4,13 @@
 
 
 import numpy as np
-import theano
 import theano.tensor as T
 
 from breze.arch.component.misc import project_into_l2_ball
-from breze.arch.component.common import supervised_loss, unsupervised_loss
-from breze.arch.component.varprop.common import supervised_loss as varprop_supervised_loss
 from breze.arch.component.varprop import loss as vp_loss
-from breze.arch.model.varprop import rnn as varprop_rnn
-from breze.arch.model.rnn import rnn, lstm
-from breze.arch.util import ParameterSet, Model, lookup
+from breze.arch.util import ParameterSet, lookup
 from breze.learn.base import SupervisedModel
-from breze.arch.construct.simple import SupervisedLoss
-    #SupervisedBrezeWrapperBase, UnsupervisedBrezeWrapperBase)
-from breze.arch.construct import simple, sequential, neural
-#from breze.arch.construct.layer.varprop import (
-        #simple as vp_simple, sequential as vp_sequential)
-#varprop import rnn as varprop_rnn
-
-SupervisedStack = SupervisedBrezeWrapperBase = UnsupervisedBrezeWrapperBase = object
+from breze.arch.construct import simple, neural
 
 
 # TODO check docstrings (e.g. loss is wrong)
@@ -52,8 +40,8 @@ class BaseRnn(object):
     out_transfer : string or functions
         Output function to use for the network. This can either (a) be a string
         and reference a transfer function from ``breze.arch.component.transfer``
-        or (b) a function which takes a theano tensor3 and returns a tensor of equal
-        size.
+        or (b) a function which takes a theano tensor3 and returns a tensor of
+        equal size.
 
     loss : string or function
         Loss which is going to be optimized. This can either be a string and
@@ -167,9 +155,11 @@ class SupervisedRnn(BaseRnn, SupervisedModel):
         if self.pooling:
             target = T.matrix('target')
             imp_weight = T.matrix('imp_weight') if self.imp_weight else None
+            comp_dim = 1
         else:
             target = T.tensor3('target')
             imp_weight = T.tensor3('imp_weight') if self.imp_weight else None
+            comp_dim = 2
 
         parameters = ParameterSet()
 
@@ -180,10 +170,11 @@ class SupervisedRnn(BaseRnn, SupervisedModel):
             pooling=self.pooling,
             declare=parameters.declare)
 
-        self.loss_layer = SupervisedLoss(
+        self.loss_layer = simple.SupervisedLoss(
             target, self.rnn.output, loss=self.loss_ident,
             imp_weight=imp_weight,
-            declare=parameters.declare)
+            declare=parameters.declare,
+            comp_dim=comp_dim)
 
         SupervisedModel.__init__(
             self, inpt=inpt, target=target, output=self.rnn.output,
@@ -194,7 +185,7 @@ class SupervisedRnn(BaseRnn, SupervisedModel):
             self.exprs['imp_weight'] = imp_weight
 
 
-class SupervisedFastDropoutRnn(BaseRnn, SupervisedStack):
+class SupervisedFastDropoutRnn(BaseRnn, SupervisedModel):
 
     sample_dim = 1, 1
 
@@ -209,6 +200,9 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedStack):
                  batch_size=None,
                  max_iter=1000,
                  verbose=False):
+        if pooling is not None:
+            raise NotImplemented()
+
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hiddens = p_dropout_hiddens
 
@@ -228,38 +222,50 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedStack):
             optimizer=optimizer, batch_size=batch_size, max_iter=max_iter,
             verbose=verbose, imp_weight=imp_weight)
 
-    def _init_layers(self):
+    def _init_exprs(self):
         inpt = T.tensor3('inpt')
-        target = T.tensor3('target')
-        imp_weight = None if not self.imp_weight else T.tensor3('imp_weight')
+        inpt.tag.test_value = np.zeros((3, 2, self.n_inpt))
+        if self.pooling:
+            target = T.matrix('target')
+            target.tag.test_value = np.zeros((2, self.n_output))
+            if self.imp_weight:
+                imp_weight = T.matrix('imp_weight')
+                imp_weight.tag.test_value = np.ones((2, self.n_output))
+            else:
+                imp_weight = None
+        else:
+            target = T.tensor3('target')
+            target.tag.test_value = np.zeros((3, 2, self.n_output))
+            if self.imp_weight:
+                imp_weight = T.tensor3('imp_weight')
+                imp_weight.tag.test_value = np.ones((3, 2, self.n_output))
+            else:
+                imp_weight = None
 
-        n_incoming = [self.n_inpt] + self.n_hiddens[:-1]
-        n_outgoing = self.n_hiddens
-        transfers = self.hidden_transfers
-        p_dropouts = self.p_dropout_hiddens
+        parameters = ParameterSet()
 
-        s2s = sequential.SequentialToStatic()
-        layers = [s2s,
-                  vp_simple.AugmentVariance(),
-                  vp_simple.FastDropout(self.p_dropout_inpt),
-                  s2s.inverse]
+        self.rnn = neural.FastDropoutRnn(
+            inpt,
+            self.n_inpt, self.n_hiddens, self.n_output,
+            self.hidden_transfers, self.out_transfer,
+            p_dropout_inpt=self.p_dropout_inpt,
+            p_dropout_hiddens=self.p_dropout_hiddens,
+            p_dropout_hidden_to_out=self.p_dropout_hidden_to_out,
+            pooling=self.pooling,
+            declare=parameters.declare)
 
-        for n, m, t, d in zip(n_incoming, n_outgoing, transfers, p_dropouts):
-            layers += [s2s,
-                       vp_simple.AffineNonlinear(n, m),
-                       s2s.inverse,
-                       vp_sequential.FDRecurrent(m, t, d)]
-        layers += [
-            s2s,
-            vp_simple.FastDropout(self.p_dropout_hidden_to_out),
-            vp_simple.AffineNonlinear(
-                n_outgoing[-1], self.n_output, self.out_transfer),
-            s2s.inverse,
-            simple.Concatenate(2)]
+        f_loss = lookup(self.loss_ident, vp_loss)
+        output = T.concatenate(self.rnn.outputs, 2)
+        self.loss_layer = simple.SupervisedLoss(
+            target, output, loss=f_loss,
+            imp_weight=imp_weight,
+            declare=parameters.declare,
+            comp_dim=2)
 
-        loss_ = lookup(self._loss, vp_loss)
-        loss = simple.SupervisedLoss(
-            loss_, target, imp_weight=imp_weight, comp_dim=2)
+        SupervisedModel.__init__(
+            self, inpt=inpt, target=target, output=output,
+            loss=self.loss_layer.total,
+            parameters=parameters)
 
-        SupervisedStack.__init__(self, layers, loss)
-        self.forward(inpt)
+        if self.imp_weight:
+            self.exprs['imp_weight'] = imp_weight

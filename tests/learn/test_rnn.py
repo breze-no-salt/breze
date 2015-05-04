@@ -7,8 +7,7 @@ from theano.gradient import jacobian
 
 from breze.learn.rnn import (
     SupervisedFastDropoutRnn,
-    SupervisedRnn, UnsupervisedRnn,
-    SupervisedLstmRnn, UnsupervisedLstmRnn)
+    SupervisedRnn)
 from breze.learn.utils import theano_floatx
 
 from nose.plugins.skip import SkipTest
@@ -72,13 +71,28 @@ def test_srnn_predict():
     rnn.predict(X)
 
 
-def test_fd_srnn_fit():
-    raise SkipTest()
+def test_fd_srnn_compile():
+    theano.config.compute_test_value = 'raise'
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
     W = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
     X, Z, W = theano_floatx(X, Z, W)
-    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'], max_iter=10)
+    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'],
+                                   max_iter=10)
+
+    f_loss, f_dloss = rnn._make_loss_functions()
+    f_loss(rnn.parameters.data, X, Z)
+    f_dloss(rnn.parameters.data, X, Z)
+
+
+def test_fd_srnn_fit():
+    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
+    Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
+    W = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
+    X, Z, W = theano_floatx(X, Z, W)
+
+    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'],
+                                   max_iter=10)
     rnn.fit(X, Z)
 
     rnn = SupervisedFastDropoutRnn(
@@ -92,11 +106,11 @@ def test_fd_srnn_fit():
 
 
 def test_fd_srnn_iter_fit():
-    raise SkipTest()
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
     X, Z = theano_floatx(X, Z)
-    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'], max_iter=10)
+    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'],
+                                   max_iter=10)
     for i, info in enumerate(rnn.iter_fit(X, Z)):
         if i >= 10:
             break
@@ -110,94 +124,16 @@ def test_fd_srnn_iter_fit():
 
 
 def test_fd_srnn_predict():
-    raise SkipTest()
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     X, = theano_floatx(X)
-    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'], max_iter=10)
+    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'],
+                                   max_iter=10)
     rnn.predict(X)
 
     rnn = SupervisedFastDropoutRnn(
         2, [10, 20], 3, hidden_transfers=['rectifier', 'tanh'],
         max_iter=2)
     rnn.predict(X)
-
-
-def test_usrnn_fit():
-    raise SkipTest()
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = UnsupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], loss=lambda x: T.log(x), max_iter=10)
-    rnn.fit(X)
-
-
-def test_usrnn_iter_fit():
-    raise SkipTest()
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = UnsupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], loss=lambda x: T.log(x), max_iter=10)
-    for i, info in enumerate(rnn.iter_fit(X)):
-        if i >= 10:
-            break
-
-
-def test_usrnn_transform():
-    raise SkipTest()
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = UnsupervisedRnn(2, [10], 3, hidden_transfers=['tanh'],
-                          loss=lambda x: T.log(x), max_iter=10)
-    rnn.transform(X)
-
-
-def test_slstm():
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
-    X, Z = theano_floatx(X, Z)
-    rnn = SupervisedLstmRnn(2, [10], 3, hidden_transfers=['sigmoid'], max_iter=10)
-    rnn.fit(X, Z)
-
-
-def test_slstm_iter_fit():
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
-    X, Z = theano_floatx(X, Z)
-    rnn = SupervisedLstmRnn(2, [10], 3, hidden_transfers=['sigmoid'], max_iter=10)
-    for i, info in enumerate(rnn.iter_fit(X, Z)):
-        if i >= 10:
-            break
-
-
-def test_slstm_predict():
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = SupervisedLstmRnn(2, [10], 3, hidden_transfers=['sigmoid'], max_iter=10)
-    rnn.predict(X)
-
-
-def test_uslstm_fit():
-    raise SkipTest()
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = UnsupervisedLstm(2, [10], 3, loss=lambda x: T.log(x), max_iter=10)
-    rnn.fit(X)
-
-
-def test_uslstm_iter_fit():
-    raise SkipTest()
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = UnsupervisedLstm(2, [10], 3, loss=lambda x: T.log(x), max_iter=10)
-    for i, info in enumerate(rnn.iter_fit(X)):
-        if i >= 10:
-            break
-
-
-def test_uslstm_transform():
-    raise SkipTest()
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = UnsupervisedLstm(2, [10], 3, loss=lambda x: T.log(x), max_iter=10)
-    rnn.transform(X)
 
 
 def test_gn_product_rnn():
@@ -211,7 +147,8 @@ def test_gn_product_rnn():
                         loss='squared')
     rnn.parameters.data[:] = np.random.normal(0, 1, rnn.parameters.data.shape)
     X = np.random.random((n_timesteps, 1, n_inpt)).astype(theano.config.floatX)
-    Z = np.random.random((n_timesteps, 1, n_output)).astype(theano.config.floatX)
+    Z = np.random.random((n_timesteps, 1, n_output)
+                         ).astype(theano.config.floatX)
     X, Z = theano_floatx(X, Z)
 
     # Calculate the GN explicitly.
