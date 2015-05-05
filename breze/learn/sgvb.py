@@ -466,7 +466,6 @@ class GenericVariationalAutoEncoder(UnsupervisedModel,
 
         # TODO this is not going to work with variance propagation.
         self.imp_weight = False if not self.imp_weight_switch else self._fix_imp_weight(n_dim)
-        print "self.imp_weight", self.imp_weight
         rec_loss = supervised_loss(
             inpt, self.vae.output, self.assumptions.nll_gen_model, coord_axis=n_dim - 1, imp_weight=self.imp_weight)['loss_coord_wise']
         self.rec_loss_sample_wise = rec_loss.sum(axis=n_dim - 1)
@@ -612,6 +611,8 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
 
         if isinstance(p_dropout_hiddens, float):
             p_rec_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
+        else:
+            p_rec_dropout_hiddens = p_dropout_hiddens
 
 
         rec_class = lambda inpt, declare: neural.FastDropoutMlp(
@@ -624,13 +625,15 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
 
         if isinstance(p_dropout_hiddens, float):
             p_gen_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_gen)
+        else:
+            p_gen_dropout_hiddens = p_dropout_hiddens
 
         gen_class = lambda inpt, declare: neural.FastDropoutMlp(
             inpt, assumptions.latent_layer_size(n_latent),
             n_hiddens_gen,
             assumptions.visible_layer_size(n_inpt),
             gen_transfers, assumptions.statify_visible,
-            p_dropout_hiddens, p_gen_dropout_hiddens,
+            p_dropout_hiddens[-1], p_gen_dropout_hiddens,
             declare=declare)
 
 
