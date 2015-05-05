@@ -310,7 +310,8 @@ class ParameterSet(object):
             self.flat = theano.sandbox.cuda.fvector('parameters')
         else:
             self.flat = T.vector('parameters')
-        self.flat.tag.test_value = np.empty((2048,), dtype='float16')
+        self.flat.tag.test_value = np.empty(
+            (2048,), dtype=theano.config.floatX)
 
     def declare(self, shape, group=None):
         if group is not None:
