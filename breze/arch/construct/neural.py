@@ -154,7 +154,7 @@ class FastDropoutRnn(Layer):
     InputLayer = namedtuple('InputLayer', ['fast_dropout'])
     HiddenLayer = namedtuple('HiddenLayer',
                              'affine recurrent'.split())
-    OutputLayer = namedtuple('OutputLayer', ['affine'])
+    OutputLayer = namedtuple('OutputLayer', 'fast_dropout affine'.split())
 
     def __init__(self, inpt,
                  n_inpt, n_hiddens, n_output,
@@ -214,13 +214,14 @@ class FastDropoutRnn(Layer):
 
         x_mean_flat = x_mean.reshape((-1, n))
         x_var_flat = x_var.reshape((-1, n))
-        x_mean_flat, x_var_flat = vp_simple.FastDropout(
-            x_mean_flat, x_var_flat, self.p_dropout_hidden_to_out).outputs
+        fd = vp_simple.FastDropout(
+            x_mean_flat, x_var_flat, self.p_dropout_hidden_to_out)
+        x_mean_flat, x_var_flat = fd.outputs
         affine = vp_simple.AffineNonlinear(
             x_mean_flat, x_var_flat, n, self.n_output, self.out_transfer,
             declare=self.declare)
         output_mean_flat, output_var_flat = affine.outputs
-        self.layers.append(self.OutputLayer(affine))
+        self.layers.append(self.OutputLayer(fd, affine))
 
         output_mean = output_mean_flat.reshape(
             (n_time_steps, -1, self.n_output))
