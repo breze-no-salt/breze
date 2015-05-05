@@ -19,12 +19,12 @@ class Recurrent(Layer):
 
     def _forward(self):
 
-        weights = self.declare((self.n_inpt, self.n_inpt))
-        initial = self.declare((self.n_inpt,))
+        self.weights = self.declare((self.n_inpt, self.n_inpt))
+        self.initial = self.declare((self.n_inpt,))
 
         f = lookup(self.transfer, _transfer)
         self.output_in, self.output = recurrent_layer(
-            self.inpt, weights, f, initial)
+            self.inpt, self.weights, f, self.initial)
 
 
 class Pooling(Layer):

@@ -3,6 +3,7 @@
 """Module for learning various types of recurrent networks."""
 
 
+import climin.initialize
 import numpy as np
 import theano.tensor as T
 
@@ -184,6 +185,34 @@ class SupervisedRnn(BaseRnn, SupervisedModel):
         if self.imp_weight:
             self.exprs['imp_weight'] = imp_weight
 
+    def initialize(self,
+                   par_std=1, par_std_affine=None, par_std_rec=None,
+                   par_std_in=None,
+                   sparsify_affine=None, sparsify_rec=None,
+                   spectral_radius=None):
+        climin.initialize.randomize_normal(self.parameters.data, 0, par_std)
+        for i, layer in enumerate(self.rnn.layers):
+            if hasattr(layer, 'recurrent'):
+                p = self.parameters[layer.recurrent.weights]
+                if par_std_rec:
+                    climin.initialize.randomize_normal(p, 0, par_std_rec)
+                if sparsify_rec:
+                    climin.initialize.sparsify_columns(p, sparsify_rec)
+                if spectral_radius:
+                    climin.initialize.bound_spectral_radius(p, spectral_radius)
+                self.parameters[layer.recurrent.initial][...] = 0
+            if hasattr(layer, 'affine'):
+                p = self.parameters[layer.affine.weights]
+                if par_std_affine:
+                    if i == 0 and par_std_in:
+                        climin.initialize.randomize_normal(p, 0, par_std_in)
+                    else:
+                        climin.initialize.randomize_normal(p, 0, par_std_affine)
+                if sparsify_affine:
+                    climin.initialize.sparsify_columns(p, sparsify_affine)
+
+                self.parameters[layer.affine.bias][...] = 0
+
 
 class SupervisedFastDropoutRnn(BaseRnn, SupervisedModel):
 
@@ -269,3 +298,32 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedModel):
 
         if self.imp_weight:
             self.exprs['imp_weight'] = imp_weight
+
+    def initialize(self,
+                   par_std=1, par_std_affine=None, par_std_rec=None,
+                   par_std_in=None,
+                   sparsify_affine=None, sparsify_rec=None,
+                   spectral_radius=None):
+        climin.initialize.randomize_normal(self.parameters.data, 0, par_std)
+        for i, layer in enumerate(self.rnn.layers):
+            if hasattr(layer, 'recurrent'):
+                p = self.parameters[layer.recurrent.weights]
+                if par_std_rec:
+                    climin.initialize.randomize_normal(p, 0, par_std_rec)
+                if sparsify_rec:
+                    climin.initialize.sparsify_columns(p, sparsify_rec)
+                if spectral_radius:
+                    climin.initialize.bound_spectral_radius(p, spectral_radius)
+                self.parameters[layer.recurrent.initial_mean][...] = 0
+                self.parameters[layer.recurrent.initial_std][...] = 1e-8
+            if hasattr(layer, 'affine'):
+                p = self.parameters[layer.affine.weights]
+                if par_std_affine:
+                    if i == 0 and par_std_in:
+                        climin.initialize.randomize_normal(p, 0, par_std_in)
+                    else:
+                        climin.initialize.randomize_normal(p, 0, par_std_affine)
+                if sparsify_affine:
+                    climin.initialize.sparsify_columns(p, sparsify_affine)
+
+                self.parameters[layer.affine.bias][...] = 0

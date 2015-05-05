@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 
+from collections import namedtuple
+
 import theano.tensor as T
 
 from breze.arch.construct.base import Layer
@@ -88,6 +90,9 @@ class FastDropoutMlp(Layer):
 
 class Rnn(Layer):
 
+    HiddenLayer = namedtuple('HiddenLayer', 'affine recurrent'.split())
+    OutputLayer = namedtuple('OutputLayer', ['affine'])
+
     def __init__(self, inpt,
                  n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer='identity',
@@ -114,18 +119,28 @@ class Rnn(Layer):
         x = self.inpt
         for n, m, t in zip(n_incoming, n_outgoing, transfers):
             x_flat = x.reshape((-1, n))
-            pre_recurrent_flat = simple.AffineNonlinear(
-                x_flat, n, m, t, declare=self.declare).output
+
+            affine = simple.AffineNonlinear(
+                x_flat, n, m, t, declare=self.declare)
+            pre_recurrent_flat = affine.output
+
             pre_recurrent = pre_recurrent_flat.reshape(
                 (n_time_steps, -1, m))
-            x = sequential.Recurrent(
-                pre_recurrent, m, t, declare=self.declare).output
+
+            recurrent = sequential.Recurrent(
+                pre_recurrent, m, t, declare=self.declare)
+            x = recurrent.output
+
+            self.layers.append(self.HiddenLayer(affine, recurrent))
 
         x_flat = x.reshape((-1, m))
-        output_flat = simple.AffineNonlinear(
+        output_affine = simple.AffineNonlinear(
             x_flat, m, self.n_output, self.out_transfer, declare=self.declare
-            ).output
-        output = output_flat.reshape((n_time_steps, -1, self.n_output))
+            )
+
+        self.layers.append(self.OutputLayer(affine))
+
+        output = output_affine.output.reshape((n_time_steps, -1, self.n_output))
 
         if self.pooling:
             self.pre_pooling = output
@@ -135,6 +150,11 @@ class Rnn(Layer):
 
 
 class FastDropoutRnn(Layer):
+
+    InputLayer = namedtuple('InputLayer', ['fast_dropout'])
+    HiddenLayer = namedtuple('HiddenLayer',
+                             'affine recurrent'.split())
+    OutputLayer = namedtuple('OutputLayer', ['affine'])
 
     def __init__(self, inpt,
                  n_inpt, n_hiddens, n_output,
@@ -169,28 +189,38 @@ class FastDropoutRnn(Layer):
         self.layers = []
         inpt_var = T.zeros_like(self.inpt)
 
-        x_mean, x_var = vp_simple.FastDropout(
-            self.inpt, inpt_var, self.p_dropout_inpt).outputs
+        fd_layer = vp_simple.FastDropout(
+            self.inpt, inpt_var, self.p_dropout_inpt)
+        self.layers.append(self.InputLayer(fd_layer))
+        x_mean, x_var = fd_layer.outputs
 
         for m, n, t, d in zip(n_incoming, n_outgoing, transfers, p_dropouts):
             x_mean_flat = x_mean.reshape((-1, m))
             x_var_flat = x_var.reshape((-1, m))
 
-            pre_rec_mean_flat, pre_rec_var_flat = vp_simple.AffineNonlinear(
-                x_mean_flat, x_var_flat, m, n, t, declare=self.declare).outputs
+            affine = vp_simple.AffineNonlinear(
+                x_mean_flat, x_var_flat, m, n, t, declare=self.declare)
+            pre_rec_mean_flat, pre_rec_var_flat = affine.outputs
 
             pre_rec_mean = pre_rec_mean_flat.reshape((n_time_steps, -1, n))
             pre_rec_var = pre_rec_var_flat.reshape((n_time_steps, -1, n))
 
-            x_mean, x_var = vp_sequential.FDRecurrent(
+            recurrent = vp_sequential.FDRecurrent(
                 pre_rec_mean, pre_rec_var, n, t, p_dropout=d,
-                declare=self.declare).outputs
+                declare=self.declare)
+            x_mean, x_var = recurrent.outputs
+
+            self.layers.append(self.HiddenLayer(affine, recurrent))
 
         x_mean_flat = x_mean.reshape((-1, n))
         x_var_flat = x_var.reshape((-1, n))
-        output_mean_flat, output_var_flat = vp_simple.AffineNonlinear(
+        x_mean_flat, x_var_flat = vp_simple.FastDropout(
+            x_mean_flat, x_var_flat, self.p_dropout_hidden_to_out).outputs
+        affine = vp_simple.AffineNonlinear(
             x_mean_flat, x_var_flat, n, self.n_output, self.out_transfer,
-            declare=self.declare).outputs
+            declare=self.declare)
+        output_mean_flat, output_var_flat = affine.outputs
+        self.layers.append(self.OutputLayer(affine))
 
         output_mean = output_mean_flat.reshape(
             (n_time_steps, -1, self.n_output))
