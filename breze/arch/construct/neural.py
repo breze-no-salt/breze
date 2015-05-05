@@ -199,7 +199,7 @@ class FastDropoutRnn(Layer):
             x_var_flat = x_var.reshape((-1, m))
 
             affine = vp_simple.AffineNonlinear(
-                x_mean_flat, x_var_flat, m, n, t, declare=self.declare)
+                x_mean_flat, x_var_flat, m, n, 'identity', declare=self.declare)
             pre_rec_mean_flat, pre_rec_var_flat = affine.outputs
 
             pre_rec_mean = pre_rec_mean_flat.reshape((n_time_steps, -1, n))
