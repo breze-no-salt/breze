@@ -10,7 +10,7 @@ import theano.tensor as T
 from breze.arch.component.misc import project_into_l2_ball
 from breze.arch.component.varprop import loss as vp_loss
 from breze.arch.util import ParameterSet, lookup
-from breze.learn.base import SupervisedModel
+from breze.learn.base import SupervisedModel, theanox
 from breze.arch.construct import simple, neural
 
 
@@ -253,21 +253,23 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedModel):
 
     def _init_exprs(self):
         inpt = T.tensor3('inpt')
-        inpt.tag.test_value = np.zeros((3, 2, self.n_inpt))
+        inpt.tag.test_value = theanox(np.zeros((3, 2, self.n_inpt)))
         if self.pooling:
             target = T.matrix('target')
-            target.tag.test_value = np.zeros((2, self.n_output))
+            target.tag.test_value = theanox(np.zeros((2, self.n_output)))
             if self.imp_weight:
                 imp_weight = T.matrix('imp_weight')
-                imp_weight.tag.test_value = np.ones((2, self.n_output))
+                imp_weight.tag.test_value = theanox(
+                    np.ones((2, self.n_output)))
             else:
                 imp_weight = None
         else:
             target = T.tensor3('target')
-            target.tag.test_value = np.zeros((3, 2, self.n_output))
+            target.tag.test_value = theanox(np.zeros((3, 2, self.n_output)))
             if self.imp_weight:
                 imp_weight = T.tensor3('imp_weight')
-                imp_weight.tag.test_value = np.ones((3, 2, self.n_output))
+                imp_weight.tag.test_value = theanox(
+                    np.ones((3, 2, self.n_output)))
             else:
                 imp_weight = None
 
