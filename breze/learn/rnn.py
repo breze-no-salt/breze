@@ -310,10 +310,10 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedModel):
                 p = self.parameters[layer.recurrent.weights]
                 if par_std_rec:
                     climin.initialize.randomize_normal(p, 0, par_std_rec)
-                if sparsify_rec:
-                    climin.initialize.sparsify_columns(p, sparsify_rec)
                 if spectral_radius:
                     climin.initialize.bound_spectral_radius(p, spectral_radius)
+                if sparsify_rec:
+                    climin.initialize.sparsify_columns(p, sparsify_rec)
                 self.parameters[layer.recurrent.initial_mean][...] = 0
                 self.parameters[layer.recurrent.initial_std][...] = 1e-8
             if hasattr(layer, 'affine'):
