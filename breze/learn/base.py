@@ -42,6 +42,8 @@ def cast_array_to_local_type(arr):
         res = arr.astype(theano.config.floatX)
     return res
 
+theanox = cast_array_to_local_type
+
 
 def assert_ndarray(arr):
     """If ``arr`` is a ``gnumpy.garray``, convert it to a ``numpy.ndarray``.
