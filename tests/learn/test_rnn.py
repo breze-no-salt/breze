@@ -184,3 +184,94 @@ def test_gn_product_rnn():
     Gp = f_Hp(rnn.parameters.data, p, X, Z)
 
     assert np.allclose(Gp, Gp_expl)
+
+
+def test_fdrnn_initialize_stds():
+    m = SupervisedFastDropoutRnn(
+        100, [100], 100,
+        ['identity'], 'identity', 'squared')
+
+    inits = dict(par_std=1, par_std_affine=2, par_std_rec=3, par_std_in=4,
+                 sparsify_affine=None, sparsify_rec=None, spectral_radius=None)
+
+    p = m.parameters
+    p.data[:] = float('nan')
+
+    m.initialize(**inits)
+
+    assert np.isfinite(p.data).all()
+
+    affine_layers = [i.affine for i in m.rnn.layers if hasattr(i, 'affine')]
+    rec_layers = [i.recurrent for i in m.rnn.layers
+                  if hasattr(i, 'recurrent')]
+
+    tolerance = 1e-1
+
+    def works(key, tensor):
+        std = p[tensor].std()
+        target = inits[key]
+        success = target - tolerance < std < target + tolerance
+        print '%g %g' % (std, target)
+        assert success, '%s did not work: %g instead of %g' % (
+            key, std, target)
+
+    works('par_std_in', affine_layers[0].weights)
+    for l in affine_layers[1:]:
+        works('par_std_affine', l.weights)
+
+    for l in rec_layers:
+        works('par_std_rec', l.weights)
+
+
+def test_fdrnn_initialize_sparsify():
+    m = SupervisedFastDropoutRnn(
+        100, [100], 100,
+        ['identity'], 'identity', 'squared')
+
+    inits = dict(par_std=1, sparsify_affine=20, sparsify_rec=35)
+
+    p = m.parameters
+    p.data[:] = float('nan')
+    m.initialize(**inits)
+    assert np.isfinite(p.data).all()
+
+    affine_layers = [i.affine for i in m.rnn.layers if hasattr(i, 'affine')]
+    rec_layers = [i.recurrent for i in m.rnn.layers
+                  if hasattr(i, 'recurrent')]
+
+    for l in affine_layers:
+        w = p[l.weights]
+        cond = ((w != 0).sum(axis=0) == inits['sparsify_affine']).all()
+        assert cond, 'sparsify affine did not work for %s' % l
+
+    for l in rec_layers:
+        w = p[l.weights]
+        cond = ((w != 0).sum(axis=0) == inits['sparsify_rec']).all()
+        assert cond, 'sparsify recurrent did not work for %s' % l
+
+
+
+def test_fdrnn_initialize_spectral_radius():
+    m = SupervisedFastDropoutRnn(
+        100, [100], 100,
+        ['identity'], 'identity', 'squared')
+
+    inits = dict(par_std=1, spectral_radius=2.5)
+
+    p = m.parameters
+    p.data[:] = float('nan')
+    m.initialize(**inits)
+    assert np.isfinite(p.data).all()
+
+    rec_layers = [i.recurrent for i in m.rnn.layers
+                  if hasattr(i, 'recurrent')]
+
+    tol = .1
+
+    for l in rec_layers:
+        val, vec = np.linalg.eig(p[l.weights])
+        sr = abs(sorted(val)[0])
+        print abs(sr)
+        cond = inits['spectral_radius'] - tol < sr < inits['spectral_radius'] + tol
+        assert cond, 'spectral radius in it did not work for %s: %g' % (
+            l, sr)

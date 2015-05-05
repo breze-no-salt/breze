@@ -33,16 +33,16 @@ class BaseRnn(object):
         Size of the output of the network.
 
     hidden_transfers : list of string or functions
-        Transfer functions to use for the network. Each item can either be (a) a
-        string and reference a transfer function from
-        ``breze.arch.component.transfer`` or (b) a function which takes a theano
-        tensor3 and returns a tensor of equal size.
+        Transfer functions to use for the network. Each item can either be (a)
+        a string and reference a transfer function from
+        ``breze.arch.component.transfer`` or (b) a function which takes a
+        theano tensor3 and returns a tensor of equal size.
 
     out_transfer : string or functions
         Output function to use for the network. This can either (a) be a string
-        and reference a transfer function from ``breze.arch.component.transfer``
-        or (b) a function which takes a theano tensor3 and returns a tensor of
-        equal size.
+        and reference a transfer function from
+        ``breze.arch.component.transfer`` or (b) a function which takes a
+        theano tensor3 and returns a tensor of equal size.
 
     loss : string or function
         Loss which is going to be optimized. This can either be a string and
@@ -314,16 +314,15 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedModel):
                     climin.initialize.bound_spectral_radius(p, spectral_radius)
                 if sparsify_rec:
                     climin.initialize.sparsify_columns(p, sparsify_rec)
-                self.parameters[layer.recurrent.initial_mean][...] = 0
-                self.parameters[layer.recurrent.initial_std][...] = 1e-8
+                #self.parameters[layer.recurrent.initial_mean][...] = 0
+                #self.parameters[layer.recurrent.initial_std][...] = 1e-8
             if hasattr(layer, 'affine'):
                 p = self.parameters[layer.affine.weights]
-                if par_std_affine:
-                    if i == 0 and par_std_in:
-                        climin.initialize.randomize_normal(p, 0, par_std_in)
-                    else:
-                        climin.initialize.randomize_normal(p, 0, par_std_affine)
+                if i == 1 and par_std_in:
+                    climin.initialize.randomize_normal(p, 0, par_std_in)
+                elif par_std_affine:
+                    climin.initialize.randomize_normal(p, 0, par_std_affine)
                 if sparsify_affine:
                     climin.initialize.sparsify_columns(p, sparsify_affine)
 
-                self.parameters[layer.affine.bias][...] = 0
+                #self.parameters[layer.affine.bias][...] = 0
