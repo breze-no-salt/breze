@@ -81,4 +81,5 @@ class FastDropoutMlp(Layer):
 
             inpt_mean, inpt_var = layer.outputs
 
+        self.output = T.concatenate((inpt_mean, inpt_var),1)
         self.outputs = inpt_mean, inpt_var

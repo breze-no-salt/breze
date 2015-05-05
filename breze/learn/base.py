@@ -405,7 +405,7 @@ class UnsupervisedModel(Model, BrezeWrapperBase):
     def loss(self):
         return self.exprs['loss']
 
-    def __init__(self, inpt, output, loss, parameters):
+    def __init__(self, inpt, output, loss, parameters, imp_weight=None):
         self.parameters = parameters
         self.parameters.alloc()
 
@@ -413,6 +413,7 @@ class UnsupervisedModel(Model, BrezeWrapperBase):
             'inpt': inpt,
             'output': output,
             'loss': loss,
+            'imp_weight': imp_weight
         }
 
         super(UnsupervisedModel, self).__init__()
