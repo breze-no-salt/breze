@@ -64,20 +64,21 @@ from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nl
 
 from breze.arch.model import sgvb
 from breze.arch.model.neural import mlp
-from breze.arch.model.varprop import brnn as vpbrnn
-from breze.arch.model.varprop import rnn as vprnn
-from breze.arch.model.varprop import mlp as vpmlp
-from breze.arch.model.rnn import rnn
 
 from breze.arch.util import ParameterSet, Model
-
-from breze.learn.base import (
-    UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin,
-    ReconstructBrezeWrapperMixin)
 from breze.learn.utils import theano_floatx
 
 import climin.initialize
 from climin import mathadapt as ma
+
+
+from breze.arch.construct.sgvb import VariationalAutoEncoder as _VariationalAutoEncoder
+
+from breze.learn.base import (
+    UnsupervisedModel, TransformBrezeWrapperMixin,
+    ReconstructBrezeWrapperMixin)
+
+from breze.arch.construct import neural
 
 
 # TODO find a better home for the following functions.
@@ -153,7 +154,6 @@ def estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
     if X.ndim == 3:
         ll /= X.shape[1]
     return -ll
-
 
 class Assumptions(object):
 
@@ -346,10 +346,10 @@ class BernoulliVisibleAssumption(object):
         else:
             return sample
 
+class GenericVariationalAutoEncoder(UnsupervisedModel,
+           TransformBrezeWrapperMixin,
+           ReconstructBrezeWrapperMixin):
 
-class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
-                             TransformBrezeWrapperMixin,
-                             ReconstructBrezeWrapperMixin):
     """Class representing a variational auto encoder.
 
     Described in [SGVB]_.
@@ -360,13 +360,10 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
     See parameters of ``__init__``.
     """
 
-    transform_expr_name = 'latent'
     shortcut = None
 
-    def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
-                 recog_transfers, gen_transfers,
-                 assumptions,
-                 p_dropout_inpt=.1, p_dropout_hiddens=.1,
+    def __init__(self, n_inpt, n_latent,
+                 assumptions, gen_class, rec_class,
                  imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
@@ -421,26 +418,17 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
             Flag indicating whether to print out information during fitting.
         """
         self.n_inpt = n_inpt
-        self.n_hiddens_recog = n_hiddens_recog
         self.n_latent = n_latent
-        self.n_hiddens_gen = n_hiddens_gen
-        self.recog_transfers = recog_transfers
-        self.gen_transfers = gen_transfers
-
+        self.n_output = assumptions.visible_layer_size(n_inpt)
         self.assumptions = assumptions
+        self.rec_class = rec_class
+        self.gen_class = gen_class
 
-        self.p_dropout_inpt = p_dropout_inpt
-        if isinstance(p_dropout_hiddens, float):
-            p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_gen)
-        self.p_dropout_hiddens = p_dropout_hiddens
-
-        self.imp_weight = imp_weight
+        self.imp_weight_switch = imp_weight
         self.batch_size = batch_size
         self.optimizer = optimizer
         self.max_iter = max_iter
         self.verbose = verbose
-
-        super(VariationalAutoEncoder, self).__init__()
 
         self.f_latent_mean = None
         self.f_latent_mean_var = None
@@ -449,98 +437,63 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         self.f_mvn_logpdf = None
         self.f_estimate_nll = None
 
-    def _init_pars(self):
-        spec = {
-            'recog': self._recog_par_spec(),
-            'gen': self._gen_par_spec(),
-        }
-        self.parameters = ParameterSet(**spec)
-
-    def _recog_par_spec(self):
-        """Return the specification of the recognition model."""
-        #n_code_units = self.assumptions.latent_layer_size(self.n_latent)
-        n_code_units = self.n_latent
-        spec = mlp.parameters(self.n_inpt, self.n_hiddens_recog,
-                              n_code_units)
-        spec['p_dropout'] = {
-            'inpt': 1,
-            'hiddens': [1 for _ in self.n_hiddens_recog],
-        }
-
-        return spec
-
-    def _recog_exprs(self, inpt):
-        """Return the exprssions of the recognition model."""
-        P = self.parameters.recog
-
-        n_layers = len(self.n_hiddens_recog)
-        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                             for i in range(n_layers - 1)]
-        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
-                         for i in range(n_layers)]
-
-        scale_to_interval = lambda x: T.nnet.sigmoid(x) * 0.49 + 0.01
-
-        exprs = vpmlp.exprs(
-            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
-            hidden_biases, [1 for _ in hidden_biases], P.out_bias, 1,
-            self.recog_transfers, self.assumptions.statify_latent,
-            scale_to_interval(P.p_dropout.inpt),
-            [scale_to_interval(i) for i in P.p_dropout.hiddens],
-        )
-
-        return exprs
-
-    def _gen_par_spec(self):
-        """Return the parameter specification of the generating model."""
-        n_output = self.assumptions.visible_layer_size(self.n_inpt)
-        return mlp.parameters(self.n_latent, self.n_hiddens_recog,
-                              n_output)
-
-    def _gen_exprs(self, inpt):
-        """Return the expression of the generating model."""
-        P = self.parameters.gen
-
-        n_layers = len(self.n_hiddens_gen)
-        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                             for i in range(n_layers - 1)]
-        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
-                         for i in range(n_layers)]
-
-        exprs = vpmlp.exprs(
-            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
-            hidden_biases, [1 for _ in hidden_biases], P.out_bias, 1,
-            self.gen_transfers, self.assumptions.statify_visible,
-            self.p_dropout_inpt, self.p_dropout_hiddens,
-        )
-
-        return exprs
+        self._init_exprs()
 
     def _make_start_exprs(self):
-        exprs = {
-            'inpt': T.matrix('inpt')
-        }
-        exprs['inpt'].tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
-        if self.imp_weight:
-            exprs['imp_weight'] = T.matrix('imp_weight')
-            exprs['imp_weight'].tag.test_value, = theano_floatx(np.ones((3, 1)))
+        inpt = T.matrix('inpt')
+        
+        inpt.tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
+        if self.imp_weight_switch:
+            imp_weight = T.matrix('imp_weight')
+            imp_weight.tag.test_value, = theano_floatx(np.ones((3, 1)))
+        else:
+            imp_weight = None
 
-        return exprs
+        return inpt, imp_weight
 
-    def _make_kl_loss(self):
-        n_dim = self.exprs['inpt'].ndim
-        kl_coord_wise = self.assumptions.kl_recog_prior(self.exprs['latent'])
+    def _init_exprs(self):
+        inpt, self.imp_weight = self._make_start_exprs()
+        parameters = ParameterSet()
 
-        if self.imp_weight:
-            kl_coord_wise *= self._fix_imp_weight(n_dim)
-        kl_sample_wise = kl_coord_wise.sum(axis=n_dim - 1)
-        kl = kl_sample_wise.mean()
+        n_dim = inpt.ndim
 
-        return {
-            'kl': kl,
-            'kl_coord_wise': kl_coord_wise,
-            'kl_sample_wise': kl_sample_wise,
-        }
+        self.vae = _VariationalAutoEncoder(inpt, self.n_inpt,
+                                           self.n_latent, self.n_output,
+                                           self.assumptions,
+                                           self.gen_class,
+                                           self.rec_class,
+                                           declare=parameters.declare)
+
+        # TODO this is not going to work with variance propagation.
+        self.imp_weight = False if not self.imp_weight_switch else self._fix_imp_weight(n_dim)
+        rec_loss = supervised_loss(
+            inpt, self.vae.output, self.assumptions.nll_gen_model, coord_axis=n_dim - 1, imp_weight=self.imp_weight)['loss_coord_wise']
+        self.rec_loss_sample_wise = rec_loss.sum(axis=n_dim - 1)
+        self.rec_loss = self.rec_loss_sample_wise.mean()
+
+        output = self.vae.gen.output
+        self.latent = self.vae.recog.output
+        self.sample = self.vae.sample
+
+        # Create the KL divergence part of the loss.
+        n_dim = inpt.ndim
+        self.kl_coord_wise = self.assumptions.kl_recog_prior(self.latent)
+
+        if self.imp_weight_switch:
+            self.kl_coord_wise *= self._fix_imp_weight(n_dim)
+        self.kl_sample_wise = self.kl_coord_wise.sum(axis=n_dim - 1)
+        self.kl = self.kl_sample_wise.mean()
+
+        self.loss_sample_wise = self.kl_sample_wise + self.rec_loss_sample_wise
+        loss = self.kl + self.rec_loss
+
+        UnsupervisedModel.__init__(self, inpt=inpt,
+                                 output=output,
+                                 loss=loss,
+                                 parameters=parameters,
+                                 imp_weight=self.imp_weight)
+
+        self.transform_expr_name = self.latent
 
     def _fix_imp_weight(self, ndim):
         # For the VAE, the importance weights cannot be coordinate
@@ -550,45 +503,17 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         # we have to be explicit about whether broadcasting along that
         # dimension is allowed though, since normal tensor3s do not allow
         # it. The following code achieves this.
-        return T.addbroadcast(self.exprs['imp_weight'], ndim - 1)
-
-    def _init_exprs(self):
-        E = self.exprs = self._make_start_exprs()
-        n_dim = E['inpt'].ndim
-
-        # Make the expression of the model.
-        E.update(sgvb.exprs(
-            E['inpt'],
-            self._recog_exprs, self._gen_exprs,
-            self.assumptions.sample_latents,
-            shortcut_key=self.shortcut))
-
-        # TODO this is not going to work with variance propagation.
-        imp_weight = False if not self.imp_weight else self._fix_imp_weight(n_dim)
-        rec_loss = supervised_loss(
-            E['inpt'], E['gen']['output'], self.assumptions.nll_gen_model,
-            prefix='rec_', coord_axis=n_dim - 1, imp_weight=imp_weight)
-
-        # Create the KL divergence part of the loss.
-        kl_loss = self._make_kl_loss()
-
-        E.update(rec_loss)
-        E.update(kl_loss)
-
-        E.update({
-            'loss_sample_wise': E['kl_sample_wise'] + E['rec_loss_sample_wise'],
-            'loss': E['kl'] + E['rec_loss'],
-        })
+        return T.addbroadcast(self.imp_weight, ndim - 1)
 
     def _output_from_sample(self, S):
         if self.f_out_from_sample is None:
-            self.f_out_from_sample = self.function(['sample'], 'output')
+            self.f_out_from_sample = self.function([self.sample], self.output)
         return self.f_out_from_sample(S)
 
     def _rec_loss_of_sample(self, X, S):
         if self.f_rec_loss_of_sample is None:
             self.f_rec_loss_of_sample = self.function(
-                ['inpt', 'sample'], 'rec_loss_sample_wise')
+                ['inpt', self.sample], self.rec_loss_sample_wise)
         return self.f_rec_loss_of_sample(X, S)
 
     def estimate_nll(self, X, n_samples=10):
@@ -619,7 +544,7 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         return self.f_estimate_nll(X, n_samples)
 
     def _make_f_estimate_nll(self):
-        ndim = self.exprs['sample'].ndim
+        ndim = self.sample.ndim
         if ndim == 3:
             latent_sample = T.tensor3('sample')
             latent_sample.tag.test_value = np.zeros(
@@ -641,19 +566,19 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         # Map a given visible x and a sample z to the generating
         # probability p(x|z).
         nll_x_given_z = self.assumptions.nll_gen_model(
-            self.exprs['inpt'], self.exprs['output']).sum(axis=ndim - 1)
-        f_nll_x_given_z = self.function(['inpt', latent_sample], nll_x_given_z,
-                                        givens={self.exprs['sample']: latent_sample})
+            self.inpt, self.output).sum(axis=ndim - 1)
+        f_nll_x_given_z = self.function([self.inpt, latent_sample], nll_x_given_z,
+                                        givens={self.sample: latent_sample})
 
         # Map a given visible x and a sample z to the recognition
         # probability q(z|x).
         nll_z_given_x = self.assumptions.nll_recog_model(
-            latent_sample, self.exprs['latent']).sum(axis=ndim - 1)
+            latent_sample, self.latent).sum(axis=ndim - 1)
         f_nll_z_given_x = self.function(
-            [latent_sample, self.exprs['inpt']], nll_z_given_x)
+            [latent_sample, self.inpt], nll_z_given_x)
 
         # Sample some z from q(z|x).
-        f_sample_z_given_x = self.function(['inpt'], 'sample')
+        f_sample_z_given_x = self.function([self.inpt], self.sample)
 
         def inner(X, n):
             return estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
@@ -663,6 +588,54 @@ class VariationalAutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         inner.breze_func = True
 
         return inner
+
+class VariationalAutoEncoder(GenericVariationalAutoEncoder):
+
+    """
+        Variational Autoencoder with Mlp as recognition and generative model
+    """
+
+    def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
+                 recog_transfers, gen_transfers,
+                 assumptions,
+                 p_dropout_inpt=.1, p_dropout_hiddens=.1,
+                 imp_weight=False,
+                 batch_size=None, optimizer='rprop',
+                 max_iter=1000, verbose=False):
+        self.n_hiddens_recog = n_hiddens_recog
+        self.n_hiddens_gen = n_hiddens_gen
+        self.p_dropout_inpt = p_dropout_inpt
+        self.p_dropout_hiddens = p_dropout_hiddens
+        self.recog_transfers = recog_transfers
+        self.gen_transfers = gen_transfers
+
+        if isinstance(p_dropout_hiddens, float):
+            p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
+
+
+        rec_class = lambda inpt, declare: neural.FastDropoutMlp(
+            inpt, n_inpt,
+            n_hiddens_recog,
+            n_latent,
+            recog_transfers, assumptions.statify_latent,
+            p_dropout_inpt, p_dropout_hiddens,
+            dropout_parameterized=True,
+            declare=declare)
+
+        gen_class = lambda inpt, declare: neural.FastDropoutMlp(
+            inpt, n_latent,
+            n_hiddens_gen,
+            assumptions.visible_layer_size(n_inpt),
+            gen_transfers, assumptions.statify_visible,
+            p_dropout_inpt, p_dropout_hiddens,
+            dropout_parameterized=True,
+            declare=declare)
+
+
+        GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
+                 assumptions, rec_class, gen_class, imp_weight=imp_weight,
+                 batch_size=batch_size, optimizer=optimizer,
+                 max_iter=verbose, verbose=verbose)
 
 
 class StochasticRnn(VariationalAutoEncoder):

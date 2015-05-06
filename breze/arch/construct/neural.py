@@ -29,8 +29,8 @@ class Mlp(Layer):
     def _forward(self):
         self.layers = []
 
-        n_inpts = [self.n_inpt] + [self.n_hiddens[-1]]
-        n_outputs = self.n_hiddens[1:] + [self.n_output]
+        n_inpts = [self.n_inpt] + self.n_hiddens
+        n_outputs = self.n_hiddens + [self.n_output]
         transfers = self.hidden_transfers + [self.out_transfer]
 
         inpt = self.inpt
@@ -48,7 +48,9 @@ class FastDropoutMlp(Layer):
                  hidden_transfers, out_transfer,
                  p_dropout_inpt,
                  p_dropout_hiddens,
+                 dropout_parameterized=False,
                  declare=None, name=None):
+
         self.inpt = inpt
         self.n_inpt = n_inpt
         self.n_hiddens = n_hiddens
@@ -57,6 +59,7 @@ class FastDropoutMlp(Layer):
         self.out_transfer = out_transfer
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hiddens = p_dropout_hiddens
+        self.dropout_parameterized = dropout_parameterized
 
         super(FastDropoutMlp, self).__init__(declare, name)
 
@@ -64,8 +67,8 @@ class FastDropoutMlp(Layer):
         self.fd_layers = []
         self.layers = []
 
-        n_inpts = [self.n_inpt] + [self.n_hiddens[-1]]
-        n_outputs = self.n_hiddens[1:] + [self.n_output]
+        n_inpts = [self.n_inpt] + self.n_hiddens
+        n_outputs = self.n_hiddens + [self.n_output]
         transfers = self.hidden_transfers + [self.out_transfer]
         p_dropouts = [self.p_dropout_inpt] + self.p_dropout_hiddens
 
@@ -73,6 +76,12 @@ class FastDropoutMlp(Layer):
         inpt_var = T.zeros_like(inpt_mean) + 1e-16
 
         for n, m, t, p in zip(n_inpts, n_outputs, transfers, p_dropouts):
+            if self.dropout_parameterized:
+                p = self.declare((1,))
+
+                p = T.nnet.sigmoid(p) * 0.49 + 0.01
+
+
             fd_layer = vp_simple.FastDropout(
                 inpt_mean, inpt_var, p, declare=self.declare)
             mean, vari = fd_layer.outputs
@@ -85,6 +94,7 @@ class FastDropoutMlp(Layer):
 
             inpt_mean, inpt_var = layer.outputs
 
+        self.output = T.concatenate((inpt_mean, inpt_var),1)
         self.outputs = inpt_mean, inpt_var
 
 

@@ -317,7 +317,7 @@ class ParameterSet(object):
         if group is not None:
             raise NotImplementedError('we do not know about groups yet')
 
-        shape = (shape,) if isinstance(shape, int) else shape
+        shape = (shape,) if isinstance(shape, int) or isinstance(shape, long) else shape
         size = np.prod(shape)
         start, stop = self._n_pars, self._n_pars + size
         self._n_pars = stop
