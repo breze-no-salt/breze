@@ -567,7 +567,7 @@ class GenericVariationalAutoEncoder(UnsupervisedModel,
         # probability p(x|z).
         nll_x_given_z = self.assumptions.nll_gen_model(
             self.inpt, self.output).sum(axis=ndim - 1)
-        f_nll_x_given_z = self.function(['inpt', latent_sample], nll_x_given_z,
+        f_nll_x_given_z = self.function([self.inpt, latent_sample], nll_x_given_z,
                                         givens={self.sample: latent_sample})
 
         # Map a given visible x and a sample z to the recognition
@@ -575,10 +575,10 @@ class GenericVariationalAutoEncoder(UnsupervisedModel,
         nll_z_given_x = self.assumptions.nll_recog_model(
             latent_sample, self.latent).sum(axis=ndim - 1)
         f_nll_z_given_x = self.function(
-            [latent_sample, self.exprs['inpt']], nll_z_given_x)
+            [latent_sample, self.inpt], nll_z_given_x)
 
         # Sample some z from q(z|x).
-        f_sample_z_given_x = self.function(['inpt'], self.sample)
+        f_sample_z_given_x = self.function([self.inpt], self.sample)
 
         def inner(X, n):
             return estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
@@ -610,30 +610,25 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
         self.gen_transfers = gen_transfers
 
         if isinstance(p_dropout_hiddens, float):
-            p_rec_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
-        else:
-            p_rec_dropout_hiddens = p_dropout_hiddens
+            p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
 
 
         rec_class = lambda inpt, declare: neural.FastDropoutMlp(
             inpt, n_inpt,
             n_hiddens_recog,
-            assumptions.latent_layer_size(n_latent),
+            n_latent,
             recog_transfers, assumptions.statify_latent,
-            p_dropout_inpt, p_rec_dropout_hiddens,
+            p_dropout_inpt, p_dropout_hiddens,
+            dropout_parameterized=True,
             declare=declare)
 
-        if isinstance(p_dropout_hiddens, float):
-            p_gen_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_gen)
-        else:
-            p_gen_dropout_hiddens = p_dropout_hiddens
-
         gen_class = lambda inpt, declare: neural.FastDropoutMlp(
-            inpt, assumptions.latent_layer_size(n_latent),
+            inpt, n_latent,
             n_hiddens_gen,
             assumptions.visible_layer_size(n_inpt),
             gen_transfers, assumptions.statify_visible,
-            p_dropout_hiddens[-1], p_gen_dropout_hiddens,
+            p_dropout_inpt, p_dropout_hiddens,
+            dropout_parameterized=True,
             declare=declare)
 
 
