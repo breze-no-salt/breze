@@ -29,7 +29,7 @@ class VariationalAutoEncoder(Layer):
         self.sample = self.assumptions.sample_latents(self.latent,rng)
 
         if self.condition is None:
-            gen_inpt = self.sample
+            gen_inpt = self.sample 
         else:
             gen_inpt = T.concatenate([self.sample, self.condition],
                                  axis=latent.ndim - 1)

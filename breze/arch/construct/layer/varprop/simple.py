@@ -71,7 +71,7 @@ class AffineNonlinear(Layer):
 class FastDropout(Layer):
 
     def __init__(self, inpt_mean, inpt_var, p_dropout, declare=None, name=None):
-        if not (0 < p_dropout <= 1):
+        if isinstance(p_dropout, float) and not (0 < p_dropout <= 1):
             raise ValueError('p_dropout has to lie in (0, 1]')
 
         self.inpt_mean = inpt_mean
