@@ -9,15 +9,11 @@ import climin
 import climin.util
 import climin.gd
 
-import numpy as np
-import theano
 import theano.tensor as T
-import theano.tensor.shared_randomstreams
 
 from breze.arch.component.varprop import loss as vp_loss
 from breze.arch.util import lookup
 from breze.arch.construct import neural
-from breze.arch.construct.layer.varprop import simple as vp_simple
 
 from breze.arch.util import ParameterSet
 from breze.arch.construct.simple import SupervisedLoss
@@ -115,7 +111,6 @@ class Mlp(SupervisedModel):
             imp_weight = T.matrix('imp_weight')
         else:
             imp_weight = None
-
 
         self.loss_layer = SupervisedLoss(
             target, self.mlp.output, loss=self.loss_ident,
@@ -324,4 +319,3 @@ class FastDropoutNetwork(SupervisedModel):
                                  loss=self.loss_layer.total,
                                  parameters=parameters)
         self.exprs['imp_weight'] = imp_weight
-
