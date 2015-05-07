@@ -104,3 +104,12 @@ def diag_gaussian_nll(target, prediction, var_offset=0):
     normalization = T.log(T.sqrt(2 * np.pi * var))
     ll = weighted_squares - normalization
     return -ll
+
+def diag_laplace_nll(target, prediction, b_offset=0):
+    mean, b = unpack_mean_var(prediction)
+    b += b_offset
+    residuals = target - mean
+    exponent = abs(residuals) / (b)
+    normalization = T.log((2 * b))
+    ll = - normalization - exponent
+    return -ll

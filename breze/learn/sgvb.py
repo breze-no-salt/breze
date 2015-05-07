@@ -57,10 +57,11 @@ from theano.compile import optdb
 from scipy.misc import logsumexp
 
 from breze.arch.component.common import supervised_loss
-from breze.arch.component.misc import inter_gauss_kl
-from breze.arch.component.transfer import diag_gauss
+from breze.arch.component.misc import inter_gauss_kl, inter_laplace_kl
+from breze.arch.component.transfer import diag_gauss, diag_laplace
 from breze.arch.component.varprop.transfer import sigmoid
 from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nll, bern_ces
+from breze.arch.component.varprop.loss import diag_laplace_nll as diag_laplace_nll
 
 from breze.arch.model import sgvb
 from breze.arch.model.neural import mlp
@@ -198,6 +199,65 @@ class Assumptions(object):
         the visible distribution."""
         # TODO docstring
         raise NotImplemented()
+
+class DiagLaplaceLatentAssumption(object):
+
+    def statify_latent(self, X, var=None):
+        if var is None:
+            print 'statify_latent none'
+            return diag_laplace(X)
+        else:
+            print 'statify_latent'
+            return X, var
+
+    def nll_recog_model(self, Z, stt):
+        print 'nll_recog_model'
+        return diag_laplace_nll(Z, stt, 1e-4)
+
+    def kl_recog_prior(self, stt):
+        if stt.ndim == 3:
+            stt_flat = wild_reshape(stt, (-1, stt.shape[2]))
+        else:
+            stt_flat = stt
+
+        mean, b = stt_flat[:, :stt_flat.shape[1] // 2], stt_flat[:, stt_flat.shape[1] // 2:]
+        print 'kl_recog_prior_L'
+        kl = inter_laplace_kl(mean, b, 1e-4)
+
+        if stt.ndim == 3:
+            kl = recover_time(kl, stt.shape[0])
+
+        return kl
+
+    def nll_prior(self, X):
+        X_flat = X.flatten()
+        nll = np.log(2.0) + abs(X)
+        print 'nll_prior'
+        return nll.reshape(X.shape)
+
+    def latent_layer_size(self, n_latents):
+        """Return the cardinality of the sufficient statistics given we want to
+        model ``n_latents`` variables.
+
+        For example, a diagonal Gaussian needs two sufficient statistics for a
+        single random variable, the mean and the variance. A Bernoulli only
+        needs one, which is the probability of it being 0 or 1."""
+        print 'latent_layer_size'
+        return n_latents * 2
+
+    def sample_latents(self, stt, rng):
+        stt_flat = assert_no_time(stt)
+        n_latent = stt_flat.shape[1] // 2
+        latent_mean = stt_flat[:, :n_latent]
+        latent_b = stt_flat[:, n_latent:]
+        print 'sample_latents_L'
+        noise = rng.uniform(size=latent_mean.shape)-0.5
+        sample = latent_mean - latent_b * T.sgn(noise) * \
+                    T.log(1.0 - 2.0*abs(noise))
+        if stt.ndim == 3:
+            return recover_time(sample, stt.shape[0])
+        else:
+            return sample
 
 
 class DiagGaussLatentAssumption(object):
