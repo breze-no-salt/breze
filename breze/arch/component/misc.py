@@ -174,3 +174,35 @@ def inter_gauss_kl(mean, var, mean_=0, var_=1, var_offset=0, var_offset_=0):
     m1, s1, m2, s2 = mean, T.sqrt(var + var_offset), mean_, T.sqrt(var_ + var_offset_)
     return T.log(s2 / s1 + 1e-4) + (s1 ** 2 + (m1 - m2) ** 2) / (2 * s2 ** 2 + 1e-4) - .5
 
+
+def inter_laplace_kl(mean, b, mean_=0, b_=1, b_offset=0, b_offset_=0):
+    """Function returning a theano tensor representing the Kullback-Leibler
+    divergence between Laplace distributed random variables and a Laplace
+    with zero mean and b of one.
+
+    Parameters
+    ----------
+
+    mean : Theano variable
+        Representation of the mean of the input.
+
+    var : Theano variable
+        Representation of the scale b of the input. Has to have the same shape
+        as ``mean``. Needs to be positive.
+
+
+    Returns
+    -------
+
+    kl : Theano variable
+        Same shape as ``mean`` and ``var``. Each point represents the KL
+        divergence between the a standard and diag Laplace given by
+        ``mean`` and ``var``.
+    """
+    m1, b1, m2, b2 = mean, b + b_offset, mean_, b_ + b_offset_
+    if b2 == 0 and m2 == 0:
+        # return 1.0 - b1*T.exp(-abs(m1)/(b1 + 1e-4)) - abs(m1) + T.log(b1 + 1e-4)
+        return 1.0 + T.log((b1 + 1e-4)) - abs(m1) - b1*T.exp(-abs(m1)/(b1 + 1e-4))
+    else:
+        warnings.warn("Warning: untested implemenation under these parameter settings")
+        return b1/b2 * (abs(m1-m2)/b1 + T.exp(-abs(m1-m2)/b1)) + T.log(b2/b1) - 1

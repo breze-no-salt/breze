@@ -224,6 +224,36 @@ def diag_gauss(inpt):
     return res
 
 
+def diag_laplace(inpt):
+    """Transfer function to turn an arary into sufficient statistics of a
+    diagonal Laplace distribution.
+
+    The "split" into halves is performed along the second axis.
+
+    Parameters
+    ----------
+
+    inpt : Theano tensor
+        Array of shape ``(n, d)`` or ``(t, n, d)``.
+
+    Returns
+    -------
+
+    output : Theano variable.
+        Transformed input. Same shape as ``inpt``.
+    """
+    half = inpt.shape[-1] // 2
+    if inpt.ndim == 3:
+        mean, b = inpt[:, :, :half], inpt[:, :, half:]
+        res = T.concatenate([mean, abs(b)], axis=2)
+    else:
+        mean, b = inpt[:, :half], inpt[:, half:]
+        res = T.concatenate([mean, abs(b)], axis=1)
+    print 'diag_laplace: mean' +str(mean.shape)
+    print 'diag_laplace: b' +str(b.shape)
+    return res
+
+
 # TODO move this into a different module, e.g. "densities" or so.
 
 def logproduct_of_t(inpt):
