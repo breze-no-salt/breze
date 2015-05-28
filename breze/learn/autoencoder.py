@@ -82,9 +82,8 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-# from breze.arch.model.neural import mlp, autoencoder  # TODO: make redundant
 from breze.arch.component import loss as loss_
-from breze.arch.util import ParameterSet, Model, lookup, get_named_variables
+from breze.arch.util import ParameterSet, lookup, get_named_variables
 from breze.arch.component import corrupt
 from breze.arch.component.common import supervised_loss
 
@@ -95,7 +94,7 @@ from breze.learn.base import (
 from breze.arch.construct import neural
 from breze.learn.utils import theano_floatx
 
-# theano.config.compute_test_value = 'raise'
+theano.config.compute_test_value = 'raise'
 
 
 class AutoEncoder(UnsupervisedModel,
@@ -202,11 +201,9 @@ class AutoEncoder(UnsupervisedModel,
 
     def _init_exprs(self):
         inpt = T.matrix('inpt')
-        # inpt.tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
+        inpt.tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
 
         parameters = ParameterSet()
-
-        n_dim = inpt.ndim
 
         self.mlp = neural.Mlp(
             inpt, self.n_inpt,
@@ -216,11 +213,12 @@ class AutoEncoder(UnsupervisedModel,
             declare=parameters.declare)
 
         output = self.mlp.output
-        print "output: " + str(output.shape)
 
-        rec_loss = supervised_loss(
+        n_dim = inpt.ndim # to be used in the arguments of supervised_loss
+        # to define the coord_axis in case of inpt_dim > 2
+        rec_loss_coord = supervised_loss(
             inpt, output, self.loss_ident, coord_axis=1)['loss_coord_wise']
-        rec_loss_sample_wise = rec_loss.sum(axis=1)
+        rec_loss_sample_wise = rec_loss_coord.sum(axis=1)
         rec_loss = rec_loss_sample_wise.mean()
 
 
