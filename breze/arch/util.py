@@ -320,7 +320,8 @@ class ParameterSet(object):
         size = np.prod(shape)
         start, stop = self._n_pars, self._n_pars + size
         self._n_pars = stop
-        self.flat.tag.test_value = np.zeros(self._n_pars)
+        if theano.config.compute_test_values != 'ignore':
+            self.flat.tag.test_value = np.zeros(self._n_pars)
         x = self.flat[start:stop].reshape(shape)
         self._var_to_slice[x] = (start, stop)
         self._var_to_shape[x] = shape
