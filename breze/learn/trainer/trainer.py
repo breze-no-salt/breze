@@ -94,7 +94,7 @@ class Trainer(object):
         False. Useful for distinguishing between interrupt and stop.
     """
 
-    def __init__(self, model, stop, score=score_.simple,
+    def __init__(self, model, data, stop, score=score_.simple,
                  pause=always, interrupt=never, report=report_.point_print):
         """Create a Trainer object.
 
@@ -127,6 +127,8 @@ class Trainer(object):
 
         self.model = model
 
+        self.data = data
+
         self._score = score
         self.pause = pause
         self.stop = stop
@@ -139,70 +141,16 @@ class Trainer(object):
         self.infos = []
         self.current_info = None
 
-        self.eval_data = {}
-        self.val_key = None
+
         self.stopped = False
 
     def score(self, *data):
         return self._score(self.model.score, *data)
 
-    def fit(self, *fit_data):
+    def __call__(self):
         """Run ``.iter_fit()`` until it terminates
 
         Termination will occur when either stop or interrupt is True. During
         each pause, ``.report(info)`` will be executed."""
-        for info in self.model.powerfit(fit_data, self.eval_data[self.val_key], self.stop, self.pause):
+        for info in self.model.powerfit(self.data['test'], self.data['val'], self.stop, self.pause):
             self.report(info)
-
-    def iter_fit(self, *fit_data):
-        """Iteratively fit the given training data.
-
-        Generator function containing the main logic of the Trainer object.
-
-        The arguments are of variable length and have to match that of the
-        ``model.iter_fit()`` and ultimately the used loss function of that
-        model.
-
-        Each iteration of the fitting constitutes of running the optimizer of
-        the model until either interrupt or pause returns True.
-
-        In both cases, the generator will yield to the user. Additionally:
-
-            - If interrupt returns True, the generator will stop yielding
-            values afterwards.
-            - stop will be tested. If it is true it will stop yielding
-            afterwards and additionally ``.stopped`` will be set to True
-            afterwards.
-            - ``best_pars`` and ``best_loss`` will be updated.
-
-        The values yielded from this function will be climin info dictionaries
-        stripped from any numpy or gnumpy arrays.
-        """
-        for info in self.model.powerfit(fit_data, self.eval_data[self.val_key], self.stop, self.pause):
-            yield info
-            # if self.pause(info) or self.interrupt(info):
-            #     info['val_loss'] = ma.scalar(self.score(*self.eval_data[self.val_key]))
-            #
-            #     cur_val_loss = info['%s_loss' % self.val_key]
-            #     if cur_val_loss < self.best_loss:
-            #         self.best_loss = cur_val_loss
-            #         self.best_pars = self.model.parameters.data.copy()
-            #
-            #     info['best_loss'] = self.best_loss
-            #     info['best_pars'] = self.best_pars
-            #
-            #     info.update({
-            #         'datetime': datetime.datetime.now(),
-            #     })
-            #
-            #     filtered_info = clear_info(info)
-            #
-            #     self.infos.append(filtered_info)
-            #     self.current_info = info
-            #     yield info
-            #
-            #     if self.stop(info):
-            #         self.stopped = True
-            #         break
-            #     if interrupt:
-            #         break
