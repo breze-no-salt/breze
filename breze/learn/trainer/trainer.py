@@ -144,10 +144,10 @@ class Trainer(object):
 
         self.stopped = False
 
-    def score(self, *data):
-        return self._score(self.model.score, *data)
+    def score(self, key):
+        return self._score(self.model.score, self.data[key])
 
-    def __call__(self):
+    def fit(self):
         """Run ``.iter_fit()`` until it terminates
 
         Termination will occur when either stop or interrupt is True. During
