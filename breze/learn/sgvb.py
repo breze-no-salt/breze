@@ -142,6 +142,8 @@ def estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
         log_posterior[i] = ma.assert_numpy(-f_nll_x_given_z(X, Z))
         log_recog[i] = ma.assert_numpy(-f_nll_z_given_x(Z, X))
 
+        print np.any(np.isnan(log_prior)), np.any(np.isnan(log_posterior)), np.any(np.isnan(log_recog))
+
     d = log_prior + log_posterior - log_recog
 
     while d.ndim > 1:
