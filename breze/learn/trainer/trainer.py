@@ -151,8 +151,8 @@ class Trainer(object):
 
         Termination will occur when either stop or interrupt is True. During
         each pause, ``.report(info)`` will be executed."""
-        for i in self.iter_fit(*fit_data):
-            self.report(i)
+        for info in self.model.powerfit(fit_data, self.eval_data[self.val_key], self.stop, self.pause):
+            self.report(info)
 
     def iter_fit(self, *fit_data):
         """Iteratively fit the given training data.
@@ -178,31 +178,31 @@ class Trainer(object):
         The values yielded from this function will be climin info dictionaries
         stripped from any numpy or gnumpy arrays.
         """
-        for info in self.model.iter_fit(*fit_data, info_opt=self.current_info):
-            interrupt = self.interrupt(info)
-            if self.pause(info) or interrupt:
-                info['val_loss'] = ma.scalar(self.score(*self.eval_data[self.val_key]))
-
-                cur_val_loss = info['%s_loss' % self.val_key]
-                if cur_val_loss < self.best_loss:
-                    self.best_loss = cur_val_loss
-                    self.best_pars = self.model.parameters.data.copy()
-
-                info['best_loss'] = self.best_loss
-                info['best_pars'] = self.best_pars
-
-                info.update({
-                    'datetime': datetime.datetime.now(),
-                })
-
-                filtered_info = clear_info(info)
-
-                self.infos.append(filtered_info)
-                self.current_info = info
-                yield info
-
-                if self.stop(info):
-                    self.stopped = True
-                    break
-                if interrupt:
-                    break
+        for info in self.model.powerfit(fit_data, self.eval_data[self.val_key], self.stop, self.pause):
+            yield info
+            # if self.pause(info) or self.interrupt(info):
+            #     info['val_loss'] = ma.scalar(self.score(*self.eval_data[self.val_key]))
+            #
+            #     cur_val_loss = info['%s_loss' % self.val_key]
+            #     if cur_val_loss < self.best_loss:
+            #         self.best_loss = cur_val_loss
+            #         self.best_pars = self.model.parameters.data.copy()
+            #
+            #     info['best_loss'] = self.best_loss
+            #     info['best_pars'] = self.best_pars
+            #
+            #     info.update({
+            #         'datetime': datetime.datetime.now(),
+            #     })
+            #
+            #     filtered_info = clear_info(info)
+            #
+            #     self.infos.append(filtered_info)
+            #     self.current_info = info
+            #     yield info
+            #
+            #     if self.stop(info):
+            #         self.stopped = True
+            #         break
+            #     if interrupt:
+            #         break
