@@ -144,8 +144,8 @@ class Trainer(object):
 
         self.stopped = False
 
-    def score(self, key):
-        return self._score(self.model.score, self.data[key])
+    def score(self, *data):
+        return self._score(self.model.score, *data)
 
     def fit(self):
         """Run ``.iter_fit()`` until it terminates
@@ -153,4 +153,6 @@ class Trainer(object):
         Termination will occur when either stop or interrupt is True. During
         each pause, ``.report(info)`` will be executed."""
         for info in self.model.powerfit(self.data['test'], self.data['val'], self.stop, self.pause):
+            self.best_pars = info['best_pars']
+            self.best_loss = info['best_loss']
             self.report(info)
