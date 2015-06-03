@@ -4,6 +4,8 @@
 
 import datetime
 
+import numpy as np
+
 from climin import mathadapt as ma
 from climin.stops import never, always
 from climin.util import clear_info
@@ -155,4 +157,26 @@ class Trainer(object):
         for info in self.model.powerfit(self.data['test'], self.data['val'], self.stop, self.pause):
             self.best_pars = info['best_pars']
             self.best_loss = info['best_loss']
+
+
+            filtered_info = dict(
+                (k, v) for k, v in info.items()
+                if (not isinstance(v, (np.ndarray, )) or v.size <= 1) and k not in ('args', 'kwargs')
+            )
+
+            for key in filtered_info:
+                if isinstance(filtered_info[key], np.float32):
+                    filtered_info[key] = float(filtered_info[key])
+            filtered_info['max_grad'] = np.sqrt((info['gradient'] ** 2).sum())
+            self.infos.append(filtered_info)
+
             self.report(info)
+
+
+    def switch_to_best_pars(self):
+        last_pars = self.model.parameters.data.copy()
+        self.model.parameters.data[...] = self.best_pars
+        return last_pars
+
+    def switch_to_last_pars(self, last_pars):
+        self.model.parameters.data[...] = last_pars
