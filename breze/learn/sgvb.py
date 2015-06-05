@@ -254,6 +254,75 @@ class DiagGaussLatentAssumption(object):
             return sample
 
 
+class KWLatentAssumption(object):
+    euler_gamma = 0.5772156649015328606065120900824024310421
+
+    def statify_latent(self, X, var=None):
+        """Transfer function to turn an array into sufficient statistics of a
+        diagonal, component-wise Kumaraswamy distribution.
+        The input is squared to obtain positive parameters. the "split" into halves is performed along the second axis.
+        Parameters
+        ----------
+        inpt : Theano tensor
+            Array of shape ``(n, d)`` or ``(t, n, d)``.
+        Returns
+        -------
+        output : Theano variable.
+            Transformed input. Same shape as ``inpt``."""
+        return X**2, var
+
+
+    def nll_recog_model(self, Z, stt):
+        stt_flat = assert_no_time(stt)
+        n_latent = stt_flat.shape[1] // 2
+        latent_a = stt_flat[:, :n_latent]
+        latent_b = stt_flat[:, n_latent:]
+
+        return -(T.log(latent_a) + T.log(latent_b) + (latent_a-1)*T.log(Z) + (latent_b-1)*T.log(1-Z**latent_a))
+
+    def kl_recog_prior(self, stt):
+        if stt.ndim == 3:
+            stt_flat = wild_reshape(stt, (-1, stt.shape[2]))
+        else:
+            stt_flat = stt
+
+        latent_a, latent_b = stt_flat[:, :stt_flat.shape[1] // 2], stt_flat[:, stt_flat.shape[1] // 2:]
+
+        kl = T.log(latent_a*latent_b) - ((latent_a-1)/latent_a)*(self.euler_gamma +T.psi(latent_b) +1/latent_b) - ((latent_b-1)/latent_b)
+
+        if stt.ndim == 3:
+            kl = recover_time(kl, stt.shape[0])
+
+        return kl
+
+    def nll_prior(self, X):
+        return T.zeros_like(X)
+
+    def latent_layer_size(self, n_latents):
+        """Return the cardinality of the sufficient statistics given we want to
+        model ``n_latents`` variables.
+
+        For example, a diagonal Gaussian needs two sufficient statistics for a
+        single random variable, the mean and the variance. A Bernoulli only
+        needs one, which is the probability of it being 0 or 1."""
+        return n_latents * 2
+
+    def sample_latents(self, stt, rng):
+        stt_flat = assert_no_time(stt)
+        n_latent = stt_flat.shape[1] // 2
+        latent_a = stt_flat[:, :n_latent]
+        latent_b = stt_flat[:, n_latent:]
+        noise = rng.uniform(size=latent_a.shape)
+        sample = (1 - (1-noise)**(1/latent_b))**(1/latent_a) -.5
+
+
+        if stt.ndim == 3:
+            return recover_time(sample, stt.shape[0])
+        else:
+            return sample
+
+
+
 class DiagGaussVisibleAssumption(object):
 
     def statify_visible(self, X, var=None):
