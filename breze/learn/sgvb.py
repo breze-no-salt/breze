@@ -62,10 +62,7 @@ from breze.arch.component.transfer import diag_gauss
 from breze.arch.component.varprop.transfer import sigmoid
 from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nll, bern_ces
 
-from breze.arch.model import sgvb
-from breze.arch.model.neural import mlp
-
-from breze.arch.util import ParameterSet, Model
+from breze.arch.util import ParameterSet
 from breze.learn.utils import theano_floatx
 
 import climin.initialize
@@ -155,6 +152,7 @@ def estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
         ll /= X.shape[1]
     return -ll
 
+
 class Assumptions(object):
 
     def sample_latents(self, stt, rng):
@@ -217,7 +215,8 @@ class DiagGaussLatentAssumption(object):
         else:
             stt_flat = stt
 
-        mean, var = stt_flat[:, :stt_flat.shape[1] // 2], stt_flat[:, stt_flat.shape[1] // 2:]
+        mean = stt_flat[:, :stt_flat.shape[1] // 2]
+        var = stt_flat[:, stt_flat.shape[1] // 2:]
         kl = inter_gauss_kl(mean, var, 1e-4)
 
         if stt.ndim == 3:
@@ -346,10 +345,10 @@ class BernoulliVisibleAssumption(object):
         else:
             return sample
 
-class GenericVariationalAutoEncoder(UnsupervisedModel,
-           TransformBrezeWrapperMixin,
-           ReconstructBrezeWrapperMixin):
 
+class GenericVariationalAutoEncoder(
+    UnsupervisedModel, TransformBrezeWrapperMixin,
+    ReconstructBrezeWrapperMixin):
     """Class representing a variational auto encoder.
 
     Described in [SGVB]_.
@@ -441,7 +440,7 @@ class GenericVariationalAutoEncoder(UnsupervisedModel,
 
     def _make_start_exprs(self):
         inpt = T.matrix('inpt')
-        
+
         inpt.tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
         if self.imp_weight_switch:
             imp_weight = T.matrix('imp_weight')
@@ -465,9 +464,15 @@ class GenericVariationalAutoEncoder(UnsupervisedModel,
                                            declare=parameters.declare)
 
         # TODO this is not going to work with variance propagation.
-        self.imp_weight = False if not self.imp_weight_switch else self._fix_imp_weight(n_dim)
+        if self.imp_weight_switch:
+            self.imp_weight = False
+        else:
+            self._fix_imp_weight(n_dim)
+
         rec_loss = supervised_loss(
-            inpt, self.vae.output, self.assumptions.nll_gen_model, coord_axis=n_dim - 1, imp_weight=self.imp_weight)['loss_coord_wise']
+            inpt, self.vae.output, self.assumptions.nll_gen_model,
+            coord_axis=n_dim - 1,
+            imp_weight=self.imp_weight)['loss_coord_wise']
         self.rec_loss_sample_wise = rec_loss.sum(axis=n_dim - 1)
         self.rec_loss = self.rec_loss_sample_wise.mean()
 
@@ -612,7 +617,6 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
         if isinstance(p_dropout_hiddens, float):
             p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
 
-
         rec_class = lambda inpt, declare: neural.FastDropoutMlp(
             inpt, n_inpt,
             n_hiddens_recog,
@@ -630,7 +634,6 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
             p_dropout_inpt, p_dropout_hiddens,
             dropout_parameterized=True,
             declare=declare)
-
 
         GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
                  assumptions, rec_class, gen_class, imp_weight=imp_weight,
