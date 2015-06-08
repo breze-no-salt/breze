@@ -310,8 +310,7 @@ class ParameterSet(object):
             self.flat = theano.sandbox.cuda.fvector('parameters')
         else:
             self.flat = T.vector('parameters')
-        self.flat.tag.test_value = np.empty(
-            (2048,), dtype=theano.config.floatX)
+
 
     def declare(self, shape, group=None):
         if group is not None:
@@ -321,6 +320,8 @@ class ParameterSet(object):
         size = np.prod(shape)
         start, stop = self._n_pars, self._n_pars + size
         self._n_pars = stop
+        if theano.config.compute_test_values != 'ignore':
+            self.flat.tag.test_value = np.zeros(self._n_pars)
         x = self.flat[start:stop].reshape(shape)
         self._var_to_slice[x] = (start, stop)
         self._var_to_shape[x] = shape
