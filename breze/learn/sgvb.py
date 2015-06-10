@@ -466,7 +466,6 @@ class GenericVariationalAutoEncoder(
                                            self.condition_func,
                                            declare=parameters.declare)
 
-
         if self.use_imp_weight:
             imp_weight = T.addbroadcast(self.imp_weight, n_dim - 1)
         else:
@@ -722,6 +721,36 @@ class StochasticRnn(GenericVariationalAutoEncoder):
             imp_weight = None
 
         return inpt, imp_weight
+
+    def initialize(self,
+                   par_std=1, par_std_affine=None, par_std_rec=None,
+                   par_std_in=None,
+                   sparsify_affine=None, sparsify_rec=None,
+                   spectral_radius=None):
+        climin.initialize.randomize_normal(self.parameters.data, 0, par_std)
+        all_layers = self.vae.recog.layers + self.vae.gen.layers
+        for i, layer in enumerate(all_layers):
+            if hasattr(layer, 'recurrent'):
+                p = self.parameters[layer.recurrent.weights]
+                if par_std_rec:
+                    climin.initialize.randomize_normal(p, 0, par_std_rec)
+                if sparsify_rec:
+                    climin.initialize.sparsify_columns(p, sparsify_rec)
+                if spectral_radius:
+                    climin.initialize.bound_spectral_radius(p, spectral_radius)
+                self.parameters[layer.recurrent.initial_mean][...] = 0
+                self.parameters[layer.recurrent.initial_std][...] = 1
+            if hasattr(layer, 'affine'):
+                p = self.parameters[layer.affine.weights]
+                if par_std_affine:
+                    if i == 0 and par_std_in:
+                        climin.initialize.randomize_normal(p, 0, par_std_in)
+                    else:
+                        climin.initialize.randomize_normal(p, 0, par_std_affine)
+                if sparsify_affine:
+                    climin.initialize.sparsify_columns(p, sparsify_affine)
+
+                self.parameters[layer.affine.bias][...] = 0
 
     def draw_pars(self, par_std, par_std_i2h, sparsify_in, sparsify_rec,
                   spectral_radius):

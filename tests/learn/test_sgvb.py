@@ -70,6 +70,9 @@ def test_storn():
     print 'transforming'
     m.transform(X)
 
+    print 'initializing'
+    m.initialize()
+
     print 'sampling map'
     m.sample(5, visible_map=True)
     print 'sampling'
