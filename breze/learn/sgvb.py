@@ -685,8 +685,9 @@ class StochasticRnn(GenericVariationalAutoEncoder):
             n_hiddens_recog,
             n_latent,
             recog_transfers, assumptions.statify_latent,
-            p_dropout_inpt, p_dropout_hiddens, p_dropout_hidden_to_out,
-            #dropout_parameterized=True,
+            p_dropout_inpt='parameterized',
+            p_dropout_hiddens=['parameterized' for _ in n_hiddens_recog],
+            p_dropout_hidden_to_out='parameterized',
             declare=declare)
 
         gen_class = lambda inpt, declare: neural.FastDropoutRnn(
@@ -695,7 +696,6 @@ class StochasticRnn(GenericVariationalAutoEncoder):
             assumptions.visible_layer_size(n_inpt),
             gen_transfers, assumptions.statify_visible,
             p_dropout_inpt, p_dropout_hiddens, p_dropout_hidden_to_out,
-            #dropout_parameterized=True,
             declare=declare)
 
         condition_func = lambda rec: T.concatenate(
