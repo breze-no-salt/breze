@@ -60,7 +60,8 @@ from breze.arch.component.common import supervised_loss
 from breze.arch.component.misc import inter_gauss_kl
 from breze.arch.component.transfer import diag_gauss
 from breze.arch.component.varprop.transfer import sigmoid
-from breze.arch.component.varprop.loss import diag_gaussian_nll as diag_gauss_nll, bern_ces
+from breze.arch.component.varprop.loss import (
+    diag_gaussian_nll as diag_gauss_nll, bern_ces)
 
 from breze.arch.util import ParameterSet
 from breze.learn.utils import theano_floatx
@@ -362,7 +363,7 @@ class GenericVariationalAutoEncoder(
     shortcut = None
 
     def __init__(self, n_inpt, n_latent,
-                 assumptions, gen_class, rec_class,
+                 assumptions, gen_class, rec_class, condition_func=None,
                  use_imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
@@ -422,6 +423,7 @@ class GenericVariationalAutoEncoder(
         self.assumptions = assumptions
         self.rec_class = rec_class
         self.gen_class = gen_class
+        self.condition_func = condition_func
 
         self.use_imp_weight = use_imp_weight
         self.batch_size = batch_size
@@ -440,8 +442,8 @@ class GenericVariationalAutoEncoder(
 
     def _make_start_exprs(self):
         inpt = T.matrix('inpt')
-
         inpt.tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
+
         if self.use_imp_weight:
             imp_weight = T.matrix('imp_weight')
             imp_weight.tag.test_value, = theano_floatx(np.ones((3, 1)))
@@ -461,6 +463,7 @@ class GenericVariationalAutoEncoder(
                                            self.assumptions,
                                            self.gen_class,
                                            self.rec_class,
+                                           self.condition_func,
                                            declare=parameters.declare)
 
 
@@ -594,6 +597,7 @@ class GenericVariationalAutoEncoder(
 
         return inner
 
+
 class VariationalAutoEncoder(GenericVariationalAutoEncoder):
 
     """
@@ -641,9 +645,8 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
                  max_iter=verbose, verbose=verbose)
 
 
-class StochasticRnn(VariationalAutoEncoder):
+class StochasticRnn(GenericVariationalAutoEncoder):
 
-    shortcut = 'shortcut'
     sample_dim = 1,
     theano_optimizer = optdb.query(theano.gof.Query(
         include=['fast_run'], exclude=['scan_eqopt1', 'scan_eqopt2']))
@@ -659,135 +662,66 @@ class StochasticRnn(VariationalAutoEncoder):
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
 
+        self.n_hiddens_recog = n_hiddens_recog
+        self.n_hiddens_gen = n_hiddens_gen
+
+        self.recog_transfers = recog_transfers
+        self.gen_transfers = gen_transfers
+
+        if isinstance(p_dropout_hiddens, float):
+            p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
+        self.p_dropout_inpt = p_dropout_inpt
+        self.p_dropout_hiddens = p_dropout_hiddens
+        if p_dropout_hidden_to_out is None:
+            p_dropout_hidden_to_out = p_dropout_hiddens[-1]
+        else:
+            p_dropout_hidden_to_out = p_dropout_hidden_to_out
         self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
+
         self.p_dropout_shortcut = p_dropout_shortcut
-        super(StochasticRnn, self).__init__(
-            n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
-            recog_transfers, gen_transfers, assumptions,
-            p_dropout_inpt, p_dropout_hiddens,
-            use_imp_weight, batch_size,
-            optimizer, max_iter, verbose)
+
+        rec_class = lambda inpt, declare: neural.FastDropoutRnn(
+            inpt, n_inpt,
+            n_hiddens_recog,
+            n_latent,
+            recog_transfers, assumptions.statify_latent,
+            p_dropout_inpt, p_dropout_hiddens, p_dropout_hidden_to_out,
+            #dropout_parameterized=True,
+            declare=declare)
+
+        gen_class = lambda inpt, declare: neural.FastDropoutRnn(
+            inpt, n_latent + n_inpt,
+            n_hiddens_gen,
+            assumptions.visible_layer_size(n_inpt),
+            gen_transfers, assumptions.statify_visible,
+            p_dropout_inpt, p_dropout_hiddens, p_dropout_hidden_to_out,
+            #dropout_parameterized=True,
+            declare=declare)
+
+        condition_func = lambda rec: T.concatenate(
+            [T.zeros_like(rec.inpt[:1]), rec.inpt[:-1]], 0)
+#
+#        # Hic sunt dracones.
+#        # If we do not keep this line, Theano will die with a segfault.
+#        shortcut_empty = T.set_subtensor(T.zeros_like(shortcut)[:, :, :], shortcut)
+
+        GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
+            assumptions, rec_class, gen_class, condition_func,
+            use_imp_weight=use_imp_weight,
+            batch_size=batch_size, optimizer=optimizer,
+            max_iter=verbose, verbose=verbose)
 
     def _make_start_exprs(self):
-        exprs = {
-            'inpt': T.tensor3('inpt')
-        }
-        exprs['inpt'].tag.test_value, = theano_floatx(np.ones((3, 2, self.n_inpt)))
+        inpt = T.tensor3('inpt')
+        inpt.tag.test_value, = theano_floatx(np.ones((4, 3, self.n_inpt)))
 
-        if self.imp_weight:
-            exprs['imp_weight'] = T.tensor3('imp_weight')
-            exprs['imp_weight'].tag.test_value, = theano_floatx(np.ones((3, 2, 1)))
-        return exprs
-
-    def _recog_par_spec(self):
-        """Return the parameter specification of the recognition model."""
-        spec = vprnn.parameters(
-            self.n_inpt, self.n_hiddens_recog, self.n_latent,
-            hidden_transfers=self.recog_transfers,
-        )
-        spec['p_dropout'] = {
-            'inpt': 1,
-            'hiddens': [1 for _ in self.n_hiddens_recog],
-            'hidden_to_out': 1,
-        }
-        return spec
-
-    def _recog_exprs(self, inpt):
-        """Return the exprssions of the recognition model."""
-        P = self.parameters.recog
-
-        n_layers = len(self.n_hiddens_recog)
-        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                             for i in range(n_layers - 1)]
-        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
-                         for i in range(n_layers)]
-        initial_hidden_means = [getattr(P, 'initial_hidden_means_%i' % i)
-                                for i in range(n_layers)]
-        initial_hidden_vars = [getattr(P, 'initial_hidden_vars_%i' % i) ** 2 + 1e-4
-                               for i in range(n_layers)]
-        recurrents = [getattr(P, 'recurrent_%i' % i)
-                      for i in range(n_layers)]
-
-        p_dropouts = (
-            [P.p_dropout.inpt] + P.p_dropout.hiddens
-            + [P.p_dropout.hidden_to_out])
-
-        # Reparametrize to assert the rates lie in (0.01, 0.5).
-        p_dropouts = [T.nnet.sigmoid(i) * 0.49 + 0.01 for i in p_dropouts]
-
-        exprs = vprnn.exprs(
-            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
-            hidden_biases, [1 for _ in hidden_biases],
-            initial_hidden_means, initial_hidden_vars,
-            recurrents,
-            P.out_bias, 1, self.recog_transfers, self.assumptions.statify_latent,
-            p_dropouts=p_dropouts)
-
-        # TODO also integrate variance!
-        #to_shortcut = self.exprs['inpt']
-        to_shortcut = exprs['hidden_mean_%i' % (n_layers - 1)]
-
-        shortcut = T.concatenate([T.zeros_like(to_shortcut[:1]),
-                                  to_shortcut[:-1]])
-
-        # Hic sunt dracones.
-        # If we do not keep this line, Theano will die with a segfault.
-        shortcut_empty = T.set_subtensor(T.zeros_like(shortcut)[:, :, :], shortcut)
-
-        exprs['shortcut'] = shortcut_empty
-
-        return exprs
-
-    def _gen_par_spec(self):
-        """Return the parameter specification of the generating model."""
-        n_output = self.assumptions.visible_layer_size(self.n_inpt)
-        spec = vprnn.parameters(
-            self.n_latent + self.n_hiddens_recog[-1], self.n_hiddens_gen,
-            n_output,
-            hidden_transfers=self.gen_transfers,
-        )
-        return spec
-
-    def _gen_exprs(self, inpt):
-        """Return the exprssions of the recognition model."""
-        P = self.parameters.gen
-
-        n_layers = len(self.n_hiddens_gen)
-        hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                             for i in range(n_layers - 1)]
-        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
-                         for i in range(n_layers)]
-        initial_hidden_means = [getattr(P, 'initial_hidden_means_%i' % i)
-                                for i in range(n_layers)]
-        initial_hidden_vars = [getattr(P, 'initial_hidden_vars_%i' % i) ** 2 + 1e-4
-                               for i in range(n_layers)]
-        recurrents = [getattr(P, 'recurrent_%i' % i)
-                      for i in range(n_layers)]
-
-        p_dropout_inpt = T.zeros_like(inpt[:, :, :self.n_latent])
-        p_dropout_inpt = T.fill(p_dropout_inpt, self.p_dropout_inpt)
-
-        p_dropout_shortcut = T.zeros_like(inpt[:, :, self.n_latent:])
-        p_dropout_shortcut = T.fill(p_dropout_shortcut, self.p_dropout_inpt)
-
-        p_dropout_inpt = T.concatenate([p_dropout_inpt, p_dropout_shortcut],
-                                       axis=2)
-
-        p_dropouts = [p_dropout_inpt] + self.p_dropout_hiddens
-        if self.p_dropout_hidden_to_out is None:
-            p_dropouts.append(self.p_dropout_hiddens[-1])
+        if self.use_imp_weight:
+            imp_weight = T.tensor3('imp_weight')
+            imp_weight.tag.test_value, = theano_floatx(np.ones((4, 3, 1)))
         else:
-            p_dropouts.append(self.p_dropout_hidden_to_out)
+            imp_weight = None
 
-        exprs = vprnn.exprs(
-            inpt, T.zeros_like(inpt), P.in_to_hidden, hidden_to_hiddens, P.hidden_to_out,
-            hidden_biases, [1 for _ in hidden_biases],
-            initial_hidden_means, initial_hidden_vars,
-            recurrents,
-            P.out_bias, 1, self.gen_transfers, self.assumptions.statify_visible,
-            p_dropouts=p_dropouts)
-
-        return exprs
+        return inpt, imp_weight
 
     def draw_pars(self, par_std, par_std_i2h, sparsify_in, sparsify_rec,
                   spectral_radius):

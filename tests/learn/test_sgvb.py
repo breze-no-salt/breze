@@ -57,16 +57,11 @@ def test_storn():
         pass
 
     m = sgvb.StochasticRnn(
-        2, [5], 4, [5],
+        2, [5], 17, [5],
         ['tanh'] * 1, ['rectifier'] * 1,
         assumptions=Assmptn(),
         optimizer='rprop', batch_size=None,
         max_iter=3)
-
-    print 'init pars and expressions'
-
-    m._init_pars()
-    m._init_exprs()
 
     print 'fitting'
     m.fit(X)

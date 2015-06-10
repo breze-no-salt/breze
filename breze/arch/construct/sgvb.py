@@ -9,7 +9,7 @@ from breze.arch.construct.base import Layer
 class VariationalAutoEncoder(Layer):
 
     def __init__(self, inpt, n_inpt, n_latent, n_output, assumptions,
-                 recog_class, gen_class, condition=None,
+                 recog_class, gen_class, condition_func=None,
                  declare=None, name=None):
         self.inpt = inpt
         self.n_inpt = n_inpt
@@ -18,7 +18,7 @@ class VariationalAutoEncoder(Layer):
         self.assumptions = assumptions
         self.recog_class = recog_class
         self.gen_class = gen_class
-        self.condition = condition
+        self.condition_func = condition_func
         self.transfer = _transfer
         super(VariationalAutoEncoder, self).__init__(
             declare=declare, name=name)
@@ -31,11 +31,12 @@ class VariationalAutoEncoder(Layer):
         self.latent = self.recog.output
         self.sample = self.assumptions.sample_latents(self.latent, rng)
 
-        if self.condition is None:
+        if self.condition_func is None:
             gen_inpt = self.sample
         else:
+            condition = self.condition_func(self.recog)
             gen_inpt = T.concatenate(
-                [self.sample, self.condition], axis=self.latent.ndim - 1)
+                [self.sample, condition], axis=self.latent.ndim - 1)
 
         # Generative model
         self.gen = self.gen_class(gen_inpt, self.declare)
