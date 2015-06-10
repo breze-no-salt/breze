@@ -495,7 +495,7 @@ class UnsupervisedModel(Model, BrezeWrapperBase):
     def _make_args(self, X, W=None):
         batch_size = getattr(self, 'batch_size', None)
         use_imp_weight = W is not None
-        if self.imp_weight != use_imp_weight:
+        if self.use_imp_weight != use_imp_weight:
             raise ValueError('need to give ``W`` in accordinace to '
                              '``self.imp_weight``')
         item = [X, W] if use_imp_weight else [X]

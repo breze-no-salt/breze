@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import itertools
-
 import numpy as np
 import theano
 
@@ -35,9 +33,7 @@ def test_vae_imp_weight():
     W = np.random.random((2, 1))
     X, W = theano_floatx(X, W)
 
-    # raises errors in declare that parameters has no test value
-    # but the actual shape can only be determined during alloc
-    #theano.config.compute_test_value = 'raise'
+    theano.config.compute_test_value = 'raise'
 
     m = sgvb.VariationalAutoEncoder(
         10, [20, 30], 4, [15, 25],
@@ -45,9 +41,7 @@ def test_vae_imp_weight():
         assumptions=Assmptn(),
         optimizer='rprop', batch_size=None,
         max_iter=3,
-        imp_weight=True)
-    #m._init_pars()
-    #m._init_exprs()
+        use_imp_weight=True)
 
     m.fit(X, W)
     m.score(X, W)
