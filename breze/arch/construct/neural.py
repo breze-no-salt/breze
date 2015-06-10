@@ -13,6 +13,19 @@ from breze.arch.construct.layer.varprop import (
     simple as vp_simple, sequential as vp_sequential)
 
 
+def wild_reshape(tensor, shape):
+    n_m1 = shape.count(-1)
+    if n_m1 > 1:
+        raise ValueError(' only one -1 allowed in shape')
+    elif n_m1 == 1:
+        rest = tensor.size
+        for s in shape:
+            if s != -1:
+                rest = rest // s
+        shape = tuple(i if i != -1 else rest for i in shape)
+    return tensor.reshape(shape)
+
+
 class Mlp(Layer):
 
     def __init__(self, inpt, n_inpt, n_hiddens, n_output,
@@ -205,15 +218,15 @@ class FastDropoutRnn(Layer):
         x_mean, x_var = fd_layer.outputs
 
         for m, n, t, d in zip(n_incoming, n_outgoing, transfers, p_dropouts):
-            x_mean_flat = x_mean.reshape((-1, m))
-            x_var_flat = x_var.reshape((-1, m))
+            x_mean_flat = wild_reshape(x_mean, (-1, m))
+            x_var_flat = wild_reshape(x_var, (-1, m))
 
             affine = vp_simple.AffineNonlinear(
                 x_mean_flat, x_var_flat, m, n, 'identity', declare=self.declare)
             pre_rec_mean_flat, pre_rec_var_flat = affine.outputs
 
-            pre_rec_mean = pre_rec_mean_flat.reshape((n_time_steps, -1, n))
-            pre_rec_var = pre_rec_var_flat.reshape((n_time_steps, -1, n))
+            pre_rec_mean = wild_reshape(pre_rec_mean_flat, (n_time_steps, -1, n))
+            pre_rec_var = wild_reshape(pre_rec_var_flat, (n_time_steps, -1, n))
 
             recurrent = vp_sequential.FDRecurrent(
                 pre_rec_mean, pre_rec_var, n, t, p_dropout=d,
@@ -222,8 +235,8 @@ class FastDropoutRnn(Layer):
 
             self.layers.append(self.HiddenLayer(affine, recurrent))
 
-        x_mean_flat = x_mean.reshape((-1, n))
-        x_var_flat = x_var.reshape((-1, n))
+        x_mean_flat = wild_reshape(x_mean, (-1, n))
+        x_var_flat = wild_reshape(x_var, (-1, n))
         fd = vp_simple.FastDropout(
             x_mean_flat, x_var_flat, self.p_dropout_hidden_to_out)
         x_mean_flat, x_var_flat = fd.outputs
@@ -233,12 +246,13 @@ class FastDropoutRnn(Layer):
         output_mean_flat, output_var_flat = affine.outputs
         self.layers.append(self.OutputLayer(fd, affine))
 
-        output_mean = output_mean_flat.reshape(
-            (n_time_steps, -1, self.n_output))
-        output_var = output_var_flat.reshape(
-            (n_time_steps, -1, self.n_output))
+        output_mean = wild_reshape(
+            output_mean_flat, (n_time_steps, -1, self.n_output))
+        output_var = wild_reshape(
+            output_var_flat, (n_time_steps, -1, self.n_output))
 
         if self.pooling:
             raise NotImplemented()
 
+        self.output = T.concatenate([output_mean, output_var], 2)
         self.outputs = output_mean, output_var
