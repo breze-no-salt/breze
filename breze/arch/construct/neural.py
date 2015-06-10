@@ -94,7 +94,6 @@ class FastDropoutMlp(Layer):
 
                 p = T.nnet.sigmoid(p) * 0.49 + 0.01
 
-
             fd_layer = vp_simple.FastDropout(
                 inpt_mean, inpt_var, p, declare=self.declare)
             mean, vari = fd_layer.outputs
@@ -107,7 +106,7 @@ class FastDropoutMlp(Layer):
 
             inpt_mean, inpt_var = layer.outputs
 
-        self.output = T.concatenate((inpt_mean, inpt_var),1)
+        self.output = T.concatenate((inpt_mean, inpt_var), 1)
         self.outputs = inpt_mean, inpt_var
 
 
