@@ -463,10 +463,16 @@ class GenericVariationalAutoEncoder(
                                            self.rec_class,
                                            declare=parameters.declare)
 
+
+        if self.use_imp_weight:
+            imp_weight = T.addbroadcast(self.imp_weight, n_dim - 1)
+        else:
+            imp_weight = False
+
         rec_loss = supervised_loss(
             inpt, self.vae.output, self.assumptions.nll_gen_model,
             coord_axis=n_dim - 1,
-            imp_weight=T.addbroadcast(self.imp_weight, n_dim - 1))['loss_coord_wise']
+            imp_weight=imp_weight)['loss_coord_wise']
         self.rec_loss_sample_wise = rec_loss.sum(axis=n_dim - 1)
         self.rec_loss = self.rec_loss_sample_wise.mean()
 
@@ -479,7 +485,7 @@ class GenericVariationalAutoEncoder(
         self.kl_coord_wise = self.assumptions.kl_recog_prior(self.latent)
 
         if self.use_imp_weight:
-            self.kl_coord_wise *= T.addbroadcast(self.imp_weight, n_dim - 1)
+            self.kl_coord_wise *= imp_weight
         self.kl_sample_wise = self.kl_coord_wise.sum(axis=n_dim - 1)
         self.kl = self.kl_sample_wise.mean()
 
