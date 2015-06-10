@@ -63,7 +63,6 @@ class FastDropoutMlp(Layer):
                  p_dropout_hiddens,
                  dropout_parameterized=False,
                  declare=None, name=None):
-
         self.inpt = inpt
         self.n_inpt = n_inpt
         self.n_hiddens = n_hiddens
@@ -211,8 +210,14 @@ class FastDropoutRnn(Layer):
         self.layers = []
         inpt_var = T.zeros_like(self.inpt)
 
+        if self.p_dropout_inpt == 'parameterized':
+            p_dropout_inpt = self.declare((1,))
+            p_dropout_inpt = T.nnet.sigmoid(p_dropout_inpt) * 0.49 + 0.01
+        else:
+            p_dropout_inpt = self.p_dropout_inpt
+
         fd_layer = vp_simple.FastDropout(
-            self.inpt, inpt_var, self.p_dropout_inpt)
+            self.inpt, inpt_var, p_dropout_inpt)
         self.layers.append(self.InputLayer(fd_layer))
         x_mean, x_var = fd_layer.outputs
 
@@ -227,6 +232,10 @@ class FastDropoutRnn(Layer):
             pre_rec_mean = wild_reshape(pre_rec_mean_flat, (n_time_steps, -1, n))
             pre_rec_var = wild_reshape(pre_rec_var_flat, (n_time_steps, -1, n))
 
+            if d == 'parameterized':
+                d = self.declare((1,))
+                d = T.nnet.sigmoid(d) * 0.49 + 0.01
+
             recurrent = vp_sequential.FDRecurrent(
                 pre_rec_mean, pre_rec_var, n, t, p_dropout=d,
                 declare=self.declare)
@@ -236,8 +245,15 @@ class FastDropoutRnn(Layer):
 
         x_mean_flat = wild_reshape(x_mean, (-1, n))
         x_var_flat = wild_reshape(x_var, (-1, n))
+        if self.p_dropout_hidden_to_out == 'parameterized':
+            p_dropout_hidden_to_out = self.declare((1,))
+            p_dropout_hidden_to_out = T.nnet.sigmoid(
+                p_dropout_hidden_to_out) * 0.49 + 0.01
+        else:
+            p_dropout_hidden_to_out = self.p_dropout_hidden_to_out
+
         fd = vp_simple.FastDropout(
-            x_mean_flat, x_var_flat, self.p_dropout_hidden_to_out)
+            x_mean_flat, x_var_flat, p_dropout_hidden_to_out)
         x_mean_flat, x_var_flat = fd.outputs
         affine = vp_simple.AffineNonlinear(
             x_mean_flat, x_var_flat, n, self.n_output, self.out_transfer,
