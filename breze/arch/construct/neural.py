@@ -4,6 +4,7 @@
 from collections import namedtuple
 
 import theano.tensor as T
+import numpy as np
 
 from breze.arch.construct.base import Layer
 
@@ -242,3 +243,45 @@ class FastDropoutRnn(Layer):
             raise NotImplemented()
 
         self.outputs = output_mean, output_var
+
+class Cnn(Layer):
+    """
+    Builds convolutional layers of CNN, for a complete CNN, fully connected layers have to be implemented with, e.g. MLP
+    """
+    def __init__(self, inpt, n_inpt, n_hidden_conv,
+                 image_shapes, filter_shapes, hidden_conv_transfers, input_shape,
+                 pool_shapes, pool_shifts, padding, lrnorm, use_bias=True, declare=None, name=None):
+        self.inpt = inpt
+        self.n_inpt = n_inpt
+        self.n_hidden_conv = n_hidden_conv
+        self.image_shapes = image_shapes
+        self.filter_shapes = filter_shapes
+        self.input_shape = input_shape
+        self.pool_shapes = pool_shapes
+        self.pool_shifts = pool_shifts
+        self.padding = padding
+        self.lrnorm = lrnorm
+        self.hidden_conv_transfers = hidden_conv_transfers
+
+        self.use_bias = use_bias
+        self.declare = declare
+        self.name = name
+
+        super(Cnn, self).__init__(declare, name)
+
+    def _forward(self):
+        self.layers = []
+
+        inpt = self.inpt.reshape(self.input_shape)
+        print 'reshaped input'
+        print self.input_shape
+
+        for i, (fis, sp, sh, tr, lrn) in enumerate(zip(self.filter_shapes,
+                                        self.pool_shapes, self.pool_shifts, self.hidden_conv_transfers,
+                                        self.lrnorm)):
+            layer = simple.Convolution(inpt, self.image_shapes[i], self.image_shapes[i+1], fis, sp, sh, tr, (self.padding[i], self.padding[i+1]), lrn,
+                                            use_bias=self.use_bias, declare=self.declare)
+            self.layers.append(layer)
+            inpt = layer.output
+
+        self.output = inpt
