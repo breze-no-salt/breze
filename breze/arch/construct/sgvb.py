@@ -34,9 +34,9 @@ class VariationalAutoEncoder(Layer):
         if self.condition_func is None:
             gen_inpt = self.sample
         else:
-            condition = self.condition_func(self.recog)
+            self.condition = self.condition_func(self.recog)
             gen_inpt = T.concatenate(
-                [self.sample, condition], axis=self.latent.ndim - 1)
+                [self.sample, self.condition], axis=self.latent.ndim - 1)
 
         # Generative model
         self.gen = self.gen_class(gen_inpt, self.declare)
