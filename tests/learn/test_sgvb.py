@@ -70,10 +70,58 @@ def test_storn():
     print 'transforming'
     m.transform(X)
 
+    print 'inferring hiddens of generative model'
+    m.gen_hiddens(X)
+
     print 'initializing'
     m.initialize()
+
+
+def test_storn_sampling():
+    theano.config.compute_test_value = 'raise'
+    X = np.random.random((3, 5, 2))
+    X, = theano_floatx(X)
+
+    class Assmptn(sgvb.DiagGaussLatentAssumption, sgvb.DiagGaussVisibleAssumption):
+        pass
+
+    m = sgvb.StochasticRnn(
+        2, [5], 17, [5],
+        ['tanh'] * 1, ['rectifier'] * 1,
+        assumptions=Assmptn(),
+        optimizer='rprop', batch_size=None,
+        max_iter=3)
+
+    m.parameters.data[...] = 1
 
     print 'sampling map'
     m.sample(5, visible_map=True)
     print 'sampling'
     m.sample(5, visible_map=False)
+
+    print 'sampling with prefix'
+    m.sample(5, visible_map=False, prefix=X[:, :1, :])
+
+    m._sample_one_step(
+        np.empty(5), np.empty(5),
+        np.empty((1, 1, 2)),
+        np.empty((1, 1, 17)))
+
+
+    P = m.parameters
+
+    initial_means = [P[i.recurrent.initial_mean]
+                    for i in m.vae.gen.hidden_layers]
+    initial_stds = [P[i.recurrent.initial_std]
+                    for i in m.vae.gen.hidden_layers]
+
+    from breze.learn.sgvb import flatten_list
+    args = flatten_list(zip(initial_means, initial_stds))
+
+    inpt = np.zeros((1, 1, 2))
+    latent_samples = 1 / np.zeros((1, 1, 17))
+    args += [inpt, latent_samples[:1]]
+
+    s1 = m._sample_one_step_vmap(*args)
+    print s1
+    s2 = m._sample_one_step_vmap(*args)
