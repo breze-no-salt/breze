@@ -752,46 +752,6 @@ class StochasticRnn(GenericVariationalAutoEncoder):
 
                 self.parameters[layer.affine.bias][...] = 0
 
-    def draw_pars(self, par_std, par_std_i2h, sparsify_in, sparsify_rec,
-                  spectral_radius):
-        n_recog_layers = len(self.recog_transfers)
-        n_gen_layers = len(self.gen_transfers)
-
-        climin.initialize.randomize_normal(
-            self.parameters.data, 0, par_std)
-        climin.initialize.randomize_normal(
-            self.parameters['recog']['in_to_hidden'],
-            0, par_std_i2h)
-        climin.initialize.randomize_normal(
-            self.parameters['gen']['in_to_hidden'],
-            0, par_std_i2h)
-
-        if sparsify_rec:
-            for i in range(n_recog_layers):
-                climin.initialize.sparsify_columns(
-                    self.parameters['recog']['recurrent_%i' % i], sparsify_rec)
-                climin.initialize.bound_spectral_radius(
-                    self.parameters['recog']['recurrent_%i' % i], spectral_radius)
-
-            for i in range(n_gen_layers):
-                climin.initialize.sparsify_columns(
-                    self.parameters['gen']['recurrent_%i' % i], sparsify_rec)
-
-                climin.initialize.bound_spectral_radius(
-                    self.parameters['gen']['recurrent_%i' % i], spectral_radius)
-
-        for i in range(n_recog_layers):
-            climin.initialize.bound_spectral_radius(
-                self.parameters['recog']['recurrent_%i' % i], spectral_radius)
-
-        for i in range(n_gen_layers):
-            climin.initialize.bound_spectral_radius(
-                self.parameters['gen']['recurrent_%i' % i], spectral_radius)
-
-        if sparsify_in:
-            climin.initialize.sparsify_columns(
-                self.parameters['recog']['in_to_hidden'], sparsify_in)
-
     def _make_sample_one_step(self, visible_map=False):
         n_layers = len(self.n_hiddens_gen)
 
