@@ -114,6 +114,10 @@ class Rnn(Layer):
     HiddenLayer = namedtuple('HiddenLayer', 'affine recurrent'.split())
     OutputLayer = namedtuple('OutputLayer', ['affine'])
 
+    @property
+    def hidden_layers(self):
+        return [i for i in self.layers if isinstance(i, self.HiddenLayer)]
+
     def __init__(self, inpt,
                  n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer='identity',
@@ -177,6 +181,10 @@ class FastDropoutRnn(Layer):
                              'affine recurrent'.split())
     OutputLayer = namedtuple('OutputLayer', 'fast_dropout affine'.split())
 
+    @property
+    def hidden_layers(self):
+        return [i for i in self.layers if isinstance(i, self.HiddenLayer)]
+
     def __init__(self, inpt,
                  n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer='identity',
@@ -198,6 +206,33 @@ class FastDropoutRnn(Layer):
         self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
 
         super(FastDropoutRnn, self).__init__(declare, name)
+
+    def _make_rec_layer(self, x_mean, x_var, n_inpt, n_output, transfer,
+                        p_dropout):
+        n_time_steps, _, _ = self.inpt.shape
+        x_mean_flat = wild_reshape(x_mean, (-1, n_inpt))
+        x_var_flat = wild_reshape(x_var, (-1, n_inpt))
+
+        affine = vp_simple.AffineNonlinear(
+            x_mean_flat, x_var_flat, n_inpt, n_output, 'identity',
+            declare=self.declare)
+        pre_rec_mean_flat, pre_rec_var_flat = affine.outputs
+
+        pre_rec_mean = wild_reshape(pre_rec_mean_flat,
+                                    (n_time_steps, -1, n_output))
+        pre_rec_var = wild_reshape(pre_rec_var_flat,
+                                   (n_time_steps, -1, n_output))
+
+        if p_dropout == 'parameterized':
+            p_dropout = self.declare((1,))
+            p_dropout = T.nnet.sigmoid(p_dropout) * 0.49 + 0.01
+
+        recurrent = vp_sequential.FDRecurrent(
+            pre_rec_mean, pre_rec_var, n_output, transfer, p_dropout=p_dropout,
+            declare=self.declare)
+        x_mean, x_var = recurrent.outputs
+        layer = self.HiddenLayer(affine, recurrent)
+        return x_mean, x_var, layer
 
     def _forward(self):
         n_incoming = [self.n_inpt] + self.n_hiddens[:-1]
@@ -222,26 +257,9 @@ class FastDropoutRnn(Layer):
         x_mean, x_var = fd_layer.outputs
 
         for m, n, t, d in zip(n_incoming, n_outgoing, transfers, p_dropouts):
-            x_mean_flat = wild_reshape(x_mean, (-1, m))
-            x_var_flat = wild_reshape(x_var, (-1, m))
-
-            affine = vp_simple.AffineNonlinear(
-                x_mean_flat, x_var_flat, m, n, 'identity', declare=self.declare)
-            pre_rec_mean_flat, pre_rec_var_flat = affine.outputs
-
-            pre_rec_mean = wild_reshape(pre_rec_mean_flat, (n_time_steps, -1, n))
-            pre_rec_var = wild_reshape(pre_rec_var_flat, (n_time_steps, -1, n))
-
-            if d == 'parameterized':
-                d = self.declare((1,))
-                d = T.nnet.sigmoid(d) * 0.49 + 0.01
-
-            recurrent = vp_sequential.FDRecurrent(
-                pre_rec_mean, pre_rec_var, n, t, p_dropout=d,
-                declare=self.declare)
-            x_mean, x_var = recurrent.outputs
-
-            self.layers.append(self.HiddenLayer(affine, recurrent))
+            x_mean, x_var, layer = self._make_rec_layer(
+                x_mean, x_var, m, n, t, d)
+            self.layers.append(layer)
 
         x_mean_flat = wild_reshape(x_mean, (-1, n))
         x_var_flat = wild_reshape(x_var, (-1, n))
@@ -271,3 +289,44 @@ class FastDropoutRnn(Layer):
 
         self.output = T.concatenate([output_mean, output_var], 2)
         self.outputs = output_mean, output_var
+
+
+class BidirectFastDropoutRnn(FastDropoutRnn):
+
+    HiddenLayer = namedtuple(
+        'HiddenLayer',
+        'affine recurrent_forward recurrent_backward'.split())
+
+    def _make_rec_layer(self, x_mean, x_var, n_inpt, n_output, transfer,
+                        p_dropout):
+        n_time_steps, _, _ = self.inpt.shape
+        x_mean_flat = wild_reshape(x_mean, (-1, n_inpt))
+        x_var_flat = wild_reshape(x_var, (-1, n_inpt))
+
+        affine = vp_simple.AffineNonlinear(
+            x_mean_flat, x_var_flat, n_inpt, n_output, 'identity',
+            declare=self.declare)
+        pre_rec_mean_flat, pre_rec_var_flat = affine.outputs
+
+        pre_rec_mean = wild_reshape(pre_rec_mean_flat,
+                                    (n_time_steps, -1, n_output))
+        pre_rec_var = wild_reshape(pre_rec_var_flat,
+                                   (n_time_steps, -1, n_output))
+
+        if p_dropout == 'parameterized':
+            p_dropout = self.declare((1,))
+            p_dropout = T.nnet.sigmoid(p_dropout) * 0.49 + 0.01
+
+        recurrent_fw = vp_sequential.FDRecurrent(
+            pre_rec_mean, pre_rec_var, n_output, transfer, p_dropout=p_dropout,
+            declare=self.declare)
+        recurrent_bw = vp_sequential.FDRecurrent(
+            pre_rec_mean[::-1], pre_rec_var[::-1], n_output, transfer,
+            p_dropout=p_dropout,
+            declare=self.declare)
+
+        x_mean = recurrent_fw.outputs[0] + recurrent_bw.outputs[0]
+        x_var = recurrent_fw.outputs[1] + recurrent_bw.outputs[1]
+
+        layer = self.HiddenLayer(affine, recurrent_fw, recurrent_bw)
+        return x_mean, x_var, layer
