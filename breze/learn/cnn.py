@@ -13,6 +13,8 @@ from breze.arch.construct import neural
 from breze.arch.util import ParameterSet
 from breze.learn.base import SupervisedModel, BrezeWrapperBase
 from breze.arch.component.common import supervised_loss
+# from breze.arch.util import lookup
+# from breze.arch.component import transfer, loss as loss_
 
 from climin.util import minibatches
 from climin.initialize import randomize_normal
@@ -301,16 +303,16 @@ class Cnn(SupervisedModel, BrezeWrapperBase):
 
         output = self.mlp.output
 
-        rec_loss_coord = supervised_loss(
+        sup_loss_coord = supervised_loss(
             target, output, self.loss_ident, coord_axis=1)['loss_coord_wise']
-        rec_loss_sample_wise = rec_loss_coord.sum(axis=1)
-        rec_loss = rec_loss_sample_wise.mean()
+        sup_loss_sample_wise = sup_loss_coord.sum(axis=1)
+        sup_loss = sup_loss_sample_wise.mean()
 
         SupervisedModel.__init__(self,
             inpt=inpt,
             target=target,
             output=output,
-            loss=rec_loss,
+            loss=sup_loss,
             parameters=parameters)
 
         self.filters_in_to_hidden = parameters[self.cnn.layers[0].weights]

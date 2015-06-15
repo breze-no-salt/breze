@@ -229,6 +229,7 @@ class AutoEncoder(UnsupervisedModel,
 
         self.feature = self.mlp.layers[self.code_idx].output
         self.filters_in_to_hidden = parameters[self.mlp.layers[0].weights]
+        self.filters_hidden_to_out = parameters[self.mlp.layers[-1].weights]
 
 
 class SparseAutoEncoder(AutoEncoder):
