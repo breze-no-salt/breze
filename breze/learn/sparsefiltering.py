@@ -14,14 +14,20 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.arch.model.feature import sparsefiltering
+from breze.arch.component.loss import sparse_filtering_loss
 from breze.arch.model import linear
-from breze.arch.util import ParameterSet, Model
+from breze.arch.util import ParameterSet
 from breze.learn.base import (
-    UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin)
+    UnsupervisedModel, TransformBrezeWrapperMixin,
+    ReconstructBrezeWrapperMixin)
+
+from breze.arch.construct import neural, simple
+from breze.learn.utils import theano_floatx
+
+theano.config.compute_test_value = 'raise'
 
 
-class SparseFiltering(Model, UnsupervisedBrezeWrapperBase,
+class SparseFiltering(UnsupervisedModel,
                       TransformBrezeWrapperMixin):
 
     transform_expr_name = 'output'
@@ -58,22 +64,25 @@ class SparseFiltering(Model, UnsupervisedBrezeWrapperBase,
         self.max_iter = max_iter
         self.verbose = verbose
 
-        super(SparseFiltering, self).__init__()
+        self._init_exprs()
 
-    def _init_pars(self):
-        spec = sparsefiltering.parameters(self.n_inpt, self.n_output)
-        self.parameters = ParameterSet(**spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
 
     def _init_exprs(self):
-        self.exprs = {
-            'inpt': T.matrix('inpt'),
-        }
-        self.exprs['inpt'].tag.test_value = np.zeros(
-            (10, self.n_inpt)).astype(theano.config.floatX)
-        P = self.parameters
+        inpt = T.matrix('inpt')
+        inpt.tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
 
-        self.exprs.update(linear.exprs(
-            self.exprs['inpt'], P.in_to_out, 0, 'identity'))
-        self.exprs.update(sparsefiltering.loss(self.exprs['output'], self.feature_transfer))
+        parameters = ParameterSet()
+
+        self.affine = simple.AffineNonlinear(inpt, self.n_inpt, self.n_output, transfer='identity',
+            declare=parameters.declare)
+
+        output = self.affine.output
+
+        sparse_loss = sparse_filtering_loss(output, self.feature_transfer)['loss']
+
+        UnsupervisedModel.__init__(self, inpt=inpt,
+                                 output=output,
+                                 loss=sparse_loss,
+                                 parameters=parameters)
+
+        self.filters_in_to_hidden = parameters[self.affine.weights]
