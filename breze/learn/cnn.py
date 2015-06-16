@@ -8,101 +8,86 @@ import theano.tensor as T
 
 import numpy as np
 
-from breze.arch.model.neural import cnn
-from breze.arch.util import ParameterSet, Model
-from breze.learn.base import SupervisedBrezeWrapperBase
+# from breze.arch.model.neural import
+from breze.arch.construct import neural
+from breze.arch.util import ParameterSet
+from breze.learn.base import SupervisedModel, BrezeWrapperBase
+from breze.arch.component.common import supervised_loss
+# from breze.arch.util import lookup
+# from breze.arch.component import transfer, loss as loss_
 
 from climin.util import minibatches
 from climin.initialize import randomize_normal
 
+from breze.learn.utils import theano_floatx
 
-class Cnn(Model, SupervisedBrezeWrapperBase):
+
+class Cnn(SupervisedModel, BrezeWrapperBase):
     """Cnn class.
-
     Parameters
     ----------
-
     n_inpt : Integer
         Dimensionality of a single input.
-
     n_hidden_conv : List of integers
         List of ``k`` integers, where ``k`` is the number of convolutional
         layers, considering one convolutional layer as the convolution operation
         followed by the pooling operation.
         Each integer gives the number of feature maps of the corresponding
         layer.
-
     n_hidden_full : List of integers
         List of ``k`` integers, where ``k`` is the number of fully connected
         layers.
         Each gives the size of the corresponding layer.
-
     n_output : Integer
         Dimensionality of a single output.
-
     hidden_conv_transfers : List of strings or callables
         Transfer functions for each of the  convolutional layers.
         Can be either a string which is then used to look up a transfer
         function in ``breze.component.transfer`` or a function that given
         a Theano tensor returns a tensor of the same shape.
-
     hidden_full_transfers : List of strings or callables
         Transfer functions for each of the fully connected layers.
         Can be either a string which is then used to look up a transfer
         function in ``breze.component.transfer`` or a function that given
         a Theano tensor returns a tensor of the same shape.
-
     out_transfer : String or function
         Either a string to look up a function in ``breze.component.transfer`` or
         a function that given a Theano tensor returns a tensor of the same
         shape.
-
     loss : String or callable
         Either a string to look up a function in ``breze.component.loss`` or
         a function that, given an input and target Theano tensors, outputs
         a real number.
-
     image_height : Integer, None
         Indicates the size of the last dimension of the when the input is
         to be considered as 2 or 3-dimensional.
-
     image_width : Integer, None
         Indicates the size of the second from last dimension when the input is
         to be considered 2 or 3-dimensional.
-
     n_image_channel : Integer
         Number of channels of the image.
-
     optimizer : String, pair
         Argument is passed to ``climin.util.optimizer`` to construct an
         optimizer.
-
     batch_size : Integer, None
         Number of examples per batch when calculating the loss
         and its derivatives. None means to use a single sample every time.
-
     max_iter : int
         Maximum number of optimization iterations to perform. Only respected
         during``.fit()``, not ``.iter_fit()``.
-
     verbose : boolean
         Flag indicating whether to print out information during fitting.
-
     pool_shapes : List of integer tuples
         Size of the pool used for downsampling each convolutional layer.
-
     pool_strides : List of integer tuples
         Separation between patches for each convolutional layer.
         By default, it is defined to be the same as pool_shapes
         (non-overlapping pooling).
-
     filter_shapes : List of integer tuples
         Size of the filter (height, width) for the convolutional operation
         for each convolutional layer.
-
     padding : List of integers
         Pad to add to the input of each convolutional layer.
-
     lrnorm : List of triples of floats, None
         Parameters (alpha, beta, size of patch) of the local response
         normalization of each convolutional layer. If None, no local response
@@ -110,11 +95,9 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
         E.g. In a CNN with 2 convolutional layers [(2,2,4), None] would do a
         local response normalization for the first convolutional layer only,
         with alpha = 2, beta = 3, and patch size = 4.
-
     init_weights_stdev : List of floats
         Standard deviation of the normal distribution used for the
         initialization of the parameters in the model in a per-layer basis.
-
     init_biases_stdev : List of floats
         Standard deviation of the normal distribution used for the
         initialization of the biases in the model in a per-layer basis.
@@ -196,7 +179,7 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
         self.hidden_conv_transfers = hidden_conv_transfers
         self.hidden_full_transfers = hidden_full_transfers
         self.out_transfer = out_transfer
-        self.loss = loss
+        self.loss_ident = loss
         self.image_shapes = []
         self.filter_shapes_comp = []
         self.pool_shifts = []
@@ -207,7 +190,9 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
         self.batch_size = batch_size
         self.max_iter = max_iter
         self.verbose = verbose
-        super(Cnn, self).__init__()
+
+        self._init_exprs()
+
 
     def _init_filter_shapes(self):
         """Calculation of the size of the filters used in the convolutional
@@ -241,16 +226,6 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
             self.image_shapes.append((self.batch_size, n_feat_maps,
                                       image_size[0], image_size[1]))
 
-    def _init_pars(self):
-        last_image_shape = self.image_shapes[-1]
-        resulting_image_size = last_image_shape[-1] * last_image_shape[-2]
-
-        spec = cnn.parameters(
-            self.n_inpt, self.n_hidden_conv, self.n_hidden_full, self.n_output,
-            resulting_image_size, self.filter_shapes)
-
-        self.parameters = ParameterSet(**spec)
-
     def _init_pool_shifts(self):
         """Initialization of the shifted images we need to obtain for every
         pooling layer in order to apply the pooling with the specified stride
@@ -268,94 +243,114 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
             self.pool_shifts.append(pool_shift)
 
     def _init_exprs(self):
-        self.exprs = {
-            'inpt': T.matrix('inpt'),
-            'target': T.matrix('target')
-        }
-        P = self.parameters
-        hidden_conv_to_hidden_conv = [P['hidden_conv_to_hidden_conv_%i' % i]
-                                      for i in range(len(self.n_hidden_conv)
-                                                     - 1)]
-        hidden_full_to_hidden_full = [P['hidden_full_to_hidden_full_%i' % i]
-                                      for i in range(len(self.n_hidden_full)
-                                                     - 1)]
-        hidden_conv_bias = [getattr(P, 'hidden_conv_bias_%i' % i)
-                            for i in range(len(self.n_hidden_conv))]
-        hidden_full_bias = [getattr(P, 'hidden_full_bias_%i' % i)
-                            for i in range(len(self.n_hidden_full))]
-        self.exprs.update(cnn.exprs(
-            self.exprs['inpt'], self.exprs['target'],
-            P.in_to_hidden, P.hidden_to_out,
-            P.out_bias, P.hidden_conv_to_hidden_full,
-            hidden_conv_to_hidden_conv, hidden_full_to_hidden_full,
-            hidden_conv_bias, hidden_full_bias, self.hidden_conv_transfers,
-            self.hidden_full_transfers, self.out_transfer, self.loss,
-            self.image_shapes, self.filter_shapes_comp, self.n_inpt,
-            self.pool_shapes, self.pool_shifts, self.padding, self.lrnorm))
+        inpt = T.matrix('inpt')
+        inpt.tag.test_value, = theano_floatx(np.ones((3, self.n_inpt[2]*self.n_inpt[3])))
+        target = T.matrix('target')
+
+        last_image_shape = self.image_shapes[-1]
+        resulting_image_size = last_image_shape[-1] * last_image_shape[-2]
+        print 'resulting image size'
+        print resulting_image_size
+
+        parameters = ParameterSet()
+
+        print 'image shapes'
+        print np.asarray(self.image_shapes).shape
+        print self.image_shapes
+
+        print 'n_inpt' + str(self.n_inpt)
+
+        self.cnn = neural.Cnn(inpt, self.n_inpt, self.n_hidden_conv,
+                              self.image_shapes, self.filter_shapes_comp,
+                              self.hidden_conv_transfers, self.n_inpt,
+                              self.pool_shapes, self.pool_shifts, self.padding, self.lrnorm,
+                              declare=parameters.declare)
+
+        self.conv_output = self.cnn.output
+
+        n_inpt_to_mlp = resulting_image_size * self.n_hidden_conv[-1]
+        print 'number of inputs to fully connected layer: ' + str(n_inpt_to_mlp)
+
+        self.mlp = neural.Mlp(
+            self.conv_output.reshape((self.batch_size,n_inpt_to_mlp)), n_inpt_to_mlp,
+            self.n_hidden_full,
+            self.n_output,
+            self.hidden_full_transfers, self.out_transfer,
+            declare=parameters.declare)
+
+        output = self.mlp.output
+
+        sup_loss_coord = supervised_loss(
+            target, output, self.loss_ident, coord_axis=1)['loss_coord_wise']
+        sup_loss_sample_wise = sup_loss_coord.sum(axis=1)
+        sup_loss = sup_loss_sample_wise.mean()
+
+        SupervisedModel.__init__(self,
+            inpt=inpt,
+            target=target,
+            output=output,
+            loss=sup_loss,
+            parameters=parameters)
+
+        self.filters_in_to_hidden = parameters[self.cnn.layers[0].weights]
+
+
 
     def draw_params(self, seed=314):
         """Initialization of the parameters of the model. These are drawn
         from a normal distribution on a per-layer basis.
-
         Parameters
         ----------
-
         seed : Integer
             Random seed to use for the random number generator.
+        # there are "num input feature maps * filter height * filter width"
+        # inputs to each hidden unit
+        fan_in = np.prod(self.filter_shape[1:])
+        # each unit in the lower layer receives a gradient from:
+        # "num output feature maps * filter height * filter width" /
+        #   pooling size
+        fan_out = (self.filter_shape[0] * np.prod(self.filter_shape[2:]) /
+                   np.prod(self.pool_shape))
+        # initialize weights with random weights
+        W_bound = np.sqrt(6. / (fan_in + fan_out))
+        # the bias is a 1D tensor -- one bias per output feature map
+            b_values = np.zeros((self.filter_shape[0],), dtype=theano.config.floatX)
         """
+
         rng = np.random.RandomState(seed)
         self.parameters.data[:] = rng.standard_normal(
             self.parameters.data.shape).astype(theano.config.floatX)
-        weight_order = ['in_to_hidden']
-        bias_order = ['hidden_conv_bias_0']
-        for i in np.arange(1, len(self.n_hidden_conv)):
-            weight_order.append('hidden_conv_to_hidden_conv_%i' % (i-1))
-            bias_order.append('hidden_conv_bias_%i' % i)
-        weight_order.append('hidden_conv_to_hidden_full')
-        bias_order.append('hidden_full_bias_0')
-        for i in range(1, len(self.n_hidden_full)):
-            weight_order.append('hidden_full_to_full_conv_%i' % (i-1))
-            bias_order.append('hidden_conv_bias_%i' % i)
-        weight_order.append('hidden_to_out')
-        bias_order.append('out_bias')
-        for i, (weight, bias) in enumerate(zip(weight_order, bias_order)):
+
+        for i, (conv_l) in enumerate(self.cnn.layers):
             if self.init_weigths_stdev[i] == 0:
-                weight_data = np.zeros(self.parameters[weight].shape)
+                self.parameters[conv_l.weights] = np.zeros(self.parameters[weight].shape)
             else:
-                weight_data = rng.normal(0, self.init_weigths_stdev[i],
-                                         self.parameters[weight].shape)
-            self.parameters[weight] = weight_data
+                self.parameters[conv_l.weights] = rng.normal(0, self.init_weigths_stdev[i],
+                                         self.parameters[conv_l.weights].shape)
             if self.init_biases_stdev[i] == 0:
-                bias_data = np.zeros(self.parameters[bias].shape)
+                self.parameters[conv_l.bias] = np.zeros(self.parameters[conv_l.bias].shape)
             else:
                 bias_data = rng.normal(0, self.init_biases_stdev[i],
-                                       self.parameters[bias].shape)
-            self.parameters[bias] = bias_data
+                                       self.parameters[conv_l.bias].shape)
+
 
     def apply_minibatches_function(self, f, X, Z):
         """Apply a function to batches of the input.
-
         The convolutional neural networks class needs the input to be the same
         size as the batch size. This function slices the input so that it
         can be processed correctly.
         If the batch size is not a divisor of the input size, an exception is
         raised.
-
         Parameters
         ----------
-
         f : Callable
             Function to use for all the batches.
-
         X : Numpy array
             Input of the function
-
         Z : numpy array
             Target of the function
-
         Returns
         -------
-
         exprs : The average of the results of the function over all the batches.
         """
         data = [minibatches(i, self.batch_size, d)
@@ -369,19 +364,14 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
 
     def loss_(self, X, Z):
         """Override the loss function.
-
         Parameters
         ----------
-
         X : Numpy array
             Input of the function
-
         Z : numpy array
             Target of the function
-
         Returns
         -------
-
         exprs : The loss of the network with respect to the input and
         the target.
         """
@@ -389,19 +379,14 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
 
     def score(self, X, Z):
         """Override the score function.
-
         Parameters
         ----------
-
         X : Numpy array
             Input of the function
-
         Z : numpy array
             Target of the function
-
         Returns
         -------
-
         exprs : The score of the network with respect to the input and
         the target.
         """
@@ -409,16 +394,12 @@ class Cnn(Model, SupervisedBrezeWrapperBase):
 
     def predict(self, X):
         """Override the predict function.
-
         Parameters
         ----------
-
         X : Numpy array
             Input of the function
-
         Returns
         -------
-
         exprs : The predictions of the network
         """
         data = minibatches(X, self.batch_size, 0)
