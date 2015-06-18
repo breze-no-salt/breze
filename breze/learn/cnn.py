@@ -13,6 +13,7 @@ from breze.arch.construct import neural
 from breze.arch.util import ParameterSet
 from breze.learn.base import SupervisedModel, BrezeWrapperBase
 from breze.arch.component.common import supervised_loss
+
 # from breze.arch.util import lookup
 # from breze.arch.component import transfer, loss as loss_
 
@@ -101,6 +102,7 @@ class Cnn(SupervisedModel, BrezeWrapperBase):
     init_biases_stdev : List of floats
         Standard deviation of the normal distribution used for the
         initialization of the biases in the model in a per-layer basis.
+
     """
 
     def __init__(self, n_inpt, n_hidden_conv, n_hidden_full, n_output,
@@ -244,21 +246,15 @@ class Cnn(SupervisedModel, BrezeWrapperBase):
 
     def _init_exprs(self):
         inpt = T.matrix('inpt')
-        inpt.tag.test_value, = theano_floatx(np.ones((3, self.n_inpt[2]*self.n_inpt[3])))
+        inpt.tag.test_value, = theano_floatx(np.ones((self.batch_size, self.n_inpt[2]*self.n_inpt[3])))
+
         target = T.matrix('target')
+        target.tag.test_value, = theano_floatx(np.ones((self.batch_size, 10)))
 
         last_image_shape = self.image_shapes[-1]
         resulting_image_size = last_image_shape[-1] * last_image_shape[-2]
-        print 'resulting image size'
-        print resulting_image_size
 
         parameters = ParameterSet()
-
-        print 'image shapes'
-        print np.asarray(self.image_shapes).shape
-        print self.image_shapes
-
-        print 'n_inpt' + str(self.n_inpt)
 
         self.cnn = neural.Cnn(inpt, self.n_inpt, self.n_hidden_conv,
                               self.image_shapes, self.filter_shapes_comp,
@@ -269,7 +265,6 @@ class Cnn(SupervisedModel, BrezeWrapperBase):
         self.conv_output = self.cnn.output
 
         n_inpt_to_mlp = resulting_image_size * self.n_hidden_conv[-1]
-        print 'number of inputs to fully connected layer: ' + str(n_inpt_to_mlp)
 
         self.mlp = neural.Mlp(
             self.conv_output.reshape((self.batch_size,n_inpt_to_mlp)), n_inpt_to_mlp,
@@ -293,7 +288,7 @@ class Cnn(SupervisedModel, BrezeWrapperBase):
             parameters=parameters)
 
         self.filters_in_to_hidden = parameters[self.cnn.layers[0].weights]
-
+        self.filters_hidden_to_out = parameters[self.mlp.layers[-1].weights]
 
 
     def draw_params(self, seed=314):
@@ -303,18 +298,6 @@ class Cnn(SupervisedModel, BrezeWrapperBase):
         ----------
         seed : Integer
             Random seed to use for the random number generator.
-        # there are "num input feature maps * filter height * filter width"
-        # inputs to each hidden unit
-        fan_in = np.prod(self.filter_shape[1:])
-        # each unit in the lower layer receives a gradient from:
-        # "num output feature maps * filter height * filter width" /
-        #   pooling size
-        fan_out = (self.filter_shape[0] * np.prod(self.filter_shape[2:]) /
-                   np.prod(self.pool_shape))
-        # initialize weights with random weights
-        W_bound = np.sqrt(6. / (fan_in + fan_out))
-        # the bias is a 1D tensor -- one bias per output feature map
-            b_values = np.zeros((self.filter_shape[0],), dtype=theano.config.floatX)
         """
 
         rng = np.random.RandomState(seed)
@@ -323,7 +306,7 @@ class Cnn(SupervisedModel, BrezeWrapperBase):
 
         for i, (conv_l) in enumerate(self.cnn.layers):
             if self.init_weigths_stdev[i] == 0:
-                self.parameters[conv_l.weights] = np.zeros(self.parameters[weight].shape)
+                self.parameters[conv_l.weights] = np.zeros(self.parameters[conv_l.weights].shape)
             else:
                 self.parameters[conv_l.weights] = rng.normal(0, self.init_weigths_stdev[i],
                                          self.parameters[conv_l.weights].shape)

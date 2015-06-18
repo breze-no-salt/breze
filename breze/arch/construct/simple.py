@@ -100,7 +100,9 @@ class SupervisedLoss(Layer):
 
 
 class Convolution(Layer):
-
+"""
+implements one convolutional plus pooling layer
+"""
     def __init__(self, inpt, image_shape_in, image_shape_out, filter_shape, pool_shape, pool_shift, transfer, padding, lrnorm,
                  use_bias=True, declare=None, name=None):
 
@@ -121,14 +123,6 @@ class Convolution(Layer):
     def _forward(self):
 
         self.weights = self.declare(self.filter_shape)
-
-        print 'image shapes in simple.py'
-        print np.asanyarray(self.image_shape_in)
-        print np.asanyarray(self.image_shape_out)
-        print 'padding %d' %self.padding[0]
-        print 'filtershape: ' + str(self.filter_shape)
-        print 'pool shape: ' + str(self.pool_shape)
-        print 'pool shift: ' + str(self.pool_shift)
 
         padded_inpt = pad(self.inpt, self.padding[0])
         f_hidden = lookup(self.transfer, _transfer)

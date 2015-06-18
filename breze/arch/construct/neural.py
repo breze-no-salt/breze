@@ -273,8 +273,6 @@ class Cnn(Layer):
         self.layers = []
 
         inpt = self.inpt.reshape(self.input_shape)
-        print 'reshaped input'
-        print self.input_shape
 
         for i, (fis, sp, sh, tr, lrn) in enumerate(zip(self.filter_shapes,
                                         self.pool_shapes, self.pool_shifts, self.hidden_conv_transfers,
