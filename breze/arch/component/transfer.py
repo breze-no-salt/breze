@@ -224,6 +224,11 @@ def diag_gauss(inpt):
     return res
 
 
+def simple_normalize(output):
+    otpt = (output - output.min(axis=1).reshape((output.shape[0], 1))*1.0)
+    output_normalized =  otpt / (otpt.sum(axis=1).reshape((output.shape[0], 1))*1.0)
+    return output_normalized
+
 # TODO move this into a different module, e.g. "densities" or so.
 
 def logproduct_of_t(inpt):
