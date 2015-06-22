@@ -817,46 +817,40 @@ class StochasticRnn(GenericVariationalAutoEncoder):
             self.f_gen_hiddens = self._make_gen_hidden()
         return self.f_gen_hiddens(X)
 
-    def sample(self, n_time_steps, visible_map=False, prefix=None):
-        if prefix is not None and prefix.shape[1] != 1:
-            raise ValueError('only prefixes for one sequence allowed')
-        samples = []
-
+    def sample(self, n_time_steps, prefix=None, visible_map=False):
         if prefix is None:
-            P = self.parameters
-            initial_means = [P[i.recurrent.initial_mean]
-                             for i in self.vae.gen.hidden_layers]
-            initial_stds = [P[i.recurrent.initial_std]
-                            for i in self.vae.gen.hidden_layers]
-            inpt = np.zeros((1, 1, self.n_inpt), dtype=theano.config.floatX)
-        else:
-            last_hidden_states = [i[-1] for i in self.gen_hidden(prefix)]
-            print [i.shape for i in last_hidden_states] , '<<<'
-            initial_means = [i[0, :i.shape[1] // 2]
-                             for i in last_hidden_states]
-            initial_stds = [i[0, i.shape[1] // 2:] ** .5
-                            for i in last_hidden_states]
-            inpt = prefix[-1:]
+            raise ValueError('prefix is not None')
+        if not visible_map:
+            raise ValueError('no visible sampling yet')
+        if not isinstance(self.assumptions, DiagGaussLatentAssumption):
+            raise ValueError('only for latent gauss assumption')
+        if not isinstance(self.assumptions, DiagGaussVisibleAssumption):
+            raise ValueError('only for visible gauss assumption')
 
-        # TODO: sample from assumption prior instead of from standard normal.
-        latent_samples = np.random.standard_normal(
-            (n_time_steps, 1, self.n_latent)).astype(theano.config.floatX)
-        args = flatten_list(zip(initial_means, initial_stds))
-        args += [inpt, latent_samples[:1]]
+        if not hasattr(self, 'f_gen'):
+            gen_expr = T.concatenate(self.vae.gen.outputs, 2)
+            inpt_m1 = T.tensor3('inpt_m1')
+            inpt_m1.tag.test_value = np.zeros((3, 2, self.n_inpt))
+            sample = T.tensor3('sample_sub')
+            sample.tag.test_value = np.zeros((3, 2, self.n_latent))
+            gen_inpt_sub = T.concatenate([sample, inpt_m1], axis=2)
+            gen_expr = theano.clone(gen_expr,
+                {self.vae.gen.inpt: gen_inpt_sub})
 
-        if visible_map:
-            sampler = self._sample_one_step_vmap
-        else:
-            sampler = self._sample_one_step
+            self.f_gen = self.function([inpt_m1, sample], gen_expr)
 
-        for i in range(n_time_steps):
-            print [j.shape for j in args]
-            args = sampler(*args)
-            print args[0].sum()
-            samples.append(args[-1])
-            args = [j[0, 0, :] for j in args[:-1]] + [args[-1], latent_samples[i+1:i+2]]
-
-        return np.concatenate(samples, axis=1)[0]
+        prefix_length = prefix.shape[0]
+        S = np.empty((prefix.shape[0] + n_time_steps, prefix.shape[1], prefix.shape[2])).astype(theano.config.floatX)
+        S[:prefix_length][...] = prefix
+        latent_samples = np.zeros(
+            (prefix.shape[0] + n_time_steps, prefix.shape[1], self.n_latent)
+            ).astype(theano.config.floatX)
+        latent_samples[prefix_length:] = np.random.standard_normal(
+            (n_time_steps, prefix.shape[1], self.n_latent))
+        for i in range(n_time_steps - 1):
+            p = self.f_gen(S[:prefix_length + i], latent_samples[:prefix_length + i])[-1, :, :self.n_inpt]
+            S[prefix_length + i] = p
+        return S[prefix_length + 1:]
 
 
 class BidirectStochasticRnn(StochasticRnn):

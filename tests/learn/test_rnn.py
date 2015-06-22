@@ -128,12 +128,14 @@ def test_fd_srnn_predict():
     X, = theano_floatx(X)
     rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'],
                                    max_iter=10)
-    rnn.predict(X)
+    Y = rnn.predict(X)
+    assert Y.shape[2] == 6
 
     rnn = SupervisedFastDropoutRnn(
         2, [10, 20], 3, hidden_transfers=['rectifier', 'tanh'],
         max_iter=2)
-    rnn.predict(X)
+    Y = rnn.predict(X)
+    assert Y.shape[2] == 6
 
 
 def test_gn_product_rnn():

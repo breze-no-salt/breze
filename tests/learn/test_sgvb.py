@@ -94,34 +94,30 @@ def test_storn_sampling():
 
     m.parameters.data[...] = 1
 
-    print 'sampling map'
-    m.sample(5, visible_map=True)
-    print 'sampling'
-    m.sample(5, visible_map=False)
-
     print 'sampling with prefix'
-    m.sample(5, visible_map=False, prefix=X[:, :1, :])
+    m.sample(5, visible_map=True, prefix=X[:, :1, :])
 
-    m._sample_one_step(
-        np.empty(5), np.empty(5),
-        np.empty((1, 1, 2)),
-        np.empty((1, 1, 17)))
+    #m._sample_one_step(
+    #    np.empty(5), np.empty(5),
+    #    np.empty((1, 1, 2)),
+    #    np.empty((1, 1, 17)))
 
 
-    P = m.parameters
+    #P = m.parameters
 
-    initial_means = [P[i.recurrent.initial_mean]
-                    for i in m.vae.gen.hidden_layers]
-    initial_stds = [P[i.recurrent.initial_std]
-                    for i in m.vae.gen.hidden_layers]
+    #initial_means = [P[i.recurrent.initial_mean]
+    #                for i in m.vae.gen.hidden_layers]
+    #initial_stds = [P[i.recurrent.initial_std]
+    #                for i in m.vae.gen.hidden_layers]
 
-    from breze.learn.sgvb import flatten_list
-    args = flatten_list(zip(initial_means, initial_stds))
+    #from breze.learn.sgvb import flatten_list
+    #args = flatten_list(zip(initial_means, initial_stds))
 
-    inpt = np.zeros((1, 1, 2))
-    latent_samples = 1 / np.zeros((1, 1, 17))
-    args += [inpt, latent_samples[:1]]
+    #inpt = np.zeros((1, 1, 2))
+    #latent_samples = 1 / np.zeros((1, 1, 17))
+    #args += [inpt, latent_samples[:1]]
 
-    s1 = m._sample_one_step_vmap(*args)
-    print s1
-    s2 = m._sample_one_step_vmap(*args)
+    #s1 = m._sample_one_step_vmap(*args)
+    #print s1
+    #s2 = m._sample_one_step_vmap(*args)
+    #pen
