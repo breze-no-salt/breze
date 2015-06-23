@@ -752,60 +752,6 @@ class StochasticRnn(GenericVariationalAutoEncoder):
 
                 self.parameters[layer.affine.bias][...] = 0
 
-    def _make_sample_one_step(self, visible_map=False):
-        # make clones for parameters, so they can be used as inputs
-        initials = []
-        outputs = []
-        for l in self.vae.gen.hidden_layers:
-            initials += [l.recurrent.initial_mean, l.recurrent.initial_std]
-            outputs += [l.recurrent.outputs[0], l.recurrent.outputs[1] ** .5]
-
-        clones = [T.vector(i.name) for i in initials]
-        for clone, initial in zip(clones, initials):
-            if not hasattr(initial.tag, 'test_value'):
-                continue
-            clone.tag.test_value = initial.tag.test_value
-
-        # This is the input signature of the function: all the hidden states
-        # first, then the sample from the prior, then the input at that time
-        # step.
-        sample_from_prior = T.tensor3('sample_from_prior')
-        inpts = clones + [self.vae.inpt, sample_from_prior]
-
-        visible_stt = self.vae.gen.output
-        if visible_map:
-            visible_sample = self.assumptions.mode_visibles(visible_stt)
-        else:
-            rng = T.shared_randomstreams.RandomStreams()
-            visible_sample = self.assumptions.sample_visibles(visible_stt, rng)
-
-        # This is the output signature of the function: all the final hidden
-        # states and then the output from the model.
-        outputs += [visible_sample]
-
-        givens = dict(zip(initials, clones))
-        givens[self.vae.sample] = sample_from_prior
-
-        return self.function(
-            inpts, outputs,
-            givens=givens,
-            on_unused_input='warn')
-
-    def _sample_one_step(self, *args):
-        if getattr(self, 'f_sample_one_step', None) is None:
-            self.f_sample_one_step = self._make_sample_one_step()
-
-        res = self.f_sample_one_step(*args)
-        return res
-
-    def _sample_one_step_vmap(self, *args):
-        if getattr(self, 'f_sample_one_step_vmap', None) is None:
-            self.f_sample_one_step_vmap = self._make_sample_one_step(
-                visible_map=True)
-
-        res = self.f_sample_one_step_vmap(*args)
-        return res
-
     def _make_gen_hidden(self):
         hidden_exprs = [T.concatenate(i.recurrent.outputs, 2)
                         for i in self.vae.gen.hidden_layers]
