@@ -4,5 +4,3 @@ cover/*
 *.pyc
 notebooks/.ipynb*
 notebooks/*pickle
-*.txt
-breze.egg-info/PKG-INFO
