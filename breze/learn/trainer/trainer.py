@@ -178,5 +178,5 @@ class Trainer(object):
         self.model.parameters.data[...] = self.best_pars
         return last_pars
 
-    def switch_to_last_pars(self, last_pars):
-        self.model.parameters.data[...] = last_pars
+    def switch_to_pars(self, pars):
+        self.model.parameters.data[...] = pars
