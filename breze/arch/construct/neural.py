@@ -5,12 +5,13 @@ from collections import namedtuple
 
 import theano.tensor as T
 
+from breze.arch.component import transfer as _transfer
 from breze.arch.construct.base import Layer
-
 from breze.arch.construct import simple
 from breze.arch.construct import sequential
 from breze.arch.construct.layer.varprop import (
     simple as vp_simple, sequential as vp_sequential)
+from breze.arch.util import lookup
 
 
 def wild_reshape(tensor, shape):
@@ -134,33 +135,41 @@ class Rnn(Layer):
         super(Rnn, self).__init__(declare, name)
 
     def _forward(self):
+        transfers = self.hidden_transfers
+        transfers =[lookup(i, _transfer) for i in transfers]
+        transfer_insizes = [getattr(i, 'in_size', 1) for i in transfers]
+        transfer_outsizes = [1] + [getattr(i, 'out_size', 1) for i in transfers]
+
         n_incoming = [self.n_inpt] + self.n_hiddens[:-1]
         n_outgoing = self.n_hiddens
-        transfers = self.hidden_transfers
 
         n_time_steps, _, _ = self.inpt.shape
 
         self.layers = []
         x = self.inpt
-        for n, m, t in zip(n_incoming, n_outgoing, transfers):
+        for n, m, t, tis, tos in zip(n_incoming, n_outgoing, transfers,
+                                     transfer_insizes, transfer_outsizes):
             x_flat = x.reshape((-1, n))
 
             affine = simple.AffineNonlinear(
-                x_flat, n, m, lambda x: x, declare=self.declare)
+                x_flat, n * tos, m * tis, lambda x: x, declare=self.declare)
             pre_recurrent_flat = affine.output
 
             pre_recurrent = pre_recurrent_flat.reshape(
-                (n_time_steps, -1, m))
+                (n_time_steps, -1, m * tis))
 
             recurrent = sequential.Recurrent(
-                pre_recurrent, m, t, declare=self.declare)
+                pre_recurrent, m * t.out_size, t, declare=self.declare)
             x = recurrent.output
 
             self.layers.append(self.HiddenLayer(affine, recurrent))
 
-        x_flat = x.reshape((-1, m))
+        x_flat = x.reshape((-1, m * t.out_size))
+        out_transfer = lookup(self.out_transfer, _transfer)
+        out_in_size = getattr(out_transfer, 'in_size', 1)
         output_affine = simple.AffineNonlinear(
-            x_flat, m, self.n_output, self.out_transfer, declare=self.declare
+            x_flat, m, self.n_output * out_in_size , out_transfer,
+            declare=self.declare
             )
 
         self.layers.append(self.OutputLayer(affine))
