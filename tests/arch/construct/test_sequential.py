@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 
+import numpy as np
+import theano
 from theano import tensor as T
 
 from breze.arch.construct.sequential import Recurrent
@@ -25,3 +27,21 @@ def test_transfer_insize_outsize():
     s = P[r.initial].shape
     assert s == (12,),  'Shape is %s' % str(s)
 
+
+def test_transfer_stateful():
+    inpt = T.tensor3('inpt')
+
+    def t(s, x):
+        return T.zeros_like(s) + 1, x
+    t.stateful = True
+
+    P = ParameterSet()
+    r = Recurrent(inpt, 4, t, P.declare)
+    P.alloc()
+
+    assert hasattr(r, 'state')
+
+    f = theano.function([P.flat, inpt], r.state)
+
+    s = f(P.data, np.zeros((3, 1, 4)))
+    assert (s == 1).all(), 'hidden state has wrong value'

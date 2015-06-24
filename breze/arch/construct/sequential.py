@@ -3,7 +3,7 @@
 
 from breze.arch.component import transfer as _transfer
 from breze.arch.construct.base import Layer
-from breze.arch.model.rnn.rnn import recurrent_layer
+from breze.arch.model.rnn.rnn import recurrent_layer, recurrent_layer_stateful
 from breze.arch.model.rnn.pooling import pooling_layer
 from breze.arch.util import lookup
 
@@ -30,8 +30,12 @@ class Recurrent(Layer):
         self.weights = self.declare((m, n))
         self.initial = self.declare((m,))
 
-        self.output_in, self.output = recurrent_layer(
-            self.inpt, self.weights, f, self.initial)
+        if getattr(f, 'stateful', False):
+            self.state, self.output_in, self.output = recurrent_layer_stateful(
+                self.inpt, self.weights, f, self.initial)
+        else:
+            self.output_in, self.output = recurrent_layer(
+                self.inpt, self.weights, f, self.initial)
 
 
 class Pooling(Layer):
