@@ -18,11 +18,18 @@ class Recurrent(Layer):
         super(Recurrent, self).__init__(declare=declare, name=name)
 
     def _forward(self):
-
-        self.weights = self.declare((self.n_inpt, self.n_inpt))
-        self.initial = self.declare((self.n_inpt,))
-
         f = lookup(self.transfer, _transfer)
+        n, m = self.n_inpt, self.n_inpt
+
+        # If a transfer function has differing dimensionalities in its domain
+        # and co-domain, it can be specified by its ``in_size`` and ``out_size``
+        # attributes. Defaulting to not to.
+        n *= getattr(f, 'in_size', 1)
+        m *= getattr(f, 'out_size', 1)
+
+        self.weights = self.declare((m, n))
+        self.initial = self.declare((m,))
+
         self.output_in, self.output = recurrent_layer(
             self.inpt, self.weights, f, self.initial)
 
