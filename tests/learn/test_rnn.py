@@ -43,6 +43,22 @@ def test_srnn_lstm_fit():
     theano.config.compute_test_value = old
 
 
+def test_fdsrnn_lstm_fit():
+    X = np.random.standard_normal((13, 5, 4)).astype(theano.config.floatX)
+    Z = np.random.standard_normal((13, 5, 3)).astype(theano.config.floatX)
+    W = np.random.standard_normal((13, 5, 3)).astype(theano.config.floatX)
+
+    X, Z, W = theano_floatx(X, Z, W)
+
+    old, theano.config.compute_test_value = theano.config.compute_test_value, 'raise'
+
+    rnn = SupervisedFastDropoutRnn(4, [10], 3, hidden_transfers=['lstm'], max_iter=2)
+    rnn.mode = 'FAST_COMPILE'
+    rnn.fit(X, Z)
+
+    theano.config.compute_test_value = old
+
+
 def test_srnn_pooling_fit():
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((5, 3)).astype(theano.config.floatX)

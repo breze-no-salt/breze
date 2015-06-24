@@ -2,9 +2,10 @@
 
 import theano.tensor as T
 
-from breze.arch.component.varprop import transfer as transfer_
+from breze.arch.component.varprop import transfer as _transfer
 from breze.arch.construct.base import Layer
-from breze.arch.model.varprop.rnn import recurrent_layer
+from breze.arch.model.varprop.rnn import (recurrent_layer,
+                                          recurrent_layer_stateful)
 from breze.arch.util import lookup
 
 
@@ -20,28 +21,47 @@ class FDRecurrent(Layer):
         super(FDRecurrent, self).__init__(declare, name)
 
     def _forward(self):
-        self.initial_mean = self.declare((self.n_inpt,))
-        self.initial_std = self.declare((self.n_inpt,))
-        self.weights = self.declare((self.n_inpt, self.n_inpt))
+        f = lookup(self.transfer, _transfer)
+        n, m = self.n_inpt, self.n_inpt
 
-        f = lookup(self.transfer, transfer_)
+        # If a transfer function has differing dimensionalities in its domain
+        # and co-domain, it can be specified by its ``in_size`` and ``out_size``
+        # attributes. Defaulting to not to.
+        n *= getattr(f, 'in_size', 1)
+        m *= getattr(f, 'out_size', 1)
 
-        res = recurrent_layer(
-            self.inpt_mean, self.inpt_var,
-            self.weights,
-            f,
-            self.initial_mean, self.initial_std ** 2 + 1e-8,
-            self.p_dropout)
+        self.initial_mean = self.declare((m,))
+        self.initial_std = self.declare((m,))
+        self.weights = self.declare((m, n))
 
-        hidden_in_mean, hidden_in_var, hidden_mean, hidden_var = res
+        if getattr(f, 'stateful', False):
+            res = recurrent_layer_stateful(
+                self.inpt_mean, self.inpt_var,
+                self.weights,
+                f,
+                self.initial_mean, self.initial_std ** 2 + 1e-8,
+                self.p_dropout)
+            (self.state_mean, self.state_var,
+             self.output_in_mean, self.output_in_var,
+             self.output_mean, self.output_var) = res
+        else:
+            res = recurrent_layer(
+                self.inpt_mean, self.inpt_var,
+                self.weights,
+                f,
+                self.initial_mean, self.initial_std ** 2 + 1e-8,
+                self.p_dropout)
+            (self.output_in_mean, self.output_in_var,
+             self.output_mean, self.output_var) = res
 
-        self.outputs = [hidden_mean, hidden_var]
+        self.outputs = self.output_mean, self.output_var
 
 
 # TODO this is only here for the proof of concept, it should go to a better
 # place and ideally be combined with recurrent_layer
 import theano
 from theano.tensor.extra_ops import repeat
+
 
 def fawn_recurrent(
     inpt_mean, inpt_var, weights_mean, weights_var,

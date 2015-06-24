@@ -6,6 +6,7 @@ from collections import namedtuple
 import theano.tensor as T
 
 from breze.arch.component import transfer as _transfer
+from breze.arch.component.varprop import transfer as vp_transfer
 from breze.arch.construct.base import Layer
 from breze.arch.construct import simple
 from breze.arch.construct import sequential
@@ -217,20 +218,20 @@ class FastDropoutRnn(Layer):
         super(FastDropoutRnn, self).__init__(declare, name)
 
     def _make_rec_layer(self, x_mean, x_var, n_inpt, n_output, transfer,
-                        p_dropout):
+                        tos, tis, p_dropout):
         n_time_steps, _, _ = self.inpt.shape
         x_mean_flat = wild_reshape(x_mean, (-1, n_inpt))
         x_var_flat = wild_reshape(x_var, (-1, n_inpt))
 
         affine = vp_simple.AffineNonlinear(
-            x_mean_flat, x_var_flat, n_inpt, n_output, 'identity',
+            x_mean_flat, x_var_flat, n_inpt * tos, n_output * tis, 'identity',
             declare=self.declare)
         pre_rec_mean_flat, pre_rec_var_flat = affine.outputs
 
         pre_rec_mean = wild_reshape(pre_rec_mean_flat,
-                                    (n_time_steps, -1, n_output))
+                                    (n_time_steps, -1, n_output * tis))
         pre_rec_var = wild_reshape(pre_rec_var_flat,
-                                   (n_time_steps, -1, n_output))
+                                   (n_time_steps, -1, n_output * tis))
 
         if p_dropout == 'parameterized':
             p_dropout = self.declare((1,))
@@ -244,9 +245,14 @@ class FastDropoutRnn(Layer):
         return x_mean, x_var, layer
 
     def _forward(self):
+        transfers = self.hidden_transfers
+        transfers =[lookup(i, vp_transfer) for i in transfers]
+        transfer_insizes = [getattr(i, 'in_size', 1) for i in transfers]
+        transfer_outsizes = [1] + [getattr(i, 'out_size', 1) for i in transfers]
+
         n_incoming = [self.n_inpt] + self.n_hiddens[:-1]
         n_outgoing = self.n_hiddens
-        transfers = self.hidden_transfers
+
         p_dropouts = self.p_dropout_hiddens
 
         n_time_steps, _, _ = self.inpt.shape
@@ -265,9 +271,11 @@ class FastDropoutRnn(Layer):
         self.layers.append(self.InputLayer(fd_layer))
         x_mean, x_var = fd_layer.outputs
 
-        for m, n, t, d in zip(n_incoming, n_outgoing, transfers, p_dropouts):
+        for m, n, t, d, tis, tos in zip(n_incoming, n_outgoing, transfers,
+                                        p_dropouts,
+                                        transfer_insizes, transfer_outsizes):
             x_mean, x_var, layer = self._make_rec_layer(
-                x_mean, x_var, m, n, t, d)
+                x_mean, x_var, m, n, t, tos, tis, d)
             self.layers.append(layer)
 
         x_mean_flat = wild_reshape(x_mean, (-1, n))
