@@ -315,20 +315,20 @@ class BidirectFastDropoutRnn(FastDropoutRnn):
         'affine recurrent_forward recurrent_backward'.split())
 
     def _make_rec_layer(self, x_mean, x_var, n_inpt, n_output, transfer,
-                        p_dropout):
+                        tos, tis, p_dropout):
         n_time_steps, _, _ = self.inpt.shape
         x_mean_flat = wild_reshape(x_mean, (-1, n_inpt))
         x_var_flat = wild_reshape(x_var, (-1, n_inpt))
 
         affine = vp_simple.AffineNonlinear(
-            x_mean_flat, x_var_flat, n_inpt, n_output, 'identity',
+            x_mean_flat, x_var_flat, n_inpt * tos, n_output * tis, 'identity',
             declare=self.declare)
         pre_rec_mean_flat, pre_rec_var_flat = affine.outputs
 
         pre_rec_mean = wild_reshape(pre_rec_mean_flat,
-                                    (n_time_steps, -1, n_output))
+                                    (n_time_steps, -1, n_output * tis))
         pre_rec_var = wild_reshape(pre_rec_var_flat,
-                                   (n_time_steps, -1, n_output))
+                                   (n_time_steps, -1, n_output * tis))
 
         if p_dropout == 'parameterized':
             p_dropout = self.declare((1,))
