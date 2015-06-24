@@ -236,3 +236,44 @@ def logcosh(inpt):
 
 def softabs(inpt, eps=1E-5):
     return T.sqrt(inpt ** 2 + eps)
+
+
+def lstm(state_tm1, inpt):
+    # TODO: add documentation and reference for this unit
+    # Does not include peepholes.
+    size = state_tm1.shape[1]
+
+    x = T.tanh(inpt[:, :size])
+
+    gates = T.nnet.sigmoid(inpt[:, size:])
+    ingate = gates[:, :size]
+    forgetgate = gates[:, size:2 * size]
+    outgate = gates[:, 2 * size:]
+
+    state = x * ingate + state_tm1 * forgetgate
+    output = T.tanh(state) * outgate
+
+    return state, output
+
+lstm.in_size = 4
+lstm.out_size = 1
+lstm.stateful = True
+
+
+def gru(state_tm1, inpt):
+    # TODO: add documentation and reference for this unit
+    size = state_tm1.shape[1]
+
+    x = inpt[:, :size]
+    gates = T.nnet.sigmoid(inpt[:, size:])
+    update_gate = gates[:, :size]
+    reset_gate = gates[:, size:]
+
+    cand_output = T.tanh(x + state_tm1 * reset_gate)
+    output = (1 - update_gate) * state_tm1 + update_gate * cand_output
+
+    return output, output
+
+gru.in_size = 3
+gru.out_size = 1
+gru.stateful = True
