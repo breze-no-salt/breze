@@ -251,8 +251,48 @@ class DiagGaussLatentAssumption(object):
         else:
             return sample
 
-
 class DiagGaussVisibleAssumption(object):
+
+    def statify_visible(self, X, var=None):
+        if var is None:
+            return diag_gauss(X)
+        else:
+            return X, var
+
+    def nll_gen_model(self, X, stt):
+        return diag_gauss_nll(X, stt, 1e-4)
+
+    def visible_layer_size(self, n_latents):
+        """Return the cardinality of the sufficient statistics given we want to
+        model ``n_latents`` variables.
+
+        For example, a diagonal Gaussian needs two sufficient statistics for a
+        single random variable, the mean and the variance. A Bernoulli only
+        needs one, which is the probability of it being 0 or 1."""
+        return 2*n_latents
+
+    def sample_visibles(self, stt, rng):
+        stt_flat = assert_no_time(stt)
+        n_latent = stt_flat.shape[1] // 2
+        latent_mean = stt_flat[:, :n_latent]
+        latent_var = stt_flat[:, n_latent:]
+        noise = rng.normal(size=latent_mean.shape)
+        sample = latent_mean + T.sqrt(latent_var) * noise
+        if stt.ndim == 3:
+            return recover_time(sample, stt.shape[0])
+        else:
+            return sample
+
+    def mode_visibles(self, stt):
+        stt_flat = assert_no_time(stt)
+        n_latent = stt_flat.shape[1] // 2
+        mode = stt_flat[:, :n_latent]
+        if stt.ndim == 3:
+            return recover_time(mode, stt.shape[0])
+        else:
+            return mode
+
+class FastDropoutDiagGaussVisibleAssumption(object):
 
     def statify_visible(self, X, var=None):
         if var is None:
@@ -597,11 +637,47 @@ class GenericVariationalAutoEncoder(
 
         return inner
 
-
 class VariationalAutoEncoder(GenericVariationalAutoEncoder):
 
     """
-        Variational Autoencoder with Mlp as recognition and generative model
+        Original Variational Autoencoder with Mlp as recognition and generative model
+    """
+
+    def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
+                 recog_transfers, gen_transfers,
+                 assumptions,
+                 use_imp_weight=False,
+                 batch_size=None, optimizer='rprop',
+                 max_iter=1000, verbose=False):
+        self.n_hiddens_recog = n_hiddens_recog
+        self.n_hiddens_gen = n_hiddens_gen
+        self.recog_transfers = recog_transfers
+        self.gen_transfers = gen_transfers
+
+        rec_class = lambda inpt, declare: neural.Mlp(
+            inpt, n_inpt,
+            n_hiddens_recog,
+            assumptions.latent_layer_size(n_latent),
+            recog_transfers, assumptions.statify_latent,
+            declare=declare)
+
+        gen_class = lambda inpt, declare: neural.Mlp(
+            inpt, n_latent,
+            n_hiddens_gen,
+            assumptions.visible_layer_size(n_inpt),
+            gen_transfers, assumptions.statify_visible,
+            declare=declare)
+
+        GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
+                 assumptions, rec_class, gen_class, use_imp_weight=use_imp_weight,
+                 batch_size=batch_size, optimizer=optimizer,
+                 max_iter=verbose, verbose=verbose)
+
+
+class FastDropoutVariationalAutoEncoder(GenericVariationalAutoEncoder):
+
+    """
+        Variational Autoencoder with FastDropout Mlp as recognition and generative model
     """
 
     def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
