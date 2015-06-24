@@ -151,15 +151,36 @@ class SupervisedRnn(BaseRnn, SupervisedModel):
         else:
             return 1, 0
 
-    def _init_exprs(self):
+    def _init_inpts(self):
         inpt = T.tensor3('inpt')
+        inpt.tag.test_value = theanox(np.zeros((3, 2, self.n_inpt)))
         if self.pooling:
             target = T.matrix('target')
-            imp_weight = T.matrix('imp_weight') if self.imp_weight else None
-            comp_dim = 1
+            target.tag.test_value = theanox(np.zeros((2, self.n_output)))
+            if self.imp_weight:
+                imp_weight = T.matrix('imp_weight')
+                imp_weight.tag.test_value = theanox(
+                    np.ones((2, self.n_output)))
+            else:
+                imp_weight = None
         else:
             target = T.tensor3('target')
-            imp_weight = T.tensor3('imp_weight') if self.imp_weight else None
+            target.tag.test_value = theanox(np.zeros((3, 2, self.n_output)))
+            if self.imp_weight:
+                imp_weight = T.tensor3('imp_weight')
+                imp_weight.tag.test_value = theanox(
+                    np.ones((3, 2, self.n_output)))
+            else:
+                imp_weight = None
+
+        return inpt, target, imp_weight
+
+    def _init_exprs(self):
+        inpt, target, imp_weight = self._init_inpts()
+
+        if self.pooling:
+            comp_dim = 1
+        else:
             comp_dim = 2
 
         parameters = ParameterSet()
@@ -251,7 +272,7 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedModel):
             optimizer=optimizer, batch_size=batch_size, max_iter=max_iter,
             verbose=verbose, imp_weight=imp_weight)
 
-    def _init_exprs(self):
+    def _init_inpts(self):
         inpt = T.tensor3('inpt')
         inpt.tag.test_value = theanox(np.zeros((3, 2, self.n_inpt)))
         if self.pooling:
@@ -272,6 +293,11 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedModel):
                     np.ones((3, 2, self.n_output)))
             else:
                 imp_weight = None
+
+        return inpt, target, imp_weight
+
+    def _init_exprs(self):
+        inpt, target, imp_weight = self._init_inpts()
 
         parameters = ParameterSet()
 
