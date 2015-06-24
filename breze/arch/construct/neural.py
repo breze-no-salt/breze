@@ -146,7 +146,7 @@ class Rnn(Layer):
             x_flat = x.reshape((-1, n))
 
             affine = simple.AffineNonlinear(
-                x_flat, n, m, t, declare=self.declare)
+                x_flat, n, m, lambda x: x, declare=self.declare)
             pre_recurrent_flat = affine.output
 
             pre_recurrent = pre_recurrent_flat.reshape(
