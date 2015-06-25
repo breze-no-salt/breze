@@ -77,7 +77,7 @@ from breze.learn.base import (
     ReconstructBrezeWrapperMixin)
 
 from breze.arch.construct import neural
-from breze.arch.construct.layer.sampling import (MlpDiagGauss, MlpBernoulli)
+from breze.arch.construct.layer.sampling import (MlpDiagGauss, MlpBernoulli, FastDropoutMlpDiagGauss)
 
 
 # TODO find a better home for the following functions.
@@ -674,7 +674,6 @@ class FastDropoutVariationalAutoEncoder(GenericVariationalAutoEncoder):
 
     def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
                  recog_transfers, gen_transfers,
-                 assumptions,
                  p_dropout_inpt=.1, p_dropout_hiddens=.1,
                  use_imp_weight=False,
                  batch_size=None, optimizer='rprop',
@@ -689,26 +688,26 @@ class FastDropoutVariationalAutoEncoder(GenericVariationalAutoEncoder):
         if isinstance(p_dropout_hiddens, float):
             p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
 
-        rec_class = lambda inpt, declare: neural.FastDropoutMlp(
+        rec_class = lambda inpt, declare: FastDropoutMlpDiagGauss(
             inpt, n_inpt,
             n_hiddens_recog,
             n_latent,
-            recog_transfers, assumptions.statify_latent,
+            recog_transfers, 'identity',
             p_dropout_inpt, p_dropout_hiddens,
             dropout_parameterized=True,
             declare=declare)
 
-        gen_class = lambda inpt, declare: neural.FastDropoutMlp(
+        gen_class = lambda inpt, declare: FastDropoutMlpDiagGauss(
             inpt, n_latent,
             n_hiddens_gen,
-            assumptions.visible_layer_size(n_inpt),
-            gen_transfers, assumptions.statify_visible,
+            n_inpt,
+            gen_transfers, 'identity',
             p_dropout_inpt, p_dropout_hiddens,
             dropout_parameterized=True,
             declare=declare)
 
         GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
-                 assumptions, rec_class, gen_class, use_imp_weight=use_imp_weight,
+                 rec_class, gen_class, use_imp_weight=use_imp_weight,
                  batch_size=batch_size, optimizer=optimizer,
                  max_iter=verbose, verbose=verbose)
 
