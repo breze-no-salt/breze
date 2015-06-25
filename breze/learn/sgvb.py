@@ -77,6 +77,7 @@ from breze.learn.base import (
     ReconstructBrezeWrapperMixin)
 
 from breze.arch.construct import neural
+from breze.arch.construct.layer.sampling import (MlpDiagGauss, MlpBernoulli)
 
 
 # TODO find a better home for the following functions.
@@ -403,7 +404,7 @@ class GenericVariationalAutoEncoder(
     shortcut = None
 
     def __init__(self, n_inpt, n_latent,
-                 assumptions, gen_class, rec_class, condition_func=None,
+                 gen_class, rec_class, condition_func=None,
                  use_imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
@@ -434,9 +435,6 @@ class GenericVariationalAutoEncoder(
             List containing the transfer cuntions for the hidden layers of the
             generating model.
 
-        assumptions : Assumptions object
-            Object encoding the assumptions about the data.
-
         imp_weight : boolean
             Flag indicating whether importance weights are used.
 
@@ -459,8 +457,7 @@ class GenericVariationalAutoEncoder(
         """
         self.n_inpt = n_inpt
         self.n_latent = n_latent
-        self.n_output = assumptions.visible_layer_size(n_inpt)
-        self.assumptions = assumptions
+        self.n_output = n_inpt
         self.rec_class = rec_class
         self.gen_class = gen_class
         self.condition_func = condition_func
@@ -500,31 +497,27 @@ class GenericVariationalAutoEncoder(
 
         self.vae = _VariationalAutoEncoder(inpt, self.n_inpt,
                                            self.n_latent, self.n_output,
-                                           self.assumptions,
                                            self.gen_class,
                                            self.rec_class,
                                            self.condition_func,
                                            declare=parameters.declare)
+
+        self.sample = self.vae.sample
 
         if self.use_imp_weight:
             imp_weight = T.addbroadcast(self.imp_weight, n_dim - 1)
         else:
             imp_weight = False
 
-        rec_loss = supervised_loss(
-            inpt, self.vae.output, self.assumptions.nll_gen_model,
-            coord_axis=n_dim - 1,
-            imp_weight=imp_weight)['loss_coord_wise']
+        rec_loss = self.vae.gen.nll(inpt)
         self.rec_loss_sample_wise = rec_loss.sum(axis=n_dim - 1)
         self.rec_loss = self.rec_loss_sample_wise.mean()
 
         output = self.vae.gen.output
-        #self.latent = self.vae.recog.output
-        #self.sample = self.vae.sample
 
         # Create the KL divergence part of the loss.
         n_dim = inpt.ndim
-        self.kl_coord_wise = self.assumptions.kl_recog_prior(self.vae.latent)
+        self.kl_coord_wise = self.vae.recog.kl_prior()
 
         if self.use_imp_weight:
             self.kl_coord_wise *= imp_weight
@@ -608,19 +601,19 @@ class GenericVariationalAutoEncoder(
             raise ValueError('unexpected ndim for samples')
 
         # Map a sample s to the prior log probability p(z)
-        nll_z = self.assumptions.nll_prior(latent_sample).sum(axis=ndim - 1)
+        nll_z = self.vae.recog.nll_prior(latent_sample).sum(axis=ndim - 1)
         f_nll_z = self.function([latent_sample], nll_z, on_unused_input='ignore')
 
         # Map a given visible x and a sample z to the generating
         # probability p(x|z).
-        nll_x_given_z = self.assumptions.nll_gen_model(
+        nll_x_given_z = self.vae.gen.nll(
             self.inpt, self.output).sum(axis=ndim - 1)
         f_nll_x_given_z = self.function([self.inpt, latent_sample], nll_x_given_z,
                                         givens={self.vae.sample: latent_sample})
 
         # Map a given visible x and a sample z to the recognition
         # probability q(z|x).
-        nll_z_given_x = self.assumptions.nll_recog_model(
+        nll_z_given_x = self.vae.recog.nll(
             latent_sample, self.vae.latent).sum(axis=ndim - 1)
         f_nll_z_given_x = self.function(
             [latent_sample, self.inpt], nll_z_given_x)
@@ -645,7 +638,6 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
 
     def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
                  recog_transfers, gen_transfers,
-                 assumptions,
                  use_imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
@@ -654,22 +646,22 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
         self.recog_transfers = recog_transfers
         self.gen_transfers = gen_transfers
 
-        rec_class = lambda inpt, declare: neural.Mlp(
+        rec_class = lambda inpt, declare: MlpDiagGauss(
             inpt, n_inpt,
             n_hiddens_recog,
-            assumptions.latent_layer_size(n_latent),
-            recog_transfers, assumptions.statify_latent,
+            n_latent,
+            recog_transfers,
             declare=declare)
 
-        gen_class = lambda inpt, declare: neural.Mlp(
+        gen_class = lambda inpt, declare: MlpDiagGauss(
             inpt, n_latent,
             n_hiddens_gen,
-            assumptions.visible_layer_size(n_inpt),
-            gen_transfers, assumptions.statify_visible,
+            n_inpt,
+            gen_transfers,
             declare=declare)
 
         GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
-                 assumptions, rec_class, gen_class, use_imp_weight=use_imp_weight,
+                 rec_class, gen_class, use_imp_weight=use_imp_weight,
                  batch_size=batch_size, optimizer=optimizer,
                  max_iter=verbose, verbose=verbose)
 
