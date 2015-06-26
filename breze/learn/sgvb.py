@@ -655,6 +655,7 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
             n_hiddens_recog,
             n_latent,
             recog_transfers,
+            ('identity',lambda x: x**2+1e-5),
             declare=declare)
 
         prior_class = lambda inpt, declare: NormalGauss(inpt)
@@ -664,6 +665,7 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
             n_hiddens_gen,
             n_inpt,
             gen_transfers,
+            ('sigmoid',lambda x: x**2+1e-5),
             declare=declare)
 
         GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,

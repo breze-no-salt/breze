@@ -12,6 +12,9 @@ from breze.arch.component.common import supervised_loss
 
 from breze.arch.util import get_named_variables
 
+from breze.arch.util import lookup
+from breze.arch.component import transfer as _transfer
+
 def assert_no_time(X):
     if X.ndim == 2:
         return X
@@ -99,23 +102,37 @@ class Bernoulli(Distribution):
             X, self.output, bern_ces,
             coord_axis=n_dim - 1)['loss_coord_wise']
 
+def concat_transfer(inpt, mean_transfer, var_transfer):
+    f_mean_transfer = lookup(mean_transfer, _transfer)
+    f_var_transfer = lookup(var_transfer, _transfer)
+
+    half = inpt.shape[-1] // 2
+    if inpt.ndim == 3:
+        mean, var = inpt[:, :, :half], inpt[:, :, half:]
+        res = T.concatenate([f_mean_transfer(mean), f_var_transfer(var)], axis=2)
+    else:
+        mean, var = inpt[:, :half], inpt[:, half:]
+        res = T.concatenate([f_mean_transfer(mean), f_var_transfer(var)], axis=1)
+    return res
+
 
 class MlpDiagGauss(DiagGauss):
 
     def __init__(self, inpt, n_inpt, n_hiddens, n_output,
-                 hidden_transfers, declare=None, name=None, rng=None):
+                 hidden_transfers, out_transfer, declare=None, name=None, rng=None):
 
         self.inpt = inpt
         self.n_inpt = n_inpt
         self.n_hiddens = n_hiddens
         self.n_output = n_output
         self.hidden_transfers = hidden_transfers
+        self.out_transfer = out_transfer
 
         super(MlpDiagGauss, self).__init__(inpt, declare, name, rng)
 
     def _forward(self):
         self.mlp = Mlp(self.inpt, self.n_inpt, self.n_hiddens, self.n_output*2,
-                 self.hidden_transfers, diag_gauss, declare=self.declare)
+                 self.hidden_transfers, lambda x: concat_transfer(x,self.out_transfer[0],self.out_transfer[1]), declare=self.declare)
 
         self.layers = self.mlp.layers
         self.output = self.mlp.output
