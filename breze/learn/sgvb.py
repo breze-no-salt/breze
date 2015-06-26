@@ -77,7 +77,9 @@ from breze.learn.base import (
     ReconstructBrezeWrapperMixin)
 
 from breze.arch.construct import neural
-from breze.arch.construct.layer.sampling import (MlpDiagGauss, MlpBernoulli, FastDropoutMlpDiagGauss)
+from breze.arch.construct.layer.distributions import (MlpDiagGauss, MlpBernoulli, FastDropoutMlpDiagGauss, NormalGauss)
+
+from breze.arch.construct.layer.kldivergence import kl_div
 
 
 # TODO find a better home for the following functions.
@@ -404,7 +406,7 @@ class GenericVariationalAutoEncoder(
     shortcut = None
 
     def __init__(self, n_inpt, n_latent,
-                 gen_class, rec_class, condition_func=None,
+                 gen_class, prior_class, rec_class, condition_func=None,
                  use_imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
@@ -459,6 +461,7 @@ class GenericVariationalAutoEncoder(
         self.n_latent = n_latent
         self.n_output = n_inpt
         self.rec_class = rec_class
+        self.prior_class = prior_class
         self.gen_class = gen_class
         self.condition_func = condition_func
 
@@ -498,6 +501,7 @@ class GenericVariationalAutoEncoder(
         self.vae = _VariationalAutoEncoder(inpt, self.n_inpt,
                                            self.n_latent, self.n_output,
                                            self.gen_class,
+                                           self.prior_class,
                                            self.rec_class,
                                            self.condition_func,
                                            declare=parameters.declare)
@@ -517,7 +521,7 @@ class GenericVariationalAutoEncoder(
 
         # Create the KL divergence part of the loss.
         n_dim = inpt.ndim
-        self.kl_coord_wise = self.vae.recog.kl_prior()
+        self.kl_coord_wise = kl_div( self.vae.recog, self.vae.prior)
 
         if self.use_imp_weight:
             self.kl_coord_wise *= imp_weight
@@ -601,7 +605,7 @@ class GenericVariationalAutoEncoder(
             raise ValueError('unexpected ndim for samples')
 
         # Map a sample s to the prior log probability p(z)
-        nll_z = self.vae.recog.nll_prior(latent_sample).sum(axis=ndim - 1)
+        nll_z = self.vae.prior.nll(latent_sample).sum(axis=ndim - 1)
         f_nll_z = self.function([latent_sample], nll_z, on_unused_input='ignore')
 
         # Map a given visible x and a sample z to the generating
@@ -653,6 +657,8 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
             recog_transfers,
             declare=declare)
 
+        prior_class = lambda inpt, declare: NormalGauss(inpt)
+
         gen_class = lambda inpt, declare: MlpDiagGauss(
             inpt, n_latent,
             n_hiddens_gen,
@@ -661,7 +667,7 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
             declare=declare)
 
         GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
-                 rec_class, gen_class, use_imp_weight=use_imp_weight,
+                 rec_class, prior_class, gen_class, use_imp_weight=use_imp_weight,
                  batch_size=batch_size, optimizer=optimizer,
                  max_iter=verbose, verbose=verbose)
 

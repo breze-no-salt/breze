@@ -9,13 +9,14 @@ from breze.arch.construct.base import Layer
 class VariationalAutoEncoder(Layer):
 
     def __init__(self, inpt, n_inpt, n_latent, n_output,
-                 recog_class, gen_class, condition_func=None,
+                 recog_class, prior_class, gen_class, condition_func=None,
                  declare=None, name=None):
         self.inpt = inpt
         self.n_inpt = n_inpt
         self.n_latent = n_latent
         self.n_output = n_output
         self.recog_class = recog_class
+        self.prior_class = prior_class
         self.gen_class = gen_class
         self.condition_func = condition_func
         self.transfer = _transfer
@@ -29,6 +30,8 @@ class VariationalAutoEncoder(Layer):
         self.recog = self.recog_class(self.inpt, self.declare)
         self.latent = self.recog.output
         self.sample = self.recog.sample()
+
+        self.prior = self.prior_class(self.sample, self.declare)
 
         if self.condition_func is None:
             gen_inpt = self.sample
