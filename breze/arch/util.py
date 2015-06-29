@@ -11,8 +11,6 @@ import theano.sandbox.cuda.var
 
 from breze.utils import dictlist
 
-import attrdict
-
 
 try:
     gpu_environ = os.environ['BREZE_PARAMETERSET_DEVICE']
@@ -312,12 +310,14 @@ class ParameterSet(object):
             self.flat = theano.sandbox.cuda.fvector('parameters')
         else:
             self.flat = T.vector('parameters')
+        self.flat.tag.test_value = np.empty(
+            (2048,), dtype=theano.config.floatX)
 
     def declare(self, shape, group=None):
         if group is not None:
             raise NotImplementedError('we do not know about groups yet')
 
-        shape = (shape,) if isinstance(shape, int) else shape
+        shape = (shape,) if isinstance(shape, int) or isinstance(shape, long) else shape
         size = np.prod(shape)
         start, stop = self._n_pars, self._n_pars + size
         self._n_pars = stop

@@ -42,6 +42,8 @@ def cast_array_to_local_type(arr):
         res = arr.astype(theano.config.floatX)
     return res
 
+theanox = cast_array_to_local_type
+
 
 def assert_ndarray(arr):
     """If ``arr`` is a ``gnumpy.garray``, convert it to a ``numpy.ndarray``.
@@ -405,7 +407,7 @@ class UnsupervisedModel(Model, BrezeWrapperBase):
     def loss(self):
         return self.exprs['loss']
 
-    def __init__(self, inpt, output, loss, parameters):
+    def __init__(self, inpt, output, loss, parameters, imp_weight=None):
         self.parameters = parameters
         self.parameters.alloc()
 
@@ -413,6 +415,7 @@ class UnsupervisedModel(Model, BrezeWrapperBase):
             'inpt': inpt,
             'output': output,
             'loss': loss,
+            'imp_weight': imp_weight
         }
 
         super(UnsupervisedModel, self).__init__()
@@ -492,7 +495,7 @@ class UnsupervisedModel(Model, BrezeWrapperBase):
     def _make_args(self, X, W=None):
         batch_size = getattr(self, 'batch_size', None)
         use_imp_weight = W is not None
-        if self.imp_weight != use_imp_weight:
+        if self.use_imp_weight != use_imp_weight:
             raise ValueError('need to give ``W`` in accordinace to '
                              '``self.imp_weight``')
         item = [X, W] if use_imp_weight else [X]

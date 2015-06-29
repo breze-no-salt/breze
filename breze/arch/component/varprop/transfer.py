@@ -224,3 +224,44 @@ def tanh(mean, var):
     """
     mean_, var_ = sigmoid(mean, var)
     return mean_ * 2 - 1, 4 * var_
+
+
+def lstm(state_mean_tm1, state_var_tm1, inpt_mean, inpt_var):
+
+    def mult(mean1, var1, mean2, var2):
+        mean = mean1 * mean2
+        var = (mean1 ** 2 * var2 +
+            var1 * mean2 ** 2 +
+            var1 * var2)
+        return mean, var
+
+    size = state_mean_tm1.shape[1]
+
+    x_mean, x_var = inpt_mean[:, :size], inpt_var[:, :size]
+    gates_mean, gates_var = sigmoid(inpt_mean[:, size:], inpt_var[:, size:])
+
+    ingate_mean = gates_mean[:, :size]
+    ingate_var = gates_var[:, :size]
+
+    forgetgate_mean = gates_mean[:, size:2 * size]
+    forgetgate_var = gates_var[:, size:2 * size]
+
+    outgate_mean = gates_mean[:, 2 * size:]
+    outgate_var = gates_var[:, 2 * size:]
+
+    state_mean_a, state_var_a = mult(x_mean, x_var, ingate_mean, ingate_var)
+    state_mean_b, state_var_b = mult(state_mean_tm1, state_var_tm1,
+                                     forgetgate_mean, forgetgate_var)
+    state_mean = state_mean_a + state_mean_b
+    state_var = state_var_a + state_var_b
+
+    state_post_mean, state_post_var = sigmoid(state_mean, state_var)
+
+    output_mean, output_var = mult(state_post_mean, state_post_var,
+                                   outgate_mean, outgate_var)
+
+    return state_mean, state_var, output_mean, output_var
+
+lstm.in_size = 4
+lstm.out_size = 1
+lstm.stateful = True
