@@ -9,6 +9,20 @@ from breze.arch.util import get_named_variables, lookup
 
 
 class SequentialToStatic(Layer):
+    """SequentialToStatic class.
+
+    Layer that turns data that is assumed to be sequential into static data.
+
+    We represent sequential data typically as a tensor of the shape
+    ``(T, N, D)`` where ``T`` is the number of time steps, ``N`` is the number
+    of independent samples and ``D`` is the dimensionality at a single time
+    step.
+
+    This operation turns such a tensor into a tensor of the shape ``(T * N, D)``
+    allowing static operations.
+
+    It can be undone by the ``.inverse`` function.
+    """
 
     def forward(self, *inpts):
         self.n_time_steps = inpts[0].shape[0]
@@ -21,6 +35,11 @@ class SequentialToStatic(Layer):
 
 
 class Recurrent(Layer):
+    """Recurrent class.
+
+    Represents a simpler recurrent layer as found in recurrent neural networks.
+    It is specified by a weight matrix and a non-linearity.
+    """
 
     def __init__(self, n_inpt, transfer='identity', name=None):
         self.n_inpt = n_inpt
