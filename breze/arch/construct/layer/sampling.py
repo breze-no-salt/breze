@@ -8,6 +8,12 @@ from breze.arch.util import get_named_variables
 
 
 class Gauss(Layer):
+    """Gauss class.
+
+    Layer that takes two inputs, representing the mean and the variance of a
+    Gaussian and produces a single one, a sample from the corresponding
+    distribution.
+    """
 
     def __init__(self, rng=None, name=None):
         if rng is None:
@@ -26,6 +32,12 @@ class Gauss(Layer):
 
 
 class GaussProjection(Layer):
+    """GaussProjection class.
+
+    Layer that takes two inputs, mean and variance of a Gaussian. The variance
+    can be negative and it is assured that it is positive afterwards by taking
+    the square and the root after adding a small offset.
+    """
 
     def forward(self, mean, var):
         var = T.sqrt(var ** 2 + 1e-8)
