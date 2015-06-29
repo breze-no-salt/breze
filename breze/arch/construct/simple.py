@@ -2,6 +2,7 @@
 
 import numpy as np
 import theano.tensor as T
+from theano.tensor.nnet import conv
 
 from breze.arch.component import transfer as _transfer, loss as _loss
 from breze.arch.construct.base import Layer
@@ -94,3 +95,45 @@ class SupervisedLoss(Layer):
         self.sample_wise = self.coord_wise.sum(self.comp_dim)
 
         self.total = self.sample_wise.mean()
+
+
+class Conv2d(Layer):
+
+    def __init__(self, inpt, inpt_height, inpt_width, n_inpt,
+                 filter_height, filter_width,
+                 n_output, transfer,
+                 n_samples=None,
+                 declare=None, name=None):
+        self.inpt = inpt
+        self.inpt_height = inpt_height
+        self.inpt_width = inpt_width
+        self.n_inpt = n_inpt
+
+        self.filter_height = filter_height
+        self.filter_width = filter_width
+
+        self.n_output = n_output
+        self.transfer = transfer
+        self.n_samples = n_samples
+
+        self.output_height, rest = divmod(inpt_height, filter_height)
+        #self.output_height += 1 if rest else 0
+
+        self.output_width, rest = divmod(inpt_width, filter_width)
+        #self.output_width += 1 if rest else 0
+        super(Conv2d, self).__init__(declare=declare, name=name)
+
+    def _forward(self):
+        self.weights = self.declare((
+            self.n_output, self.n_inpt,
+            self.filter_height, self.filter_width))
+
+        self.output_in = conv.conv2d(
+            self.inpt, self.weights,
+            image_shape=(self.n_samples, self.inpt_height, self.inpt_width),
+            subsample=(self.filter_height, self.filter_width),
+            border_mode='valid',
+            )
+
+        f = lookup(self.transfer, _transfer)
+        self.output = f(self.output_in)

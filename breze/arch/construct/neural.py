@@ -57,6 +57,58 @@ class Mlp(Layer):
         self.output = inpt
 
 
+class SimpleCnn2d(Layer):
+
+    def __init__(self, inpt, image_height, image_width, n_channels,
+                 n_hiddens, filter_shapes, n_output,
+                 hidden_transfers, out_transfer,
+                 batch_size=None,
+                 declare=None, name=None):
+        self.inpt = inpt
+        self.image_height = image_height
+        self.image_width = image_width
+        self.n_channels = n_channels
+        self.n_hiddens = n_hiddens
+        self.filter_shapes = filter_shapes
+        self.n_output = n_output
+        self.hidden_transfers = hidden_transfers
+        self.out_transfer = out_transfer
+        self.batch_size = batch_size
+
+        super(SimpleCnn2d, self).__init__(declare, name)
+
+    def _forward(self):
+        self.layers = []
+
+        n_inpts = [self.n_channels] + self.n_hiddens[:-1]
+        n_outputs = self.n_hiddens
+        transfers = self.hidden_transfers
+
+        inpt = self.inpt
+        height, width = self.image_height, self.image_width
+        for n, m, fs, t in zip(n_inpts, n_outputs, self.filter_shapes,
+                               transfers):
+            filter_height, filter_width = fs
+            layer = simple.Conv2d(
+                inpt, height, width, n,
+                filter_height, filter_width,
+                m, t,
+                n_samples=self.batch_size,
+                declare=self.declare)
+            self.layers.append(layer)
+
+            inpt = layer.output
+            height, width = layer.output_height, layer.output_width
+
+        inpt = inpt.reshape((inpt.shape[0], -1))
+
+        self.final_layer = simple.AffineNonlinear(
+            inpt, height * width * m, self.n_output, self.out_transfer,
+            declare=self.declare)
+
+        self.output = self.final_layer.output
+
+
 class FastDropoutMlp(Layer):
 
     def __init__(self, inpt, n_inpt, n_hiddens, n_output,
