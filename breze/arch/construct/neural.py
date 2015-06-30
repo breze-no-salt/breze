@@ -109,6 +109,58 @@ class SimpleCnn2d(Layer):
         self.output = self.final_layer.output
 
 
+class Cnn2d(Layer):
+
+    def __init__(self, inpt, image_height, image_width, n_channels,
+                 n_hiddens, filter_shapes, pool_shapes,
+                 hidden_transfers,
+                 batch_size=None,
+                 declare=None, name=None):
+        self.inpt = inpt
+        self.image_height = image_height
+        self.image_width = image_width
+        self.n_channels = n_channels
+        self.n_hiddens = n_hiddens
+        self.filter_shapes = filter_shapes
+        self.pool_shapes = pool_shapes
+        self.hidden_transfers = hidden_transfers
+        self.batch_size = batch_size
+
+        super(Cnn2d, self).__init__(declare, name)
+
+    def _forward(self):
+        self.layers = []
+
+        n_inpts = [self.n_channels] + self.n_hiddens[:-1]
+        n_outputs = self.n_hiddens
+        transfers = self.hidden_transfers
+
+        inpt = self.inpt
+        height, width = self.image_height, self.image_width
+        for n, m, fs, ps, t in zip(n_inpts, n_outputs, self.filter_shapes,
+                                   self.pool_shapes, transfers):
+            filter_height, filter_width = fs
+            layer = simple.Conv2d(
+                inpt, height, width, n,
+                filter_height, filter_width,
+                m, 'identity',
+                n_samples=self.batch_size,
+                subsample=(1, 1),
+                declare=self.declare)
+            self.layers.append(layer)
+
+            layer = simple.MaxPool2d(
+                layer.output, layer.output_height, layer.output_width,
+                ps[0], ps[1], layer.n_output, transfer=t)
+
+            self.layers.append(layer)
+
+            inpt = layer.output
+            height, width = layer.output_height, layer.output_width
+
+        self.output = self.layers[-1].output
+
+
 class FastDropoutMlp(Layer):
 
     def __init__(self, inpt, n_inpt, n_hiddens, n_output,

@@ -115,26 +115,73 @@ class Conv2d(Layer):
         self.n_output = n_output
         self.transfer = transfer
         self.n_samples = n_samples
+        self.subsample = subsample
 
-        self.output_height, rest = divmod(inpt_height, filter_height)
-        #self.output_height += 1 if rest else 0
+        # self.output_height, _ = divmod(inpt_height, filter_height)
+        # self.output_width, _ = divmod(inpt_width, filter_width)
+        self.output_height = inpt_height - filter_height + 1
+        self.output_width = inpt_width - filter_width + 1
 
-        self.output_width, rest = divmod(inpt_width, filter_width)
-        #self.output_width += 1 if rest else 0
+        if not self.output_height > 0:
+            raise ValueError('inpt height smaller than filter height')
+        if not self.output_width > 0:
+            raise ValueError('inpt width smaller than filter width')
+
         super(Conv2d, self).__init__(declare=declare, name=name)
 
     def _forward(self):
         self.weights = self.declare((
             self.n_output, self.n_inpt,
             self.filter_height, self.filter_width))
+        self.bias = self.declare((self.n_output,))
+
+        if self.subsample is None:
+            subsample = (self.filter_height, self.filter_width)
+        else:
+            subsample = self.subsample
 
         self.output_in = conv.conv2d(
             self.inpt, self.weights,
             image_shape=(
                 self.n_samples, self.n_inpt, self.inpt_height, self.inpt_width),
-            subsample=(self.filter_height, self.filter_width),
+            subsample=subsample,
             border_mode='valid',
             )
+        self.output_in += self.bias.dimshuffle('x', 0, 'x', 'x')
+
+        f = lookup(self.transfer, _transfer)
+        self.output = f(self.output_in)
+
+
+class MaxPool2d(Layer):
+
+    def __init__(self, inpt, inpt_height, inpt_width, pool_height, pool_width,
+                 n_output,
+                 transfer='identity',
+                 declare=None, name=None):
+        self.inpt = inpt
+        self.inpt_height = inpt_height
+        self.inpt_width = inpt_width
+        self.pool_height = pool_height
+        self.pool_width = pool_width
+        self.transfer = transfer
+
+        self.output_height, _ = divmod(inpt_height, pool_height)
+        self.output_width, _ = divmod(inpt_width, pool_width)
+
+        if not self.output_height > 0:
+            raise ValueError('inpt height smaller than pool height')
+        if not self.output_width > 0:
+            raise ValueError('inpt width smaller than pool width')
+
+        self.n_output = n_output
+
+        super(MaxPool2d, self).__init__(declare=declare, name=name)
+
+    def _forward(self):
+        self.output_in = downsample.max_pool_2d(
+            input=self.inpt, ds=(self.pool_height, self.pool_width),
+            ignore_border=True)
 
         f = lookup(self.transfer, _transfer)
         self.output = f(self.output_in)
