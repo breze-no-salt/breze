@@ -9,14 +9,27 @@ theano.config.exception_verbosity = 'high'
 
 
 def test_simplecnn2d_fit():
-    X = np.random.standard_normal((11, 1, 3, 5))
+    image_height, image_width = 4, 4
+    X = np.random.standard_normal((11, 1, image_height, image_width))
     Z = np.random.random((11, 1)) > 0.5
     X, Z = theano_floatx(X, Z)
 
+    n_hiddens = [5, 2]
+    transfers = ['tanh', 'tanh']
+    filter_shapes = [(2, 2), (2, 2)]
+    n_channel = 1
+    n_output = 1
+    out_transfer = 'identity'
+    loss = 'squared'
+
     theano.config.compute_test_value = 'raise'
     m = SimpleCnn2d(
-        3, 5, 1, [7], [(2, 2)], 1, ['sigmoid'], 'identity',
-        'squared')
+        image_height, image_width, n_channel,
+        n_hiddens,
+        filter_shapes,
+        n_output,
+        transfers, out_transfer,
+        loss)
 
     print m.cnn.output.tag.test_value.shape
     f_predict = m.function(['inpt'], 'output', mode='FAST_COMPILE')
