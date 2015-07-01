@@ -43,3 +43,15 @@ def test_conv2d_sizes():
     msg = 'output shape not calculated right: calced: %s real:%s' % (
         calced, real)
     assert calced == real, msg
+
+
+def test_conv2d_channels():
+    theano.config.compute_test_value = 'raise'
+    inpt = T.tensor4()
+
+    image_height = 29
+    image_width = 13
+    n_channels = 2
+    inpt.tag.test_value = np.empty((1, n_channels, image_height, image_width))
+
+    l = Conv2d(inpt, image_height, image_width, 2, 3, 3, 2)
