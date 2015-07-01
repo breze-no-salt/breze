@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+
 import theano.tensor as T
 from theano.tensor.nnet import conv
+from theano.tensor.signal import downsample
 
 from breze.arch.component import transfer as _transfer, loss as _loss
 from breze.arch.construct.base import Layer
@@ -101,8 +103,9 @@ class Conv2d(Layer):
 
     def __init__(self, inpt, inpt_height, inpt_width, n_inpt,
                  filter_height, filter_width,
-                 n_output, transfer,
+                 n_output, transfer='identity',
                  n_samples=None,
+                 subsample=(1, 1),
                  declare=None, name=None):
         self.inpt = inpt
         self.inpt_height = inpt_height
@@ -119,8 +122,8 @@ class Conv2d(Layer):
 
         # self.output_height, _ = divmod(inpt_height, filter_height)
         # self.output_width, _ = divmod(inpt_width, filter_width)
-        self.output_height = inpt_height - filter_height + 1
-        self.output_width = inpt_width - filter_width + 1
+        self.output_height = (inpt_height - filter_height) / subsample[0] + 1
+        self.output_width = (inpt_width - filter_width) / subsample[1] + 1
 
         if not self.output_height > 0:
             raise ValueError('inpt height smaller than filter height')
@@ -135,19 +138,13 @@ class Conv2d(Layer):
             self.filter_height, self.filter_width))
         self.bias = self.declare((self.n_output,))
 
-        if self.subsample is None:
-            subsample = (self.filter_height, self.filter_width)
-        else:
-            subsample = self.subsample
-
         self.output_in = conv.conv2d(
             self.inpt, self.weights,
             image_shape=(
                 self.n_samples, self.n_inpt, self.inpt_height, self.inpt_width),
-            subsample=subsample,
+            subsample=self.subsample,
             border_mode='valid',
             )
-        self.output_in += self.bias.dimshuffle('x', 0, 'x', 'x')
 
         f = lookup(self.transfer, _transfer)
         self.output = f(self.output_in)
