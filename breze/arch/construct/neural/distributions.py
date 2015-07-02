@@ -8,7 +8,7 @@ from breze.arch.construct.neural import Mlp, FastDropoutMlp
 
 from breze.arch.util import lookup
 from breze.arch.component import transfer as _transfer
-from breze.arch.component.distributions import DiagGauss, Bernoulli
+from breze.arch.construct.layer.distributions import DiagGauss, Bernoulli
 
 def concat_transfer(inpt, mean_transfer, var_transfer):
     f_mean_transfer = lookup(mean_transfer, _transfer)

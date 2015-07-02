@@ -77,7 +77,8 @@ from breze.learn.base import (
     ReconstructBrezeWrapperMixin)
 
 from breze.arch.construct import neural
-from breze.arch.construct.neural.distributions import (MlpDiagGauss, MlpBernoulli, FastDropoutMlpDiagGauss, NormalGauss)
+from breze.arch.construct.neural.distributions import (MlpDiagGauss, MlpBernoulli, FastDropoutMlpDiagGauss)
+from breze.arch.construct.layer.distributions import NormalGauss
 
 from breze.arch.construct.layer.kldivergence import kl_div
 
@@ -656,7 +657,7 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
             n_latent,
             recog_transfers,
             out_transfer_mean='identity',
-            out_transfer_var=lambda x: x ** 2 + 1e-5),
+            out_transfer_var=lambda x: x ** 2 + 1e-5,
             declare=declare)
 
         prior_class = lambda inpt, declare: NormalGauss(inpt)
@@ -667,7 +668,7 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
             n_inpt,
             gen_transfers,
             out_transfer_mean='identity',
-            out_transfer_var=lambda x: x ** 2 + 1e-5),
+            out_transfer_var=lambda x: x ** 2 + 1e-5,
             declare=declare)
 
         GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
