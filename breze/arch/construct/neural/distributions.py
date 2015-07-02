@@ -17,17 +17,21 @@ def concat_transfer(inpt, mean_transfer, var_transfer):
     half = inpt.shape[-1] // 2
     if inpt.ndim == 3:
         mean, var = inpt[:, :, :half], inpt[:, :, half:]
-        res = T.concatenate([f_mean_transfer(mean), f_var_transfer(var)], axis=2)
+        res = T.concatenate([f_mean_transfer(mean),
+                             f_var_transfer(var)], axis=2)
     else:
         mean, var = inpt[:, :half], inpt[:, half:]
-        res = T.concatenate([f_mean_transfer(mean), f_var_transfer(var)], axis=1)
+        res = T.concatenate([f_mean_transfer(mean),
+                             f_var_transfer(var)], axis=1)
     return res
 
 
 class MlpDiagGauss(DiagGauss):
 
     def __init__(self, inpt, n_inpt, n_hiddens, n_output,
-                 hidden_transfers, out_transfer_mean='identity', out_transfer_var=lambda x: x**2+1e-5, declare=None, name=None, rng=None):
+                 hidden_transfers, out_transfer_mean='identity',
+                 out_transfer_var=lambda x: x ** 2 + 1e-5,
+                 declare=None, name=None, rng=None):
 
         self.inpt = inpt
         self.n_inpt = n_inpt
@@ -41,7 +45,9 @@ class MlpDiagGauss(DiagGauss):
 
     def _forward(self):
         self.mlp = Mlp(self.inpt, self.n_inpt, self.n_hiddens, self.n_output*2,
-                 self.hidden_transfers, lambda x: concat_transfer(x,self.out_transfer_mean,self.out_transfer_var), declare=self.declare)
+                 self.hidden_transfers, lambda x: concat_transfer(x,
+                        self.out_transfer_mean, self.out_transfer_var),
+                        declare=self.declare)
 
         self.layers = self.mlp.layers
         self.output = self.mlp.output
@@ -50,7 +56,8 @@ class FastDropoutMlpDiagGauss(DiagGauss):
 
     def __init__(self, inpt, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, p_dropout_inpt,
-                 p_dropout_hiddens, dropout_parameterized=False, declare=None, name=None, rng=None):
+                 p_dropout_hiddens, dropout_parameterized=False,
+                 declare=None, name=None, rng=None):
         if rng is None:
             self.rng = T.shared_randomstreams.RandomStreams()
         else:
@@ -72,7 +79,9 @@ class FastDropoutMlpDiagGauss(DiagGauss):
         self.mlp = FastDropoutMlp(self.inpt, self.n_inpt, self.n_hiddens,
                     self.n_output, self.hidden_transfers,
                     self.out_transfer, self.p_dropout_inpt,
-                    self.p_dropout_hiddens, dropout_parameterized=self.dropout_parameterized, declare=self.declare)
+                    self.p_dropout_hiddens,
+                    dropout_parameterized=self.dropout_parameterized,
+                    declare=self.declare)
 
         self.layers = self.mlp.layers
         self.output = self.mlp.output
@@ -80,7 +89,8 @@ class FastDropoutMlpDiagGauss(DiagGauss):
 class MlpBernoulli(Bernoulli):
 
     def __init__(self, inpt, n_inpt, n_hiddens, n_output,
-                 hidden_transfers, out_transfer='sigmoid', declare=None, name=None, rng=None):
+                 hidden_transfers, out_transfer='sigmoid',
+                 declare=None, name=None, rng=None):
         if rng is None:
             self.rng = T.shared_randomstreams.RandomStreams()
         else:
@@ -96,8 +106,9 @@ class MlpBernoulli(Bernoulli):
         super(MlpBernoulli, self).__init__(declare, name)
 
     def _forward(self):
-        self.mlp = Mlp(self.inpt, self.n_inpt, self.n_hiddens, self.n_output,
-                 self.hidden_transfers, self.out_transfer, declare=self.declare)
+        self.mlp = Mlp(self.inpt, self.n_inpt, self.n_hiddens,
+                       self.n_output, self.hidden_transfers,
+                       self.out_transfer, declare=self.declare)
 
         self.layers = self.mlp.layers
         self.output = self.mlp.output
