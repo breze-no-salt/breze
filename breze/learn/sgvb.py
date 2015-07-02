@@ -77,7 +77,7 @@ from breze.learn.base import (
     ReconstructBrezeWrapperMixin)
 
 from breze.arch.construct import neural
-from breze.arch.construct.layer.distributions import (MlpDiagGauss, MlpBernoulli, FastDropoutMlpDiagGauss, NormalGauss)
+from breze.arch.construct.neural.distributions import (MlpDiagGauss, MlpBernoulli, FastDropoutMlpDiagGauss, NormalGauss)
 
 from breze.arch.construct.layer.kldivergence import kl_div
 
