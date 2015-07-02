@@ -82,17 +82,22 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.learn.base import (
-    UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin,
-    ReconstructBrezeWrapperMixin)
-from breze.arch.model.neural import mlp, autoencoder
 from breze.arch.component import loss as loss_
-from breze.arch.util import ParameterSet, Model, lookup, get_named_variables
+from breze.arch.util import ParameterSet, lookup, get_named_variables
 from breze.arch.component import corrupt
 from breze.arch.component.common import supervised_loss
 
+from breze.learn.base import (
+    UnsupervisedModel, TransformBrezeWrapperMixin,
+    ReconstructBrezeWrapperMixin)
 
-class AutoEncoder(Model, UnsupervisedBrezeWrapperBase,
+from breze.arch.construct import neural
+from breze.learn.utils import theano_floatx
+
+theano.config.compute_test_value = 'raise'
+
+
+class AutoEncoder(UnsupervisedModel,
                   TransformBrezeWrapperMixin, ReconstructBrezeWrapperMixin):
     """Auto Encoder class.
 
@@ -121,7 +126,7 @@ class AutoEncoder(Model, UnsupervisedBrezeWrapperBase,
     transform_expr_name = 'feature'
 
     def __init__(self, n_inpt, n_hiddens, hidden_transfers,
-                 out_transfer='identity', loss='squared', tied_weights=True,
+                 out_transfer='identity', loss_ident='squared', tied_weights=True,
                  code_idx=None,
                  batch_size=None,
                  optimizer='lbfgs', max_iter=1000, verbose=False):
@@ -131,7 +136,7 @@ class AutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         ----------
 
         n_inpt : integer
-            Input dimensionality of the data.
+            Input dimensionality of the data. (And thus, also output dimensionality.)
 
         n_hiddens : list of integer
             Dimensionality of the hidden feature dimension per layer.
@@ -177,7 +182,7 @@ class AutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         self.n_hiddens = n_hiddens
         self.hidden_transfers = hidden_transfers
         self.out_transfer = out_transfer
-        self.loss = loss
+        self.loss_ident = loss_ident
         self.tied_weights = tied_weights
         self.code_idx = code_idx if code_idx is not None else len(n_hiddens) / 2
 
@@ -191,47 +196,39 @@ class AutoEncoder(Model, UnsupervisedBrezeWrapperBase,
         self.max_iter = max_iter
         self.verbose = verbose
 
-        super(AutoEncoder, self).__init__()
+        self._init_exprs()
 
-    def _init_pars(self):
-        spec = autoencoder.parameters(
-            self.n_inpt, self.n_hiddens,
-            tied_weights=self.tied_weights)
-        self.parameters = ParameterSet(**spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
 
     def _init_exprs(self):
-        self.exprs = {
-            'inpt': T.matrix('inpt'),
-        }
-        self.exprs['inpt'].tag.test_value = np.zeros(
-            (10, self.n_inpt)).astype(theano.config.floatX)
-        P = self.parameters
+        inpt = T.matrix('inpt')
+        inpt.tag.test_value, = theano_floatx(np.ones((3, self.n_inpt)))
 
-        n_layers = len(self.n_hiddens)
-        if self.tied_weights:
-            hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                                 for i in range(n_layers / 2)]
-            hidden_to_hiddens += [i.T for i in reversed(hidden_to_hiddens)]
-            hidden_to_out = P.in_to_hidden.T
-        else:
-            hidden_to_hiddens = [getattr(P, 'hidden_to_hidden_%i' % i)
-                                 for i in range(n_layers - 1)]
-            hidden_to_out = P.hidden_to_out
-        hidden_biases = [getattr(P, 'hidden_bias_%i' % i)
-                         for i in range(n_layers)]
+        parameters = ParameterSet()
 
-        self.exprs.update(mlp.exprs(
-            self.exprs['inpt'],
-            P.in_to_hidden, hidden_to_hiddens, hidden_to_out,
-            hidden_biases, P.out_bias,
-            self.hidden_transfers, self.out_transfer))
+        self.mlp = neural.Mlp(
+            inpt, self.n_inpt,
+            self.n_hiddens,
+            self.n_inpt,
+            self.hidden_transfers, self.out_transfer,
+            declare=parameters.declare)
 
-        self.exprs.update(supervised_loss(
-            self.exprs['inpt'], self.exprs['output'], self.loss))
+        output = self.mlp.output
 
-        self.exprs['feature'] = self.exprs['layer-%i-output' % self.code_idx]
+        n_dim = inpt.ndim # to be used in the arguments of supervised_loss
+        # to define the coord_axis in case of inpt_dim > 2
+        rec_loss_coord = supervised_loss(
+            inpt, output, self.loss_ident, coord_axis=1)['loss_coord_wise']
+        rec_loss_sample_wise = rec_loss_coord.sum(axis=1)
+        rec_loss = rec_loss_sample_wise.mean()
+
+
+        UnsupervisedModel.__init__(self, inpt=inpt,
+                                 output=output,
+                                 loss=rec_loss,
+                                 parameters=parameters)
+
+        self.feature = self.mlp.layers[self.code_idx].output
+        self.filters_in_to_hidden = parameters[self.mlp.layers[0].weights]
 
 
 class SparseAutoEncoder(AutoEncoder):
@@ -341,8 +338,8 @@ class SparseAutoEncoder(AutoEncoder):
         super(SparseAutoEncoder, self)._init_exprs()
         f_sparsity_loss = lookup(self.sparsity_loss, loss_)
         sparsity_loss = f_sparsity_loss(
-            self.sparsity_target, self.exprs['feature'].mean(axis=0)).sum()
-        loss = self.exprs['loss'] + self.c_sparsity * sparsity_loss
+            self.sparsity_target, self.feature.mean(axis=0)).sum()
+        loss = self.loss + self.c_sparsity * sparsity_loss
 
         self.exprs.update(get_named_variables(locals(), overwrite=True))
 
@@ -409,9 +406,9 @@ class ContractiveAutoEncoder(AutoEncoder):
 
     def _init_exprs(self):
         super(ContractiveAutoEncoder, self)._init_exprs()
-        jacobian_loss = T.sum(T.grad(self.exprs['feature'].mean(axis=0).sum(),
-                              self.exprs['inpt']).mean(axis=0) ** 2)
-        loss = self.exprs['loss'] + self.c_jacobian * jacobian_loss
+        jacobian_loss = T.sum(T.grad(self.feature.mean(axis=0).sum(),
+                              self.inpt).mean(axis=0) ** 2)
+        loss = self.loss + self.c_jacobian * jacobian_loss
 
         self.exprs.update(get_named_variables(locals(), overwrite=True))
 
@@ -420,7 +417,7 @@ class DenoisingAutoEncoder(AutoEncoder):
     """Implementation of the Denoising Auto Encoder (DAE) as described in
     [DAE]_.
 
-    The SAE discourages trivial solutions to the reconstruction loss by
+    The DAE discourages trivial solutions to the reconstruction loss by
     corrupting the input data with noise, while still trying to recover the
     uncorrupted data from that. Formally, this can be written as
 
@@ -501,19 +498,19 @@ class DenoisingAutoEncoder(AutoEncoder):
         super(DenoisingAutoEncoder, self)._init_exprs()
         if self.noise_type == 'gauss':
             corrupted_inpt = corrupt.gaussian_perturb(
-                self.exprs['inpt'], self.c_noise)
+                self.inpt, self.c_noise)
         elif self.noise_type == 'mask':
             corrupted_inpt = corrupt.mask(
-                self.exprs['inpt'], self.c_noise)
+                self.inpt, self.c_noise)
 
         output_from_corrupt = theano.clone(
-            self.exprs['output'],
-            {self.exprs['inpt']: corrupted_inpt}
+            self.output,
+            {self.inpt: corrupted_inpt}
         )
 
-        score = self.exprs['loss']
+        score = self.loss
         loss = theano.clone(
-            self.exprs['loss'],
-            {self.exprs['output']: output_from_corrupt})
+            self.loss,
+            {self.output: output_from_corrupt})
 
         self.exprs.update(get_named_variables(locals(), overwrite=True))
