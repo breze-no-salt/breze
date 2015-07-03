@@ -41,45 +41,28 @@ References
 .. [DLGM] Rezende, Danilo Jimenez, Shakir Mohamed, and Daan Wierstra. "Stochastic Back-propagation and Variational Inference in Deep Latent Gaussian Models." arXiv preprint arXiv:1401.4082 (2014).
 """
 
-# TODO assumption classes
-# TODO rename denoise to map denoise
-# TODO fix estimation of nll
-# TODO rename recurrent models to the ones used in the paper
-# TODO make function for missing value imputation
-
+import climin.initialize
+import numpy as np
 import theano
 import theano.tensor as T
 import theano.tensor.nnet
-import numpy as np
 
-from theano.compile import optdb
-
+from climin import mathadapt as ma
 from scipy.misc import logsumexp
+from theano.compile import optdb
 
 from breze.arch.component.common import supervised_loss
 from breze.arch.component.misc import inter_gauss_kl
-from breze.arch.component.transfer import diag_gauss
-from breze.arch.component.varprop.transfer import sigmoid
-from breze.arch.component.varprop.loss import (
-    diag_gaussian_nll as diag_gauss_nll, bern_ces)
-
-from breze.arch.util import ParameterSet
-from breze.learn.utils import theano_floatx
-
-import climin.initialize
-from climin import mathadapt as ma
-
-
-from breze.arch.construct.sgvb import VariationalAutoEncoder as _VariationalAutoEncoder
-
-from breze.learn.base import (
-    UnsupervisedModel, TransformBrezeWrapperMixin,
-    ReconstructBrezeWrapperMixin)
-
+from breze.arch.component.transfer import diag_gauss, sigmoid
+from breze.arch.component.varprop.loss import ( diag_gaussian_nll as diag_gauss_nll, bern_ces, unpack_mean_var)
+from breze.arch.component.varprop.transfer import sigmoid as vp_sigmoid
 from breze.arch.construct import neural
-
-
-# TODO find a better home for the following functions.
+from breze.arch.construct.sgvb import (
+    VariationalAutoEncoder as _VariationalAutoEncoder)
+from breze.arch.util import ParameterSet
+from breze.learn.base import (
+    UnsupervisedModel, TransformBrezeWrapperMixin, ReconstructBrezeWrapperMixin)
+from breze.learn.utils import theano_floatx
 
 
 def flatten_list(lst):
@@ -347,9 +330,9 @@ class BernoulliVisibleAssumption(object):
             return sample
 
 
-class GenericVariationalAutoEncoder(
-    UnsupervisedModel, TransformBrezeWrapperMixin,
-    ReconstructBrezeWrapperMixin):
+class GenericVariationalAutoEncoder(UnsupervisedModel,
+                                    TransformBrezeWrapperMixin,
+                                    ReconstructBrezeWrapperMixin):
     """Class representing a variational auto encoder.
 
     Described in [SGVB]_.
@@ -479,8 +462,6 @@ class GenericVariationalAutoEncoder(
         self.rec_loss = self.rec_loss_sample_wise.mean()
 
         output = self.vae.gen.output
-        #self.latent = self.vae.recog.output
-        #self.sample = self.vae.sample
 
         # Create the KL divergence part of the loss.
         n_dim = inpt.ndim
@@ -491,14 +472,15 @@ class GenericVariationalAutoEncoder(
         self.kl_sample_wise = self.kl_coord_wise.sum(axis=n_dim - 1)
         self.kl = self.kl_sample_wise.mean()
 
-        self.loss_sample_wise = self.kl_sample_wise + self.rec_loss_sample_wise
+        # FIXME: this does not work with convolutional aes
+        # self.loss_sample_wise = self.kl_sample_wise + self.rec_loss_sample_wise
         loss = self.kl + self.rec_loss
 
         UnsupervisedModel.__init__(self, inpt=inpt,
-                                 output=output,
-                                 loss=loss,
-                                 parameters=parameters,
-                                 imp_weight=self.imp_weight)
+                                   output=output,
+                                   loss=loss,
+                                   parameters=parameters,
+                                   imp_weight=self.imp_weight)
 
         # TODO: this has to become transform_expr or sth like that
         self.transform_expr_name = self.vae.latent
@@ -515,7 +497,8 @@ class GenericVariationalAutoEncoder(
 
     def _output_from_sample(self, S):
         if self.f_out_from_sample is None:
-            self.f_out_from_sample = self.function([self.vae.sample], self.output)
+            self.f_out_from_sample = self.function(
+                [self.vae.sample], self.output)
         return self.f_out_from_sample(S)
 
     def _rec_loss_of_sample(self, X, S):
@@ -639,10 +622,99 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
             dropout_parameterized=True,
             declare=declare)
 
-        GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
-                 assumptions, rec_class, gen_class, use_imp_weight=use_imp_weight,
-                 batch_size=batch_size, optimizer=optimizer,
-                 max_iter=verbose, verbose=verbose)
+        GenericVariationalAutoEncoder.__init__(
+            self, n_inpt, n_latent,
+            assumptions, rec_class, gen_class, use_imp_weight=use_imp_weight,
+            batch_size=batch_size, optimizer=optimizer,
+            max_iter=verbose, verbose=verbose)
+
+
+class ConvolutionalVAE(GenericVariationalAutoEncoder):
+
+    def __init__(self, image_height, image_width, n_channel,
+                 recog_n_hiddens_conv,
+                 recog_filter_shapes, recog_pool_shapes,
+                 recog_n_hiddens_full,
+                 recog_transfers_conv, recog_transfers_full,
+                 n_latent,
+                 gen_n_hiddens_full,
+                 gen_n_hiddens_conv,
+                 gen_filter_shapes, gen_unpool_factors,
+                 gen_transfers_conv, gen_transfers_full,
+                 assumptions,
+                 recog_strides=None,
+                 use_imp_weight=False,
+                 batch_size=None,
+                 optimizer='adam',
+                 max_iter=1000, verbose=False):
+        self.image_height = image_height
+        self.image_width = image_width
+        self.n_channel = n_channel
+
+        self.recog_n_hiddens_conv = recog_n_hiddens_conv
+        self.recog_filter_shapes = recog_filter_shapes
+        self.recog_pool_shapes = recog_pool_shapes
+        self.recog_n_hiddens_full = recog_n_hiddens_full
+        self.recog_transfers_conv = recog_transfers_conv
+        self.recog_transfers_full = recog_transfers_full
+        self.recog_strides = recog_strides
+
+        self.n_latent = n_latent
+        self.gen_n_hiddens_conv = gen_n_hiddens_conv
+        self.gen_filter_shapes = gen_filter_shapes
+        self.gen_unpool_factors = gen_unpool_factors
+        self.gen_n_hiddens_full = gen_n_hiddens_full
+        self.gen_transfers_conv = gen_transfers_conv
+        self.gen_transfers_full = gen_transfers_full
+
+        rec_class = lambda inpt, declare: neural.Lenet(
+            inpt, self.image_height, self.image_width, self.n_channel,
+            self.recog_n_hiddens_conv,
+            self.recog_filter_shapes, self.recog_pool_shapes,
+            self.recog_n_hiddens_full,
+            self.recog_transfers_conv, self.recog_transfers_full,
+            assumptions.latent_layer_size(self.n_latent),
+            assumptions.statify_latent,
+            strides=self.recog_strides,
+            declare=declare)
+
+        gen_class = lambda inpt, declare: neural.DeconvNet2d(
+            inpt=inpt, n_inpt=n_latent,
+            n_hiddens_full=self.gen_n_hiddens_full,
+            n_interim_channel=1,
+            n_hiddens_conv=self.gen_n_hiddens_conv,
+            filter_shapes=self.gen_filter_shapes,
+            unpool_factors=self.gen_unpool_factors,
+            hidden_transfers_full=self.gen_transfers_full,
+            hidden_transfers_conv=self.gen_transfers_conv,
+            output_height=self.image_height,
+            output_width=self.image_width,
+            n_output_channel=self.n_channel,
+            out_transfer_conv=assumptions.statify_visible,
+            out_transfer_full='identity',
+            declare=declare)
+
+        # TODO n_inpt is not a reasonable input for a convnet; this is why None
+        # is used here instead.
+        GenericVariationalAutoEncoder.__init__(
+            self, None, n_latent,
+            assumptions, rec_class, gen_class, use_imp_weight=use_imp_weight,
+            batch_size=batch_size, optimizer=optimizer,
+            max_iter=verbose, verbose=verbose)
+
+    def _make_start_exprs(self):
+        inpt = T.tensor4('inpt')
+        inpt.tag.test_value, = theano_floatx(np.ones(
+            (3, self.n_channel, self.image_height, self.image_width)))
+
+        if self.use_imp_weight:
+            imp_weight = T.tensor4('imp_weight')
+            imp_weight.tag.test_value, = theano_floatx(np.ones(
+                (3, self.n_channel, self.image_height, self.image_width)))
+        else:
+            imp_weight = None
+
+        return inpt, imp_weight
 
 
 class StochasticRnn(GenericVariationalAutoEncoder):
@@ -680,7 +752,8 @@ class StochasticRnn(GenericVariationalAutoEncoder):
 
         self.p_dropout_shortcut = p_dropout_shortcut
 
-        GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
+        GenericVariationalAutoEncoder.__init__(
+            self, n_inpt, n_latent,
             assumptions, self._make_recog, self._make_gen, self._make_condition,
             use_imp_weight=use_imp_weight,
             batch_size=batch_size, optimizer=optimizer,
@@ -715,7 +788,8 @@ class StochasticRnn(GenericVariationalAutoEncoder):
             self.n_hiddens_gen,
             self.assumptions.visible_layer_size(self.n_inpt),
             self.gen_transfers, self.assumptions.statify_visible,
-            self.p_dropout_inpt, self.p_dropout_hiddens, self.p_dropout_hidden_to_out,
+            self.p_dropout_inpt, self.p_dropout_hiddens,
+            self.p_dropout_hidden_to_out,
             declare=declare)
 
     def _make_condition(self, rec_model):
@@ -786,7 +860,10 @@ class StochasticRnn(GenericVariationalAutoEncoder):
             self.f_gen = self.function([inpt_m1, sample], gen_expr)
 
         prefix_length = prefix.shape[0]
-        S = np.empty((prefix.shape[0] + n_time_steps, prefix.shape[1], prefix.shape[2])).astype(theano.config.floatX)
+        S = np.empty(
+            (prefix.shape[0] + n_time_steps, prefix.shape[1],
+             prefix.shape[2])
+        ).astype(theano.config.floatX)
         S[:prefix_length][...] = prefix
         latent_samples = np.zeros(
             (prefix.shape[0] + n_time_steps, prefix.shape[1], self.n_latent)
@@ -794,7 +871,9 @@ class StochasticRnn(GenericVariationalAutoEncoder):
         latent_samples[prefix_length:] = np.random.standard_normal(
             (n_time_steps, prefix.shape[1], self.n_latent))
         for i in range(n_time_steps - 1):
-            p = self.f_gen(S[:prefix_length + i], latent_samples[:prefix_length + i])[-1, :, :self.n_inpt]
+            p = self.f_gen(S[:prefix_length + i],
+                           latent_samples[:prefix_length + i]
+                           )[-1, :, :self.n_inpt]
             S[prefix_length + i] = p
         return S[prefix_length + 1:]
 
@@ -852,7 +931,8 @@ class BidirectStochasticRnn(StochasticRnn):
                     if sparsify_rec:
                         climin.initialize.sparsify_columns(p, sparsify_rec)
                     if spectral_radius:
-                        climin.initialize.bound_spectral_radius(p, spectral_radius)
+                        climin.initialize.bound_spectral_radius(
+                            p, spectral_radius)
                 P[layer.recurrent_forward.initial_mean][...] = 0
                 P[layer.recurrent_forward.initial_std][...] = 1
                 P[layer.recurrent_backward.initial_mean][...] = 0
