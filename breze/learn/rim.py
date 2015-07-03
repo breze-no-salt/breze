@@ -11,18 +11,17 @@ References
      by Gomes, R. and Krause, A. and Perona, P., NIPS 2010
 """
 
-import numpy as np
-import theano
 import theano.tensor as T
 
-from breze.arch.model import rim
-from breze.arch.util import ParameterSet, Model
+from breze.arch.util import ParameterSet
+from breze.arch.construct.simple import AffineNonlinear
 from breze.learn.base import (
-    UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin)
-from breze.arch.model import linear, rim
+    UnsupervisedModel, TransformBrezeWrapperMixin)
+from breze.arch.construct.rim import RimLoss
 
 
-class Rim(Model, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
+class Rim(UnsupervisedModel,
+          TransformBrezeWrapperMixin):
     """Class for regularized information maximization.
 
     Attributes
@@ -94,20 +93,19 @@ class Rim(Model, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
         self.max_iter = max_iter
         self.verbose = verbose
 
-        super(Rim, self).__init__()
-
-    def _init_pars(self):
-        spec = linear.parameters(self.n_inpt, self.n_cluster)
-        self.parameters = ParameterSet(**spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
+        self._init_exprs()
 
     def _init_exprs(self):
-        self.exprs = {
-            'inpt': T.matrix('inpt'),
-        }
-        P = self.parameters
+        inpt = T.matrix('inpt')
+        P = self.parameters = ParameterSet()
 
-        self.exprs.update(linear.exprs(
-            self.exprs['inpt'], P.in_to_out, P.bias, 'softmax'))
-        self.exprs.update(rim.loss(self.exprs['output'], [P.in_to_out], self.c_rim))
+        self.layer = AffineNonlinear(inpt, self.n_inpt, self.n_cluster,
+                                     'softmax', declare=P.declare)
+
+        self.loss_layer = RimLoss(self.layer.output, [self.layer.weights],
+                                   self.c_rim)
+
+        super(Rim, self).__init__(
+            inpt=inpt, output=self.layer.output, loss=self.loss_layer.total,
+            parameters=P)
+

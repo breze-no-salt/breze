@@ -7,8 +7,7 @@ from theano.gradient import jacobian
 
 from breze.learn.rnn import (
     SupervisedFastDropoutRnn,
-    SupervisedRnn, UnsupervisedRnn,
-    SupervisedLstmRnn, UnsupervisedLstmRnn)
+    SupervisedRnn)
 from breze.learn.utils import theano_floatx
 
 from nose.plugins.skip import SkipTest
@@ -21,11 +20,58 @@ def test_srnn_fit():
 
     X, Z, W = theano_floatx(X, Z, W)
 
-    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=10)
+    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=2)
     rnn.fit(X, Z)
 
-    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], skip_to_out=True,
-        max_iter=10, imp_weight=True)
+    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'],
+        max_iter=2, imp_weight=True)
+    rnn.fit(X, Z, W)
+
+
+def test_srnn_lstm_fit():
+    X = np.random.standard_normal((13, 5, 4)).astype(theano.config.floatX)
+    Z = np.random.standard_normal((13, 5, 3)).astype(theano.config.floatX)
+    W = np.random.standard_normal((13, 5, 3)).astype(theano.config.floatX)
+
+    X, Z, W = theano_floatx(X, Z, W)
+
+    old, theano.config.compute_test_value = theano.config.compute_test_value, 'raise'
+
+    rnn = SupervisedRnn(4, [10], 3, hidden_transfers=['lstm'], max_iter=2)
+    rnn.fit(X, Z)
+
+    theano.config.compute_test_value = old
+
+
+def test_fdsrnn_lstm_fit():
+    X = np.random.standard_normal((13, 5, 4)).astype(theano.config.floatX)
+    Z = np.random.standard_normal((13, 5, 3)).astype(theano.config.floatX)
+    W = np.random.standard_normal((13, 5, 3)).astype(theano.config.floatX)
+
+    X, Z, W = theano_floatx(X, Z, W)
+
+    old, theano.config.compute_test_value = theano.config.compute_test_value, 'raise'
+
+    rnn = SupervisedFastDropoutRnn(4, [10], 3, hidden_transfers=['lstm'], max_iter=2)
+    rnn.mode = 'FAST_COMPILE'
+    rnn.fit(X, Z)
+
+    theano.config.compute_test_value = old
+
+
+def test_srnn_pooling_fit():
+    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
+    Z = np.random.standard_normal((5, 3)).astype(theano.config.floatX)
+    W = np.random.standard_normal((5, 3)).astype(theano.config.floatX)
+
+    X, Z, W = theano_floatx(X, Z, W)
+
+    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=2,
+                        pooling='sum')
+    rnn.fit(X, Z)
+
+    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'],
+        max_iter=2, imp_weight=True, pooling='sum')
     rnn.fit(X, Z, W)
 
 
@@ -34,12 +80,12 @@ def test_srnn_iter_fit():
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
     X, Z = theano_floatx(X, Z)
 
-    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=10)
+    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=2)
     for i, info in enumerate(rnn.iter_fit(X, Z)):
         if i >= 10:
             break
 
-    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], skip_to_out=True, max_iter=10)
+    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=2)
     for i, info in enumerate(rnn.iter_fit(X, Z)):
         if i >= 10:
             break
@@ -49,46 +95,60 @@ def test_srnn_predict():
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     X, = theano_floatx(X)
 
-    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=10)
+    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=2)
     rnn.predict(X)
 
-    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], skip_to_out=True, max_iter=10)
+    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=2)
     rnn.predict(X)
 
 
-def test_fd_srnn_fit():
-    raise SkipTest()
+def test_fd_srnn_compile():
+    theano.config.compute_test_value = 'raise'
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
     W = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
     X, Z, W = theano_floatx(X, Z, W)
-    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'], max_iter=10)
+    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'],
+                                   max_iter=10)
+
+    f_loss, f_dloss = rnn._make_loss_functions()
+    f_loss(rnn.parameters.data, X, Z)
+    f_dloss(rnn.parameters.data, X, Z)
+
+
+def test_fd_srnn_fit():
+    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
+    Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
+    W = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
+    X, Z, W = theano_floatx(X, Z, W)
+
+    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'],
+                                   max_iter=10)
+    rnn.fit(X, Z)
+
+    rnn = SupervisedFastDropoutRnn(
+        2, [10, 20], 3, hidden_transfers=['rectifier', 'tanh'], max_iter=2)
     rnn.fit(X, Z)
 
     rnn = SupervisedFastDropoutRnn(
         2, [10, 20], 3, hidden_transfers=['rectifier', 'tanh'],
-        skip_to_out=True, max_iter=10)
-    rnn.fit(X, Z)
-
-    rnn = SupervisedFastDropoutRnn(
-        2, [10, 20], 3, hidden_transfers=['rectifier', 'tanh'],
-        skip_to_out=True, max_iter=10, imp_weight=True)
+        max_iter=2, imp_weight=True)
     rnn.fit(X, Z, W)
 
 
 def test_fd_srnn_iter_fit():
-    raise SkipTest()
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
     X, Z = theano_floatx(X, Z)
-    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'], max_iter=10)
+    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'],
+                                   max_iter=10)
     for i, info in enumerate(rnn.iter_fit(X, Z)):
         if i >= 10:
             break
 
     rnn = SupervisedFastDropoutRnn(
         2, [10, 20], 3, hidden_transfers=['rectifier', 'tanh'],
-        skip_to_out=True, max_iter=10)
+        max_iter=2)
     for i, info in enumerate(rnn.iter_fit(X, Z)):
         if i >= 10:
             break
@@ -97,90 +157,16 @@ def test_fd_srnn_iter_fit():
 def test_fd_srnn_predict():
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     X, = theano_floatx(X)
-    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'], max_iter=10)
-    rnn.predict(X)
+    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'],
+                                   max_iter=10)
+    Y = rnn.predict(X)
+    assert Y.shape[2] == 6
 
     rnn = SupervisedFastDropoutRnn(
         2, [10, 20], 3, hidden_transfers=['rectifier', 'tanh'],
-        skip_to_out=True, max_iter=10)
-    rnn.predict(X)
-
-
-def test_usrnn_fit():
-    raise SkipTest()
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = UnsupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], loss=lambda x: T.log(x), max_iter=10)
-    rnn.fit(X)
-
-
-def test_usrnn_iter_fit():
-    raise SkipTest()
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = UnsupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], loss=lambda x: T.log(x), max_iter=10)
-    for i, info in enumerate(rnn.iter_fit(X)):
-        if i >= 10:
-            break
-
-
-def test_usrnn_transform():
-    raise SkipTest()
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = UnsupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], loss=lambda x: T.log(x), max_iter=10)
-    rnn.transform(X)
-
-
-def test_slstm():
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
-    X, Z = theano_floatx(X, Z)
-    rnn = SupervisedLstmRnn(2, [10], 3, hidden_transfers=['sigmoid'], max_iter=10)
-    rnn.fit(X, Z)
-
-
-def test_slstm_iter_fit():
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
-    X, Z = theano_floatx(X, Z)
-    rnn = SupervisedLstmRnn(2, [10], 3, hidden_transfers=['sigmoid'], max_iter=10)
-    for i, info in enumerate(rnn.iter_fit(X, Z)):
-        if i >= 10:
-            break
-
-
-def test_slstm_predict():
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = SupervisedLstmRnn(2, [10], 3, hidden_transfers=['sigmoid'], max_iter=10)
-    rnn.predict(X)
-
-
-def test_uslstm_fit():
-    raise SkipTest()
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = UnsupervisedLstm(2, [10], 3, loss=lambda x: T.log(x), max_iter=10)
-    rnn.fit(X)
-
-
-def test_uslstm_iter_fit():
-    raise SkipTest()
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = UnsupervisedLstm(2, [10], 3, loss=lambda x: T.log(x), max_iter=10)
-    for i, info in enumerate(rnn.iter_fit(X)):
-        if i >= 10:
-            break
-
-
-def test_uslstm_transform():
-    raise SkipTest()
-    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
-    X, = theano_floatx(X)
-    rnn = UnsupervisedLstm(2, [10], 3, loss=lambda x: T.log(x), max_iter=10)
-    rnn.transform(X)
+        max_iter=2)
+    Y = rnn.predict(X)
+    assert Y.shape[2] == 6
 
 
 def test_gn_product_rnn():
@@ -194,7 +180,8 @@ def test_gn_product_rnn():
                         loss='squared')
     rnn.parameters.data[:] = np.random.normal(0, 1, rnn.parameters.data.shape)
     X = np.random.random((n_timesteps, 1, n_inpt)).astype(theano.config.floatX)
-    Z = np.random.random((n_timesteps, 1, n_output)).astype(theano.config.floatX)
+    Z = np.random.random((n_timesteps, 1, n_output)
+                         ).astype(theano.config.floatX)
     X, Z = theano_floatx(X, Z)
 
     # Calculate the GN explicitly.
@@ -230,3 +217,94 @@ def test_gn_product_rnn():
     Gp = f_Hp(rnn.parameters.data, p, X, Z)
 
     assert np.allclose(Gp, Gp_expl)
+
+
+def test_fdrnn_initialize_stds():
+    m = SupervisedFastDropoutRnn(
+        100, [100], 100,
+        ['identity'], 'identity', 'squared')
+
+    inits = dict(par_std=1, par_std_affine=2, par_std_rec=3, par_std_in=4,
+                 sparsify_affine=None, sparsify_rec=None, spectral_radius=None)
+
+    p = m.parameters
+    p.data[:] = float('nan')
+
+    m.initialize(**inits)
+
+    assert np.isfinite(p.data).all()
+
+    affine_layers = [i.affine for i in m.rnn.layers if hasattr(i, 'affine')]
+    rec_layers = [i.recurrent for i in m.rnn.layers
+                  if hasattr(i, 'recurrent')]
+
+    tolerance = 1e-1
+
+    def works(key, tensor):
+        std = p[tensor].std()
+        target = inits[key]
+        success = target - tolerance < std < target + tolerance
+        print '%g %g' % (std, target)
+        assert success, '%s did not work: %g instead of %g' % (
+            key, std, target)
+
+    works('par_std_in', affine_layers[0].weights)
+    for l in affine_layers[1:]:
+        works('par_std_affine', l.weights)
+
+    for l in rec_layers:
+        works('par_std_rec', l.weights)
+
+
+def test_fdrnn_initialize_sparsify():
+    m = SupervisedFastDropoutRnn(
+        100, [100], 100,
+        ['identity'], 'identity', 'squared')
+
+    inits = dict(par_std=1, sparsify_affine=20, sparsify_rec=35)
+
+    p = m.parameters
+    p.data[:] = float('nan')
+    m.initialize(**inits)
+    assert np.isfinite(p.data).all()
+
+    affine_layers = [i.affine for i in m.rnn.layers if hasattr(i, 'affine')]
+    rec_layers = [i.recurrent for i in m.rnn.layers
+                  if hasattr(i, 'recurrent')]
+
+    for l in affine_layers:
+        w = p[l.weights]
+        cond = ((w != 0).sum(axis=0) == inits['sparsify_affine']).all()
+        assert cond, 'sparsify affine did not work for %s' % l
+
+    for l in rec_layers:
+        w = p[l.weights]
+        cond = ((w != 0).sum(axis=0) == inits['sparsify_rec']).all()
+        assert cond, 'sparsify recurrent did not work for %s' % l
+
+
+
+def test_fdrnn_initialize_spectral_radius():
+    m = SupervisedFastDropoutRnn(
+        100, [100], 100,
+        ['identity'], 'identity', 'squared')
+
+    inits = dict(par_std=1, spectral_radius=2.5)
+
+    p = m.parameters
+    p.data[:] = float('nan')
+    m.initialize(**inits)
+    assert np.isfinite(p.data).all()
+
+    rec_layers = [i.recurrent for i in m.rnn.layers
+                  if hasattr(i, 'recurrent')]
+
+    tol = .1
+
+    for l in rec_layers:
+        val, vec = np.linalg.eig(p[l.weights])
+        sr = abs(sorted(val)[0])
+        print abs(sr)
+        cond = inits['spectral_radius'] - tol < sr < inits['spectral_radius'] + tol
+        assert cond, 'spectral radius in it did not work for %s: %g' % (
+            l, sr)

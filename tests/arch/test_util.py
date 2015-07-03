@@ -13,37 +13,56 @@ from breze.arch.util import (ParameterSet, Model, array_partition_views,
                              n_pars_by_partition)
 
 
-def test_parameter_set_init():
-    pars = ParameterSet(matrix=(10, 10),
-                        vector=10)
+def test_parameter_set_init_declare():
+    pars = ParameterSet()
+
+    matrix = pars.declare((10, 10))
+    vector = pars.declare((10,))
+    pars.alloc()
+
     assert pars.data.shape == (110,), 'wrong size for flat pars allocated'
-    assert (pars['matrix'].shape == (10, 10)), ('wrong size for 2d array in pars '
+    assert (pars[matrix].shape == (10, 10)), ('wrong size for 2d array in pars '
                                                 'allocated')
-    assert (pars['vector'].shape == (10,)), ('wrong size for 1d array in pars '
+    assert (pars[vector].shape == (10,)), ('wrong size for 1d array in pars '
                                              'allocated')
 
 
+def test_parameter_set_init_overwrite():
+    pars = ParameterSet()
+
+    matrix = pars.declare((10, 10))
+    pars.alloc()
+
+    pars[matrix] = np.eye(10)
+    assert np.allclose(pars.data.reshape(pars[matrix].shape), pars[matrix])
+
+
+
 def test_parameter_set_data_change():
-    pars = ParameterSet(matrix=(10, 10),
-                        vector=10)
-    pars['matrix'][...] = 0
-    pars['vector'][...] = 0
+    pars = ParameterSet()
+    matrix = pars.declare((10, 10))
+    vector = pars.declare((10,))
+    pars.alloc()
+    pars[matrix] = 0
+    pars[vector] = 0
     assert (pars.data == 0).all(), repr(pars.data)
 
-    pars['matrix'] += 1
+    pars[matrix] += 1
     assert pars.data.sum() == 100
 
-    pars['vector'] += 2
+    pars[vector] += 2
     assert pars.data.sum() == 120
 
     pars.data *= 0.5
-    pars.data.sum() == 60
+    assert pars.data.sum() == 60
 
 
 def test_model_function():
-    pars = ParameterSet(weights=(2, 3))
+    pars = ParameterSet()
+    weights = pars.declare((2, 3))
+    pars.alloc()
     inpt = T.matrix()
-    output = T.dot(inpt, pars.weights)
+    output = T.dot(inpt, weights)
     pars.data[...] = np.random.standard_normal(pars.data.shape)
 
     model = Model()
@@ -77,9 +96,11 @@ def test_model_function():
 
 
 def test_model_function_mode():
-    pars = ParameterSet(weights=(2, 3))
+    pars = ParameterSet()
+    weights = pars.declare((2, 3))
+    pars.alloc()
     inpt = T.matrix()
-    output = T.dot(inpt, pars.weights)
+    output = T.dot(inpt, weights)
     pars.data[...] = np.random.standard_normal(pars.data.shape)
 
     model = Model()
@@ -146,24 +167,17 @@ def test_theano_function_with_nested_exprs():
 def test_pickling_models():
     ma = T.matrix()
     m = Model()
-    m.parameters = ParameterSet(bla=2)
-    m.exprs = {'m_sqrd': m.parameters.bla.sum() * ma.sum()}
+    m.parameters = ParameterSet()
+
+    bla = m.parameters.declare(2)
+    m.exprs = {'m_sqrd': bla.sum() * ma.sum()}
     m.f = m.function([ma], 'm_sqrd', explicit_pars=False)
 
     cPickle.dumps(m)
 
 
-def test_nested_pars():
-    spec = {
-        'a': [2, 3],
-        'b': {
-            'a': (10, 10),
-            'b': (2,)
-        }
-    }
-
-    ps = ParameterSet(**spec)
-    assert ps.data.size == 2 + 3 + 10 * 10 + 2
+def test_parameter_groups():
+    assert False, 'not implemented'
 
 
 def test_array_partition_views():
@@ -177,46 +191,20 @@ def test_array_partition_views():
     assert np.allclose(views['fank']['funk'], np.array([6, 7]).reshape((2, 1)))
 
 
-def make_dictlist():
-    return {
-        'bar': (2, 2),
-        'fank': {
-            'fenk': [1, 1],
-            'funk': (2, 1),
-        },
-        'foo': 4,
-        'fink': [1, 1],
-    }
-
-
-def test_n_pars_by_partition():
-    tree = make_dictlist()
-    assert n_pars_by_partition(tree) == 14
-
-
-def test_nested_parameter_set():
-    spec = make_dictlist()
-    p = ParameterSet(**spec)
-
-    assert p['bar'].shape == (2, 2)
-    assert p.bar.ndim == 2
-
-    assert p.fank.fenk[0].ndim == 1
-    assert p['fank']['funk'].shape == (2, 1)
-
-
 def test_nested_exprs():
     ma = T.matrix()
     m = Model()
-    m.parameters = ParameterSet(bla=2)
-    m.parameters['bla'][...] = 1, 2
+    m.parameters = ParameterSet()
+    bla = m.parameters.declare(2)
+    m.parameters.alloc()
+    m.parameters[bla] = 1, 2
     m.exprs = {
         'norms': {
             'l1': abs(ma).sum(),
             'l2': T.sqrt((ma ** 2).sum()),
         },
         'ma_multiplied': [ma, 2 * ma],
-        'bla': m.parameters.bla,
+        'bla': bla,
         'blubb': 1,
     }
 

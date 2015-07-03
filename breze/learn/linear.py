@@ -1,17 +1,14 @@
 # -*- coding: utf-8 -*-
 
 
-import numpy as np
-import theano
 import theano.tensor as T
 
-from breze.arch.component.common import supervised_loss
-from breze.arch.model import linear
-from breze.arch.util import ParameterSet, Model
-from breze.learn.base import SupervisedBrezeWrapperBase
+from breze.arch.construct.simple import AffineNonlinear, SupervisedLoss
+from breze.arch.util import ParameterSet
+from breze.learn.base import SupervisedModel
 
 
-class Linear(Model, SupervisedBrezeWrapperBase):
+class Linear(SupervisedModel):
     """Class to represent a linear model."""
 
     def __init__(self, n_inpt, n_output,
@@ -59,8 +56,8 @@ class Linear(Model, SupervisedBrezeWrapperBase):
         """
         self.n_inpt = n_inpt
         self.n_output = n_output
-        self.out_transfer = out_transfer
-        self.loss = loss
+        self.out_transfer_ident = out_transfer
+        self.loss_ident = loss
         self.optimizer = optimizer
         self.batch_size = batch_size
         self.max_iter = max_iter
@@ -68,23 +65,23 @@ class Linear(Model, SupervisedBrezeWrapperBase):
 
         self.f_predict = None
 
-        super(Linear, self).__init__()
-
-    def _init_pars(self):
-        parameter_spec = linear.parameters(self.n_inpt, self.n_output)
-        self.parameters = ParameterSet(**parameter_spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
+        self._init_exprs()
 
     def _init_exprs(self):
-        self.exprs = {
-            'inpt': T.matrix('inpt'),
-            'target': T.matrix('target')
-        }
-        P = self.parameters
+        inpt = T.matrix('inpt'),
+        target = T.matrix('target')
+        parameters = ParameterSet()
 
-        self.exprs.update(linear.exprs(
-            self.exprs['inpt'], P.in_to_out, P.bias, self.out_transfer))
+        self.predict_layer = AffineNonlinear(
+            inpt, self.n_inpt, self.n_output, self.out_transfer_ident,
+            use_bias=True, declare=parameters.declare)
 
-        self.exprs.update(supervised_loss(
-            self.exprs['target'], self.exprs['output'], self.loss))
+        self.loss_layer = SupervisedLoss(
+            target, self.predict_layer.output, loss=self.loss_ident,
+            declare=parameters.declare,
+        )
+
+        SupervisedModel.__init__(self, inpt=inpt, target=target,
+                                     output=self.predict_layer.output,
+                                     loss=self.loss_layer.total,
+                                     parameters=parameters)
