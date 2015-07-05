@@ -15,7 +15,17 @@ def gauss_normalgauss_kl(p,q):
 
     return kl
 
-kl_table = { (DiagGauss,NormalGauss): gauss_normalgauss_kl }
+def gauss_gauss_kl(p,q):
+    n_latent = p.output.shape[1] // 2
+    mean1 = p.output[:, :n_latent]
+    var1 = p.output[:, n_latent:]
+    mean2 = q.output[:, :n_latent]
+    var2 = q.output[:, n_latent:]
+    kl = inter_gauss_kl(mean1, var1, mean2, var2)
+
+    return kl
+
+kl_table = { (DiagGauss,NormalGauss): gauss_normalgauss_kl, (DiagGauss,DiagGauss): gauss_gauss_kl }
 
 def kl_div(p,q,sample=False):
 	if not sample:
