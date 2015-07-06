@@ -759,6 +759,14 @@ class StochasticRnn(GenericVariationalAutoEncoder):
             batch_size=batch_size, optimizer=optimizer,
             max_iter=verbose, verbose=verbose)
 
+    # TODO this is a pretty ugly hack to make things picklable.
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if '_make_recog' in state:
+            del state['_make_recog']
+        if '_make_gen' in state:
+            del state['_make_gen']
+
     def _make_start_exprs(self):
         inpt = T.tensor3('inpt')
         inpt.tag.test_value, = theano_floatx(np.ones((4, 3, self.n_inpt)))
@@ -770,6 +778,7 @@ class StochasticRnn(GenericVariationalAutoEncoder):
             imp_weight = None
 
         return inpt, imp_weight
+
 
     def _make_recog(self, inpt, declare):
         return  neural.FastDropoutRnn(
