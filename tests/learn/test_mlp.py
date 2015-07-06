@@ -18,10 +18,9 @@ def test_mlp_pickle():
 
     X, Z = theano_floatx(X, Z)
 
-    mlp = Mlp(2, [10], 1, ['tanh'], 'identity', 'squared', max_iter=10)
+    mlp = Mlp(2, [10], 1, ['tanh'], 'identity', 'squared', max_iter=2)
 
-    itr = mlp.iter_fit(X, Z)
-    itr.next()
+    mlp.fit(X, Z)
 
     Y = mlp.predict(X)
 
