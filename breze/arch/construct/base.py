@@ -43,3 +43,4 @@ class Layer(object):
         # declare anymore anyway.
         state = self.__dict__.copy()
         del state['declare']
+        return state
