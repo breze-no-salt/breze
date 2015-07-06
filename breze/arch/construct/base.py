@@ -6,6 +6,11 @@ import itertools
 from breze.arch.util import ParameterSet
 
 
+def invalid_declare(*args, **kwargs):
+    raise ValueError('declare cannot be called anymore since '
+                     'Layer ws pickled or copied.')
+
+
 class Layer(object):
 
     _counter = itertools.count()
@@ -34,13 +39,13 @@ class Layer(object):
             self.name = name
 
     def __getstate__(self):
-        # The following makes sure that the object can be pickled by removing
+        # The following makes sure that the object can be pickled by replacing
         # the .declare method.
         #
-        # Why is it ok to remove .declare()? If we pickle a Layer, we can expect
-        # it to be already finalized, i.e. _forward has been called.
-        # This is being done during construction, which means we will not need
-        # declare anymore anyway.
+        # Why is it ok to do so? If we pickle a Layer, we can expect it to be
+        # already finalized, i.e. _forward has been called. This is being done
+        # during initialisation, which means we will not need declare anymore
+        # anyway.
         state = self.__dict__.copy()
-        del state['declare']
+        state['declare'] = invalid_declare
         return state
