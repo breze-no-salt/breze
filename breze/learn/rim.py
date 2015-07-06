@@ -93,6 +93,8 @@ class Rim(UnsupervisedModel,
         self.max_iter = max_iter
         self.verbose = verbose
 
+        self.use_imp_weight = False
+
         self._init_exprs()
 
     def _init_exprs(self):
@@ -108,4 +110,3 @@ class Rim(UnsupervisedModel,
         super(Rim, self).__init__(
             inpt=inpt, output=self.layer.output, loss=self.loss_layer.total,
             parameters=P)
-
