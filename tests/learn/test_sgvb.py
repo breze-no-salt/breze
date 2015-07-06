@@ -70,9 +70,6 @@ def test_storn():
     print 'transforming'
     m.transform(X)
 
-    print 'inferring hiddens of generative model'
-    m.gen_hiddens(X)
-
     print 'initializing'
     m.initialize()
 
