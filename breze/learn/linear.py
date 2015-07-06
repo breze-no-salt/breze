@@ -68,7 +68,7 @@ class Linear(SupervisedModel):
         self._init_exprs()
 
     def _init_exprs(self):
-        inpt = T.matrix('inpt'),
+        inpt = T.matrix('inpt')
         target = T.matrix('target')
         parameters = ParameterSet()
 
