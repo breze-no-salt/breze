@@ -672,6 +672,50 @@ class WarnNaNMode(theano.Mode):
 
 
 def array_partition_views(array, partition):
+    """Return a dictlist with different items corresponding to different sub
+    views into an array.
+
+    This function can be used to use different parts of a one-dimensional
+    array as a collection of arrays with differing without the need to
+    reallocate. E.g the first half of an array might correspond to a matrix,
+    the next entry to a scalar and the rest to a vector.
+
+    The function takes two arguments. The first, ``array`` is supposed to
+    resemble the flat array, while the second is a dictlist partitioning the
+    array into views of given shapes.
+
+    Here, the leaves of ``partition`` will be treated as shapes, of which a
+    view into ``array`` should be contained in the result with the same path.
+
+
+    Parameters
+    ----------
+
+    array : np.array or gp.garray
+        numpy or gnumpy array of ndim 1.
+
+    partition : dictlist
+        Dictlist -- that is a a dictionary containing either lists or dicts as
+        its elements, except leave nodes. These should be either tuples or ints
+        to represent shapes of arays.
+
+
+    Examples
+    --------
+
+    >>> from breze.arch.util import array_partition_views
+    >>> partition = {'first': (2,),
+    ...              'second': (2, 3),}
+    >>> flat = np.arange(8)
+    >>> views = array_partition_views(flat, partition)
+    >>> views['first']
+    ... # doctest: +NORMALIZE_WHITESPACE
+        array([0, 1])
+    >>> views['second']
+    ... # doctest: +NORMALIZE_WHITESPACE
+        array([[2, 3, 4],
+               [5, 6, 7]])
+    """
     views = dictlist.copy(partition)
     pathsshapes = sorted(list(dictlist.leafs(partition)))
 

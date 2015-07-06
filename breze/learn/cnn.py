@@ -15,7 +15,7 @@ from breze.learn.base import SupervisedModel
 
 class SimpleCnn2d(SupervisedModel):
 
-    def __init__(self, image_height, image_width, n_channels,
+    def __init__(self, image_height, image_width, n_channel,
                  n_hiddens, filter_shapes, n_output,
                  hidden_transfers, out_transfer,
                  loss,
@@ -23,7 +23,7 @@ class SimpleCnn2d(SupervisedModel):
                  verbose=False):
         self.image_height = image_height
         self.image_width = image_width
-        self.n_channels = n_channels
+        self.n_channel = n_channel
         self.n_hiddens = n_hiddens
         self.filter_shapes = filter_shapes
         self.hidden_transfers = hidden_transfers
@@ -40,7 +40,7 @@ class SimpleCnn2d(SupervisedModel):
     def _init_exprs(self):
         inpt = T.tensor4('inpt')
         inpt.tag.test_value = np.zeros((
-            2, self.n_channels, self.image_height, self.image_width))
+            2, self.n_channel, self.image_height, self.image_width))
         target = T.matrix('target')
         target.tag.test_value = np.zeros((
             2, self.n_output))
@@ -49,7 +49,7 @@ class SimpleCnn2d(SupervisedModel):
         self.cnn = neural.SimpleCnn2d(
             inpt,
             self.image_height, self.image_width,
-            self.n_channels, self.n_hiddens, self.filter_shapes, self.n_output,
+            self.n_channel, self.n_hiddens, self.filter_shapes, self.n_output,
             self.hidden_transfers, self.out_transfer,
             declare=parameters.declare)
 
@@ -73,7 +73,7 @@ class SimpleCnn2d(SupervisedModel):
 
 class Lenet(SupervisedModel):
 
-    def __init__(self, image_height, image_width, n_channels,
+    def __init__(self, image_height, image_width, n_channel,
                  n_hiddens_conv, filter_shapes, pool_shapes,
                  n_hiddens_full,
                  n_output,
@@ -84,7 +84,7 @@ class Lenet(SupervisedModel):
                  verbose=False):
         self.image_height = image_height
         self.image_width = image_width
-        self.n_channels = n_channels
+        self.n_channel = n_channel
         self.n_hiddens_conv = n_hiddens_conv
         self.n_hiddens_full = n_hiddens_full
         self.filter_shapes = filter_shapes
@@ -104,32 +104,27 @@ class Lenet(SupervisedModel):
     def _init_exprs(self):
         inpt = T.tensor4('inpt')
         inpt.tag.test_value = np.zeros((
-            2, self.n_channels, self.image_height, self.image_width))
+            2, self.n_channel, self.image_height, self.image_width))
         target = T.matrix('target')
         target.tag.test_value = np.zeros((
             2, self.n_output))
         parameters = ParameterSet()
 
-        self.cnn = neural.Cnn2d(
+        self.lenet = neural.Lenet(
             inpt,
-            self.image_height, self.image_width,
-            self.n_channels, self.n_hiddens_conv,
-            self.filter_shapes, self.pool_shapes,
+            self.image_height,
+            self.image_width,
+            self.n_channel,
+            self.n_hiddens_conv,
+            self.filter_shapes,
+            self.pool_shapes,
+            self.n_hiddens_full,
             self.hidden_transfers_conv,
-            declare=parameters.declare)
-
-        last_cnn_layer = self.cnn.layers[-1]
-        n_cnn_outputs = (last_cnn_layer.output_height *
-                         last_cnn_layer.output_width *
-                         last_cnn_layer.n_output)
-
-        mlp_inpt = self.cnn.output.reshape((self.cnn.output.shape[0], -1))
-        self.mlp = neural.Mlp(
-            mlp_inpt,
-            n_cnn_outputs,
-            self.n_hiddens_full, self.n_output,
-            self.hidden_transfers_full, self.out_transfer,
-            declare=parameters.declare)
+            self.hidden_transfers_full,
+            self.n_output,
+            self.out_transfer,
+            declare=parameters.declare,
+        )
 
         if self.imp_weight:
             imp_weight = T.matrix('imp_weight')
@@ -137,13 +132,13 @@ class Lenet(SupervisedModel):
             imp_weight = None
 
         self.loss_layer = SupervisedLoss(
-            target, self.mlp.output, loss=self.loss_ident,
+            target, self.lenet.output, loss=self.loss_ident,
             imp_weight=imp_weight,
             declare=parameters.declare,
         )
 
         SupervisedModel.__init__(self, inpt=inpt, target=target,
-                                 output=self.mlp.output,
+                                 output=self.lenet.output,
                                  loss=self.loss_layer.total,
                                  parameters=parameters)
         self.exprs['imp_weight'] = imp_weight
