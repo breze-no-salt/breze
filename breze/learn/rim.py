@@ -11,6 +11,8 @@ References
      by Gomes, R. and Krause, A. and Perona, P., NIPS 2010
 """
 
+import numpy as np
+import theano
 import theano.tensor as T
 
 from breze.arch.util import ParameterSet
@@ -99,6 +101,9 @@ class Rim(UnsupervisedModel,
 
     def _init_exprs(self):
         inpt = T.matrix('inpt')
+        if theano.config.compute_test_value:
+            inpt.tag.test_value = np.empty((2, self.n_inpt))
+
         P = self.parameters = ParameterSet()
 
         self.layer = AffineNonlinear(inpt, self.n_inpt, self.n_cluster,

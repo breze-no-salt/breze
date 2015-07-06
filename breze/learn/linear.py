@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 
+import numpy as np
+import theano
 import theano.tensor as T
 
 from breze.arch.construct.simple import AffineNonlinear, SupervisedLoss
@@ -71,6 +73,10 @@ class Linear(SupervisedModel):
         inpt = T.matrix('inpt')
         target = T.matrix('target')
         parameters = ParameterSet()
+
+        if theano.config.compute_test_value:
+            inpt.tag.test_value = np.empty((2, self.n_inpt))
+            target.tag.test_value = np.empty((2, self.n_output))
 
         self.predict_layer = AffineNonlinear(
             inpt, self.n_inpt, self.n_output, self.out_transfer_ident,
