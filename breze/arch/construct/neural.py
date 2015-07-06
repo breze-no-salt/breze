@@ -314,13 +314,14 @@ class Rnn(Layer):
             pre_recurrent = pre_recurrent_flat.reshape(
                 (n_time_steps, -1, m * tis))
 
+            tout = getattr(t, 'out_size', 1)
             recurrent = sequential.Recurrent(
-                pre_recurrent, m * t.out_size, t, declare=self.declare)
+                pre_recurrent, m * tout, t, declare=self.declare)
             x = recurrent.output
 
             self.layers.append(self.HiddenLayer(affine, recurrent))
 
-        x_flat = x.reshape((-1, m * t.out_size))
+        x_flat = x.reshape((-1, m * tout))
         out_transfer = lookup(self.out_transfer, _transfer)
         out_in_size = getattr(out_transfer, 'in_size', 1)
         output_affine = simple.AffineNonlinear(

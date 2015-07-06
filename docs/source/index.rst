@@ -23,11 +23,9 @@ Learning representations, clustering:
    xca
    autoencoder
    sparsefiltering
-   sparsecoding
    rica
    cca
    sfa
-   tsne
    kmeans
    rim
    sgvb
@@ -44,7 +42,6 @@ Supervised Learning
 .. toctree::
    rnn
    mlp
-   gaussianprocess
    :maxdepth: 1
 
 

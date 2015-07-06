@@ -9,6 +9,7 @@ from breze.learn.rnn import (
     SupervisedFastDropoutRnn,
     SupervisedRnn)
 from breze.learn.utils import theano_floatx
+from breze.utils.testhelpers import use_test_values
 
 from nose.plugins.skip import SkipTest
 
@@ -219,9 +220,10 @@ def test_gn_product_rnn():
     assert np.allclose(Gp, Gp_expl)
 
 
+@use_test_values('ignore')
 def test_fdrnn_initialize_stds():
     m = SupervisedFastDropoutRnn(
-        100, [100], 100,
+        50, [50], 50,
         ['identity'], 'identity', 'squared')
 
     inits = dict(par_std=1, par_std_affine=2, par_std_rec=3, par_std_in=4,
@@ -256,9 +258,10 @@ def test_fdrnn_initialize_stds():
         works('par_std_rec', l.weights)
 
 
+@use_test_values('ignore')
 def test_fdrnn_initialize_sparsify():
     m = SupervisedFastDropoutRnn(
-        100, [100], 100,
+        50, [50], 50,
         ['identity'], 'identity', 'squared')
 
     inits = dict(par_std=1, sparsify_affine=20, sparsify_rec=35)
@@ -283,10 +286,10 @@ def test_fdrnn_initialize_sparsify():
         assert cond, 'sparsify recurrent did not work for %s' % l
 
 
-
+@use_test_values('ignore')
 def test_fdrnn_initialize_spectral_radius():
     m = SupervisedFastDropoutRnn(
-        100, [100], 100,
+        50, [50], 50,
         ['identity'], 'identity', 'squared')
 
     inits = dict(par_std=1, spectral_radius=2.5)
