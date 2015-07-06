@@ -38,8 +38,7 @@ class Distribution(Layer):
 
 class DiagGauss(Distribution):
 
-    def __init__(self, inpt, declare=None, name=None, rng=None):
-        self.inpt = inpt
+    def __init__(self, declare=None, name=None, rng=None):
         super(DiagGauss, self).__init__(declare, name, rng)
 
     def sample(self):
@@ -56,7 +55,7 @@ class DiagGauss(Distribution):
             return sample
 
     def nll(self, X, inpt=None):
-        n_dim = self.inpt.ndim
+        n_dim = self.output.ndim
         return supervised_loss(
             X, self.output, lambda x,o: diag_gauss_nll(x,o,1e-4),
             coord_axis=n_dim - 1)['loss_coord_wise']

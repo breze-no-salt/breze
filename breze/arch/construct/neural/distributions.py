@@ -41,7 +41,7 @@ class MlpDiagGauss(DiagGauss):
         self.out_transfer_mean = out_transfer_mean
         self.out_transfer_var = out_transfer_var
 
-        super(MlpDiagGauss, self).__init__(inpt, declare, name, rng)
+        super(MlpDiagGauss, self).__init__(declare, name, rng)
 
     def _forward(self):
         self.mlp = Mlp(self.inpt, self.n_inpt, self.n_hiddens, self.n_output*2,
@@ -73,7 +73,7 @@ class FastDropoutMlpDiagGauss(DiagGauss):
         self.p_dropout_hiddens = p_dropout_hiddens
         self.dropout_parameterized = dropout_parameterized
 
-        super(FastDropoutMlpDiagGauss, self).__init__(declare, name)
+        super(FastDropoutMlpDiagGauss, self).__init__(declare, name, rng)
 
     def _forward(self):
         self.mlp = FastDropoutMlp(self.inpt, self.n_inpt, self.n_hiddens,
