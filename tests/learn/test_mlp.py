@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import cPickle
+
 import numpy as np
 
 from breze.learn.mlp import Mlp
@@ -8,6 +10,22 @@ from breze.learn.mlp import FastDropoutNetwork
 
 from breze.arch.component.loss import squared
 from breze.learn.utils import theano_floatx
+
+
+def test_mlp_pickle():
+    X = np.random.standard_normal((10, 2))
+    Z = np.random.standard_normal((10, 1))
+
+    X, Z = theano_floatx(X, Z)
+
+    mlp = Mlp(2, [10], 1, ['tanh'], 'identity', 'squared', max_iter=10)
+
+    cPickle.dumps(mlp)
+
+    itr = mlp.iter_fit(X, Z)
+    itr.next()
+
+    cPickle.dumps(mlp)
 
 
 def test_mlp_fit():
