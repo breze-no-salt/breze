@@ -766,6 +766,7 @@ class StochasticRnn(GenericVariationalAutoEncoder):
             del state['_make_recog']
         if '_make_gen' in state:
             del state['_make_gen']
+        return state
 
     def _make_start_exprs(self):
         inpt = T.tensor3('inpt')
