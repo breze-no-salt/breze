@@ -21,7 +21,6 @@ Learning representations, clustering:
 .. toctree::
    pca
    xca
-   autoencoder
    sparsefiltering
    rica
    cca
