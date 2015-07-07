@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import copy
+
 import numpy as np
 import theano
 
@@ -118,3 +120,62 @@ def test_storn_sampling():
     #print s1
     #s2 = m._sample_one_step_vmap(*args)
     #pen
+
+
+def test_storn_copy():
+    theano.config.compute_test_value = 'raise'
+    X = np.random.random((3, 5, 2))
+    X, = theano_floatx(X)
+
+    class Assmptn(sgvb.DiagGaussLatentAssumption, sgvb.DiagGaussVisibleAssumption):
+        pass
+
+    m = sgvb.StochasticRnn(
+        2, [5], 17, [5],
+        ['tanh'] * 1, ['rectifier'] * 1,
+        assumptions=Assmptn(),
+        optimizer='rprop', batch_size=None,
+        max_iter=3)
+
+    m.parameters.data[...] = 1
+
+    m2 = copy.deepcopy(m)
+
+    print dir(m)
+    print dir(m2)
+
+    print '---'
+
+    print m.__dict__
+    print m2.__dict__
+
+    assert hasattr(m2, 'exprs')
+
+
+def test_vae_copy():
+    X = np.random.random((2, 10))
+    X, = theano_floatx(X)
+
+    class Assmptn(sgvb.DiagGaussLatentAssumption, sgvb.DiagGaussVisibleAssumption):
+        pass
+
+    m = sgvb.VariationalAutoEncoder(
+        10, [20, 30], 4, [15, 25],
+        ['tanh'] * 2, ['rectifier'] * 2,
+        assumptions=Assmptn(),
+        optimizer='rprop', batch_size=None,
+        max_iter=3)
+
+    m2 = copy.deepcopy(m)
+
+    print dir(m)
+    print dir(m2)
+
+    print '---'
+
+    print m.__dict__
+    print m2.__dict__
+
+    assert hasattr(m2, 'exprs')
+
+
