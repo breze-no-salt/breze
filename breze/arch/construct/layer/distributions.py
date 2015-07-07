@@ -31,8 +31,6 @@ class Distribution(object):
         else:
             self.rng = rng
 
-        super(Distribution, self).__init__(declare, name)
-
     def sample(self, epsilon=None):
         raise NotImplemented()
 
@@ -44,6 +42,7 @@ class DiagGauss(Distribution):
     def __init__(self, mean, var, rng=None):
         self.mean = mean
         self.var = var
+        self.stt = T.concatenate((mean,var),-1)
         super(DiagGauss, self).__init__(rng)
 
     def sample(self, epsilon=None):
@@ -57,17 +56,18 @@ class DiagGauss(Distribution):
             noise = epsilon
 
         sample = mean_flat + T.sqrt(var_flat) * noise
-        if stt.ndim == 3:
+        if self.mean.ndim == 3:
             return recover_time(sample, self.mean.shape[0])
         else:
             return sample
 
     def nll(self, X, inpt=None):
         var_offset = 1e-4
+        var = self.var
         var += var_offset
         residuals = X - self.mean
-        weighted_squares = -(residuals ** 2) / (2 * self.var)
-        normalization = T.log(T.sqrt(2 * np.pi * self.var))
+        weighted_squares = -(residuals ** 2) / (2 * var)
+        normalization = T.log(T.sqrt(2 * np.pi * var))
         ll = weighted_squares - normalization
         return -ll
 
@@ -75,6 +75,9 @@ class NormalGauss(Distribution):
 
     def __init__(self, shape, rng=None):
         self.shape = shape
+        self.mean = T.zeros(shape)
+        self.var = T.ones(shape)
+        self.stt = T.concatenate(( self.mean, self.var),-1)
         super(NormalGauss, self).__init__(rng)
 
     def sample(self):
@@ -82,19 +85,20 @@ class NormalGauss(Distribution):
 
     def nll(self, X, inpt=None):
         X_flat = X.flatten()
-        nll = -normal_logpdf(X_flat, T.zeros_like(X_flat), T.ones_like(X_flat))
+        nll = -normal_logpdf(X_flat, self.mean, self.var)
         return nll.reshape(X.shape)
 
 class Bernoulli(Distribution):
 
     def __init__(self, p, rng=None):
         self.p = p
+        self.stt = p
         super(Bernoulli, self).__init__(rng)
 
     def sample(self, epsilon=None):
         if epsilon == None:
             noise = rng.uniform(size=self.p.shape)
-        else
+        else:
             noise = epsilon
         sample = noise < self.p
         return sample

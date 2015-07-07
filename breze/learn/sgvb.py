@@ -518,7 +518,7 @@ class GenericVariationalAutoEncoder(
         self.rec_loss_sample_wise = rec_loss.sum(axis=n_dim - 1)
         self.rec_loss = self.rec_loss_sample_wise.mean()
 
-        output = self.vae.gen.output
+        output = self.vae.gen.stt
 
         # Create the KL divergence part of the loss.
         n_dim = inpt.ndim
@@ -539,7 +539,9 @@ class GenericVariationalAutoEncoder(
                                  imp_weight=self.imp_weight)
 
         # TODO: this has to become transform_expr or sth like that
-        self.transform_expr_name = self.vae.latent
+        # TODO: convert distribution parameters to latent stt
+        #self.transform_expr_name = self.vae.latent
+        self.transform_expr_name = None
 
     def _fix_imp_weight(self, ndim):
         # For the VAE, the importance weights cannot be coordinate
@@ -618,8 +620,7 @@ class GenericVariationalAutoEncoder(
 
         # Map a given visible x and a sample z to the recognition
         # probability q(z|x).
-        nll_z_given_x = self.vae.recog.nll(
-            latent_sample, self.vae.latent).sum(axis=ndim - 1)
+        nll_z_given_x = self.recog.nll(latent_sample).sum(axis=ndim - 1)
         f_nll_z_given_x = self.function(
             [latent_sample, self.inpt], nll_z_given_x)
 
@@ -660,7 +661,7 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
             out_transfer_var=lambda x: x ** 2 + 1e-5,
             declare=declare)
 
-        prior_class = lambda inpt, declare: NormalGauss(inpt)
+        prior_class = lambda inpt, declare: NormalGauss(inpt.shape)
 
         gen_class = lambda inpt, declare: MlpDiagGauss(
             inpt, n_latent,

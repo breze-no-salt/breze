@@ -44,7 +44,7 @@ class MlpDiagGauss(DiagGauss):
         self.mlp = Mlp(self.inpt, self.n_inpt, self.n_hiddens, self.n_output*2,
                  self.hidden_transfers, lambda x: concat_transfer(x,
                         self.out_transfer_mean, self.out_transfer_var),
-                        declare=self.declare)
+                        declare=declare)
 
         super(MlpDiagGauss, self).__init__(self.mlp.output[:,:self.n_output],
                                            self.mlp.output[:,self.n_output:],
@@ -76,11 +76,12 @@ class FastDropoutMlpDiagGauss(DiagGauss):
                     self.out_transfer, self.p_dropout_inpt,
                     self.p_dropout_hiddens,
                     dropout_parameterized=self.dropout_parameterized,
-                    declare=self.declare)
+                    declare=declare)
 
-        super(FastDropoutMlpDiagGauss, self).__init__(self.mlp.output[:,:self.n_output],
-                                           self.mlp.output[:,self.n_output:],
-                                           rng)
+        super(FastDropoutMlpDiagGauss, self).__init__(
+                            self.mlp.output[:,:self.n_output],
+                            self.mlp.output[:,self.n_output:],
+                            rng)
 
 class MlpBernoulli(Bernoulli):
 
@@ -101,6 +102,6 @@ class MlpBernoulli(Bernoulli):
 
         self.mlp = Mlp(self.inpt, self.n_inpt, self.n_hiddens,
                        self.n_output, self.hidden_transfers,
-                       self.out_transfer, declare=self.declare)
+                       self.out_transfer, declare=declare)
 
         super(MlpBernoulli, self).__init__(self.mlp.output, rng)

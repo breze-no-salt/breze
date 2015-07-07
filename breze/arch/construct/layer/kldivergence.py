@@ -8,21 +8,11 @@ from distributions import DiagGauss, NormalGauss
 from breze.arch.component.misc import inter_gauss_kl
 
 def gauss_normalgauss_kl(p,q):
-    n_latent = p.output.shape[1] // 2
-    mean = p.output[:, :n_latent]
-    var = p.output[:, n_latent:]
-    kl = inter_gauss_kl(mean, var, 1e-4)
-
+    kl = inter_gauss_kl(p.mean, p.var, 1e-4)
     return kl
 
 def gauss_gauss_kl(p,q):
-    n_latent = p.output.shape[1] // 2
-    mean1 = p.output[:, :n_latent]
-    var1 = p.output[:, n_latent:]
-    mean2 = q.output[:, :n_latent]
-    var2 = q.output[:, n_latent:]
-    kl = inter_gauss_kl(mean1, var1, mean2, var2)
-
+    kl = inter_gauss_kl(p.mean, p.var, q.mean, q.var)
     return kl
 
 kl_table = { (DiagGauss,NormalGauss): gauss_normalgauss_kl, (DiagGauss,DiagGauss): gauss_gauss_kl }

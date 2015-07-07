@@ -28,7 +28,7 @@ class VariationalAutoEncoder(Layer):
 
         # Recognition model + sampling
         self.recog = self.recog_class(self.inpt, self.declare)
-        self.latent = self.recog.output
+        self.latent = self.recog.stt
         self.sample = self.recog.sample()
 
         self.prior = self.prior_class(self.sample, self.declare)
@@ -42,4 +42,4 @@ class VariationalAutoEncoder(Layer):
 
         # Generative model
         self.gen = self.gen_class(gen_inpt, self.declare)
-        self.output = self.gen.output
+        self.output = self.gen.stt
