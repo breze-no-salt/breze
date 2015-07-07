@@ -15,14 +15,17 @@ def assert_no_time(X):
         raise ValueError('ndim must be 2 or 3, but it is %i' % X.ndim)
     return wild_reshape(X, (-1, X.shape[2]))
 
+def recover_time(X, time_steps):
+    return wild_reshape(X, (time_steps, -1, X.shape[1]))
+
 def normal_logpdf(xs, means, vrs):
     energy = -(xs - means) ** 2 / (2 * vrs)
     partition_func = -T.log(T.sqrt(2 * np.pi * vrs))
     return partition_func + energy
 
-class Distribution(Layer):
+class Distribution(object):
 
-    def __init__(self, declare=None, name=None, rng=None):
+    def __init__(self, rng=None):
         if rng is None:
             self.rng = T.shared_randomstreams.RandomStreams()
         else:
@@ -30,7 +33,7 @@ class Distribution(Layer):
 
         super(Distribution, self).__init__(declare, name)
 
-    def sample(self):
+    def sample(self, epsilon=None):
         raise NotImplemented()
 
     def nll(self, X, inpt=None):
@@ -38,39 +41,44 @@ class Distribution(Layer):
 
 class DiagGauss(Distribution):
 
-    def __init__(self, declare=None, name=None, rng=None):
-        super(DiagGauss, self).__init__(declare, name, rng)
+    def __init__(self, mean, var, rng=None):
+        self.mean = mean
+        self.var = var
+        super(DiagGauss, self).__init__(rng)
 
-    def sample(self):
-        stt = self.output
-        stt_flat = assert_no_time(stt)
-        n_latent = stt_flat.shape[1] // 2
-        latent_mean = stt_flat[:, :n_latent]
-        latent_var = stt_flat[:, n_latent:]
-        noise = self.rng.normal(size=latent_mean.shape)
-        sample = latent_mean + T.sqrt(latent_var) * noise
+    def sample(self, epsilon=None):
+
+        mean_flat = assert_no_time(self.mean)
+        var_flat = assert_no_time(self.var)
+
+        if epsilon == None:
+            noise = self.rng.normal(size=mean_flat.shape)
+        else:
+            noise = epsilon
+
+        sample = mean_flat + T.sqrt(var_flat) * noise
         if stt.ndim == 3:
-            return recover_time(sample, stt.shape[0])
+            return recover_time(sample, self.mean.shape[0])
         else:
             return sample
 
     def nll(self, X, inpt=None):
-        n_dim = self.output.ndim
-        return supervised_loss(
-            X, self.output, lambda x,o: diag_gauss_nll(x,o,1e-4),
-            coord_axis=n_dim - 1)['loss_coord_wise']
+        var_offset = 1e-4
+        var += var_offset
+        residuals = X - self.mean
+        weighted_squares = -(residuals ** 2) / (2 * self.var)
+        normalization = T.log(T.sqrt(2 * np.pi * self.var))
+        ll = weighted_squares - normalization
+        return -ll
 
 class NormalGauss(Distribution):
 
-    def __init__(self, inpt, declare=None, name=None, rng=None):
-        self.inpt = inpt
-        super(NormalGauss, self).__init__(declare, name, rng)
-
-    def _forward(self):
-        pass
+    def __init__(self, shape, rng=None):
+        self.shape = shape
+        super(NormalGauss, self).__init__(rng)
 
     def sample(self):
-        return self.rng.normal(size=self.inpt.shape)
+        return self.rng.normal(size=self.shape)
 
     def nll(self, X, inpt=None):
         X_flat = X.flatten()
@@ -79,17 +87,20 @@ class NormalGauss(Distribution):
 
 class Bernoulli(Distribution):
 
-    def __init__(self, inpt, declare=None, name=None, rng=None):
-        self.inpt = inpt
-        super(Bernoulli, self).__init__(declare, name, rng)
+    def __init__(self, p, rng=None):
+        self.p = p
+        super(Bernoulli, self).__init__(rng)
 
-    def sample(self):
-        noise = rng.uniform(size=self.output.shape)
-        sample = noise < self.output
+    def sample(self, epsilon=None):
+        if epsilon == None:
+            noise = rng.uniform(size=self.p.shape)
+        else
+            noise = epsilon
+        sample = noise < self.p
         return sample
 
     def nll(self, X, inpt=None):
-        n_dim = 2
-        return supervised_loss(
-            X, self.output, bern_ces,
-            coord_axis=n_dim - 1)['loss_coord_wise']
+        p = self.p
+        p *= 0.999
+        p += 0.0005
+        return -(X * T.log(p) + (1 - X) * T.log(1 - p))

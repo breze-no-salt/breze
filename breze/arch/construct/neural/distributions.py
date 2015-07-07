@@ -41,16 +41,14 @@ class MlpDiagGauss(DiagGauss):
         self.out_transfer_mean = out_transfer_mean
         self.out_transfer_var = out_transfer_var
 
-        super(MlpDiagGauss, self).__init__(declare, name, rng)
-
-    def _forward(self):
         self.mlp = Mlp(self.inpt, self.n_inpt, self.n_hiddens, self.n_output*2,
                  self.hidden_transfers, lambda x: concat_transfer(x,
                         self.out_transfer_mean, self.out_transfer_var),
                         declare=self.declare)
 
-        self.layers = self.mlp.layers
-        self.output = self.mlp.output
+        super(MlpDiagGauss, self).__init__(self.mlp.output[:,:self.n_output],
+                                           self.mlp.output[:,self.n_output:],
+                                           rng)
 
 class FastDropoutMlpDiagGauss(DiagGauss):
 
@@ -73,9 +71,6 @@ class FastDropoutMlpDiagGauss(DiagGauss):
         self.p_dropout_hiddens = p_dropout_hiddens
         self.dropout_parameterized = dropout_parameterized
 
-        super(FastDropoutMlpDiagGauss, self).__init__(declare, name, rng)
-
-    def _forward(self):
         self.mlp = FastDropoutMlp(self.inpt, self.n_inpt, self.n_hiddens,
                     self.n_output, self.hidden_transfers,
                     self.out_transfer, self.p_dropout_inpt,
@@ -83,8 +78,9 @@ class FastDropoutMlpDiagGauss(DiagGauss):
                     dropout_parameterized=self.dropout_parameterized,
                     declare=self.declare)
 
-        self.layers = self.mlp.layers
-        self.output = self.mlp.output
+        super(FastDropoutMlpDiagGauss, self).__init__(self.mlp.output[:,:self.n_output],
+                                           self.mlp.output[:,self.n_output:],
+                                           rng)
 
 class MlpBernoulli(Bernoulli):
 
@@ -103,12 +99,8 @@ class MlpBernoulli(Bernoulli):
         self.out_transfer = out_transfer
         self.hidden_transfers = hidden_transfers
 
-        super(MlpBernoulli, self).__init__(declare, name)
-
-    def _forward(self):
         self.mlp = Mlp(self.inpt, self.n_inpt, self.n_hiddens,
                        self.n_output, self.hidden_transfers,
                        self.out_transfer, declare=self.declare)
 
-        self.layers = self.mlp.layers
-        self.output = self.mlp.output
+        super(MlpBernoulli, self).__init__(self.mlp.output, rng)
