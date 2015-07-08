@@ -190,7 +190,7 @@ class DropoutMlp(Mlp):
                  hidden_transfers, out_transfer, loss,
                  p_dropout_inpt=.2, p_dropout_hiddens=.5,
                  max_length=None,
-                 optimizer='rprop',
+                 optimizer='adam',
                  batch_size=None,
                  max_iter=1000, verbose=False):
         """Create a DropoutMlp object.
@@ -250,7 +250,7 @@ class FastDropoutNetwork(SupervisedModel):
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
                  imp_weight=False,
-                 optimizer='lbfgs',
+                 optimizer='adam',
                  batch_size=None,
                  p_dropout_inpt=.2,
                  p_dropout_hiddens=.5,

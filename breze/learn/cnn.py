@@ -19,7 +19,7 @@ class SimpleCnn2d(SupervisedModel):
                  n_hiddens, filter_shapes, n_output,
                  hidden_transfers, out_transfer,
                  loss,
-                 optimizer='lbfgs', batch_size=1, max_iter=1000,
+                 optimizer='adam', batch_size=1, max_iter=1000,
                  verbose=False):
         self.image_height = image_height
         self.image_width = image_width
@@ -80,7 +80,7 @@ class Lenet(SupervisedModel):
                  hidden_transfers_conv, hidden_transfers_full,
                  out_transfer,
                  loss,
-                 optimizer='lbfgs', batch_size=1, max_iter=1000,
+                 optimizer='adam', batch_size=1, max_iter=1000,
                  verbose=False):
         self.image_height = image_height
         self.image_width = image_width
