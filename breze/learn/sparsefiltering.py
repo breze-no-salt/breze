@@ -14,14 +14,14 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.arch.model.feature import sparsefiltering
-from breze.arch.model import linear
-from breze.arch.util import ParameterSet, Model
+from breze.arch.construct.simple import AffineNonlinear
+from breze.arch.construct import sparsefiltering
+from breze.arch.util import ParameterSet
 from breze.learn.base import (
-    UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin)
+    UnsupervisedModel, TransformBrezeWrapperMixin)
 
 
-class SparseFiltering(Model, UnsupervisedBrezeWrapperBase,
+class SparseFiltering(UnsupervisedModel,
                       TransformBrezeWrapperMixin):
 
     transform_expr_name = 'output'
@@ -58,22 +58,24 @@ class SparseFiltering(Model, UnsupervisedBrezeWrapperBase,
         self.max_iter = max_iter
         self.verbose = verbose
 
-        super(SparseFiltering, self).__init__()
+        self.use_imp_weight = False
 
-    def _init_pars(self):
-        spec = sparsefiltering.parameters(self.n_inpt, self.n_output)
-        self.parameters = ParameterSet(**spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
+        self._init_exprs()
 
     def _init_exprs(self):
-        self.exprs = {
-            'inpt': T.matrix('inpt'),
-        }
-        self.exprs['inpt'].tag.test_value = np.zeros(
-            (10, self.n_inpt)).astype(theano.config.floatX)
-        P = self.parameters
+        inpt = T.matrix('inpt')
+        if theano.config.compute_test_value:
+            inpt.tag.test_value = np.empty((2, self.n_inpt))
 
-        self.exprs.update(linear.exprs(
-            self.exprs['inpt'], P.in_to_out, 0, 'identity'))
-        self.exprs.update(sparsefiltering.loss(self.exprs['output'], self.feature_transfer))
+        P = self.parameters = ParameterSet()
+
+        self.layer = AffineNonlinear(inpt, self.n_inpt, self.n_output,
+                                     'identity', declare=P.declare,
+                                     use_bias=False)
+
+        self.loss_layer = sparsefiltering.SparseFilteringLoss(
+            self.layer.output, self.feature_transfer)
+
+        super(SparseFiltering, self).__init__(
+            inpt=inpt, output=self.layer.output, loss=self.loss_layer.total,
+            parameters=P)
