@@ -2,7 +2,8 @@
 
 import theano.tensor as T
 
-from breze.arch.construct.neural import Mlp, FastDropoutMlp
+from breze.arch.construct.neural import (
+    Mlp, FastDropoutMlp, Rnn, FastDropoutRnn)
 
 from breze.arch.util import lookup
 from breze.arch.component import transfer as _transfer
@@ -58,6 +59,35 @@ class MlpDiagGauss(DiagGauss):
 
         super(MlpDiagGauss, self).__init__(self.mlp.output[:, :self.n_output],
                                            self.mlp.output[:, self.n_output:],
+                                           rng)
+
+
+class RnnDiagGauss(DiagGauss):
+
+    def __init__(self, inpt,
+                 n_inpt, n_hiddens, n_output,
+                 hidden_transfers, out_transfer_mean='identity',
+                 out_transfer_var=var_transfer,
+                 pooling=None,
+                 declare=None, name=None, rng=None):
+        self.inpt = inpt
+        self.n_inpt = n_inpt
+        self.n_hiddens = n_hiddens
+        self.n_output = n_output
+        self.hidden_transfers = hidden_transfers
+        self.out_transfer_mean = out_transfer_mean
+        self.out_transfer_var = out_transfer_var
+        self.pooling = pooling
+
+        self.rnn = Rnn(
+            self.inpt, self.n_inpt, self.n_hiddens, self.n_output * 2,
+            self.hidden_transfers,
+            ConcatTransfer(self.out_transfer_mean, self.out_transfer_var),
+            pooling=pooling,
+            declare=declare)
+
+        super(RnnDiagGauss, self).__init__(self.rnn.output[:, :self.n_output],
+                                           self.rnn.output[:, self.n_output:],
                                            rng)
 
 
@@ -118,3 +148,28 @@ class MlpBernoulli(Bernoulli):
                        self.out_transfer, declare=declare)
 
         super(MlpBernoulli, self).__init__(self.mlp.output, rng)
+
+
+class RnnBernoulli(Bernoulli):
+
+    def __init__(self, inpt,
+                 n_inpt, n_hiddens, n_output,
+                 hidden_transfers, out_transfer='sigmoid',
+                 pooling=None,
+                 declare=None, name=None, rng=None):
+        self.inpt = inpt
+        self.n_inpt = n_inpt
+        self.n_hiddens = n_hiddens
+        self.n_output = n_output
+        self.hidden_transfers = hidden_transfers
+        self.out_transfer = out_transfer
+        self.pooling = pooling
+
+        self.rnn = Rnn(
+            self.inpt, self.n_inpt, self.n_hiddens, self.n_output * 2,
+            self.hidden_transfers,
+            self.out_transfer,
+            pooling=pooling,
+            declare=declare)
+
+        super(RnnBernoulli, self).__init__(self.rnn.output, rng)
