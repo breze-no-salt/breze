@@ -131,11 +131,6 @@ class MlpBernoulli(Bernoulli):
     def __init__(self, inpt, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer='sigmoid',
                  declare=None, name=None, rng=None):
-        if rng is None:
-            self.rng = T.shared_randomstreams.RandomStreams()
-        else:
-            self.rng = rng
-
         self.inpt = inpt
         self.n_inpt = n_inpt
         self.n_hiddens = n_hiddens
