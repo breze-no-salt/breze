@@ -3,42 +3,15 @@
 
 import itertools
 
-import numpy as np
-import theano
-import theano.tensor as T
-
 from breze.arch.util import ParameterSet
 
 
+def invalid_declare(*args, **kwargs):
+    raise ValueError('declare cannot be called anymore since '
+                     'Layer ws pickled or copied.')
+
+
 class Layer(object):
-    """Layer class.
-
-    Base class for all components that perform computations. Layers have several
-    properties.
-
-    For one, a Layer object is named. That is, it has an attribute ``.name``
-    which is supposed to hold a unique string that identifies the object. This
-    is not enforced however.
-
-    Further, they have a method ``.forward(*inpt)``. This method takes a
-    variable number of inputs and creates the ``.output`` attribute of the
-    object. This is an iterable, in turn holding a variable number of outputs.
-    Both are Theano expressions.
-
-    Further, ``.forward`` may only be called once. After that, an error will be
-    thrown.
-
-    A shorthand is to just use ``__call__()``, which will return the output
-    expressions. The use of this is that we can use arbitrary functions that
-    receive Theano variables and return Theano variables as layers.
-
-    Layer can be parameterised, i.e. have adaptable parameters that an outer
-    learning algorithm can tune. For that, the ``.spec()`` method is supposed to
-    return a dictionary mapping names to tuples specifying the shape of the
-    parameters. The dictionary can be recursive, i.e. each of its items can be
-    a dictionary itself. The leafs of the so formed tree need to be tuples.
-    Integers are turned into a single element tuple and are valid as well.
-    """
 
     _counter = itertools.count()
 
@@ -64,3 +37,15 @@ class Layer(object):
                 self.__class__.__name__, self._counter.next())
         else:
             self.name = name
+
+    def __getstate__(self):
+        # The following makes sure that the object can be pickled by replacing
+        # the .declare method.
+        #
+        # Why is it ok to do so? If we pickle a Layer, we can expect it to be
+        # already finalized, i.e. _forward has been called. This is being done
+        # during initialisation, which means we will not need declare anymore
+        # anyway.
+        state = self.__dict__.copy()
+        state['declare'] = invalid_declare
+        return state

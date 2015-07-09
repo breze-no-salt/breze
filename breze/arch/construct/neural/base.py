@@ -57,6 +57,161 @@ class Mlp(Layer):
         self.output = inpt
 
 
+class SimpleCnn2d(Layer):
+
+    def __init__(self, inpt, image_height, image_width, n_channel,
+                 n_hiddens, filter_shapes, n_output,
+                 hidden_transfers, out_transfer,
+                 batch_size=None,
+                 declare=None, name=None):
+        self.inpt = inpt
+        self.image_height = image_height
+        self.image_width = image_width
+        self.n_channel = n_channel
+        self.n_hiddens = n_hiddens
+        self.filter_shapes = filter_shapes
+        self.n_output = n_output
+        self.hidden_transfers = hidden_transfers
+        self.out_transfer = out_transfer
+        self.batch_size = batch_size
+
+        super(SimpleCnn2d, self).__init__(declare, name)
+
+    def _forward(self):
+        self.layers = []
+
+        n_inpts = [self.n_channel] + self.n_hiddens[:-1]
+        n_outputs = self.n_hiddens
+        transfers = self.hidden_transfers
+
+        inpt = self.inpt
+        height, width = self.image_height, self.image_width
+        for n, m, fs, t in zip(n_inpts, n_outputs, self.filter_shapes,
+                               transfers):
+            filter_height, filter_width = fs
+            layer = simple.Conv2d(
+                inpt, height, width, n,
+                filter_height, filter_width,
+                m, t,
+                n_samples=self.batch_size,
+                declare=self.declare)
+            self.layers.append(layer)
+
+            inpt = layer.output
+            height, width = layer.output_height, layer.output_width
+
+        inpt = inpt.reshape((inpt.shape[0], -1))
+
+        self.final_layer = simple.AffineNonlinear(
+            inpt, height * width * m, self.n_output, self.out_transfer,
+            declare=self.declare)
+
+        self.output = self.final_layer.output
+
+
+class Cnn2d(Layer):
+
+    def __init__(self, inpt, image_height, image_width, n_channel,
+                 n_hiddens, filter_shapes, pool_shapes,
+                 hidden_transfers,
+                 batch_size=None,
+                 declare=None, name=None):
+        self.inpt = inpt
+        self.image_height = image_height
+        self.image_width = image_width
+        self.n_channel = n_channel
+        self.n_hiddens = n_hiddens
+        self.filter_shapes = filter_shapes
+        self.pool_shapes = pool_shapes
+        self.hidden_transfers = hidden_transfers
+        self.batch_size = batch_size
+
+        super(Cnn2d, self).__init__(declare, name)
+
+    def _forward(self):
+        self.layers = []
+
+        n_inpts = [self.n_channel] + self.n_hiddens[:-1]
+        n_outputs = self.n_hiddens
+        transfers = self.hidden_transfers
+
+        inpt = self.inpt
+        height, width = self.image_height, self.image_width
+        for n, m, fs, ps, t in zip(n_inpts, n_outputs, self.filter_shapes,
+                                   self.pool_shapes, transfers):
+            filter_height, filter_width = fs
+            layer = simple.Conv2d(
+                inpt, height, width, n,
+                filter_height, filter_width,
+                m, 'identity',
+                n_samples=self.batch_size,
+                subsample=(1, 1),
+                declare=self.declare)
+            self.layers.append(layer)
+
+            layer = simple.MaxPool2d(
+                layer.output, layer.output_height, layer.output_width,
+                ps[0], ps[1], layer.n_output, transfer=t)
+
+            self.layers.append(layer)
+
+            inpt = layer.output
+            height, width = layer.output_height, layer.output_width
+
+        self.output = self.layers[-1].output
+
+
+class Lenet(Layer):
+
+    def __init__(self, inpt, image_height, image_width, n_channel,
+                 n_hiddens_conv, filter_shapes, pool_shapes,
+                 n_hiddens_full,
+                 hidden_transfers_conv, hidden_transfers_full,
+                 n_output,
+                 out_transfer,
+                 declare=None, name=None):
+        self.inpt = inpt
+        self.image_height = image_height
+        self.image_width = image_width
+        self.n_channel = n_channel
+        self.n_hiddens_conv = n_hiddens_conv
+        self.n_hiddens_full = n_hiddens_full
+        self.filter_shapes = filter_shapes
+        self.pool_shapes = pool_shapes
+        self.hidden_transfers_conv = hidden_transfers_conv
+        self.hidden_transfers_full = hidden_transfers_full
+        self.n_output = n_output
+        self.out_transfer = out_transfer
+
+        print self.__dict__
+
+        super(Lenet, self).__init__(declare=declare, name=name)
+
+    def _forward(self):
+        self.cnn = Cnn2d(
+            self.inpt,
+            self.image_height, self.image_width,
+            self.n_channel, self.n_hiddens_conv,
+            self.filter_shapes, self.pool_shapes,
+            self.hidden_transfers_conv,
+            declare=self.declare)
+
+        last_cnn_layer = self.cnn.layers[-1]
+        n_cnn_outputs = (last_cnn_layer.output_height *
+                         last_cnn_layer.output_width *
+                         last_cnn_layer.n_output)
+
+        mlp_inpt = self.cnn.output.reshape((self.cnn.output.shape[0], -1))
+        self.mlp = Mlp(
+            mlp_inpt,
+            n_cnn_outputs,
+            self.n_hiddens_full, self.n_output,
+            self.hidden_transfers_full, self.out_transfer,
+            declare=self.declare)
+
+        self.output = self.mlp.output
+
+
 class FastDropoutMlp(Layer):
 
     def __init__(self, inpt, n_inpt, n_hiddens, n_output,
@@ -137,7 +292,7 @@ class Rnn(Layer):
 
     def _forward(self):
         transfers = self.hidden_transfers
-        transfers =[lookup(i, _transfer) for i in transfers]
+        transfers = [lookup(i, _transfer) for i in transfers]
         transfer_insizes = [getattr(i, 'in_size', 1) for i in transfers]
         transfer_outsizes = [1] + [getattr(i, 'out_size', 1) for i in transfers]
 
@@ -159,17 +314,18 @@ class Rnn(Layer):
             pre_recurrent = pre_recurrent_flat.reshape(
                 (n_time_steps, -1, m * tis))
 
+            tout = getattr(t, 'out_size', 1)
             recurrent = sequential.Recurrent(
-                pre_recurrent, m * t.out_size, t, declare=self.declare)
+                pre_recurrent, m * tout, t, declare=self.declare)
             x = recurrent.output
 
             self.layers.append(self.HiddenLayer(affine, recurrent))
 
-        x_flat = x.reshape((-1, m * t.out_size))
+        x_flat = x.reshape((-1, m * tout))
         out_transfer = lookup(self.out_transfer, _transfer)
         out_in_size = getattr(out_transfer, 'in_size', 1)
         output_affine = simple.AffineNonlinear(
-            x_flat, m, self.n_output * out_in_size , out_transfer,
+            x_flat, m, self.n_output * out_in_size, out_transfer,
             declare=self.declare
             )
 
@@ -247,7 +403,7 @@ class FastDropoutRnn(Layer):
 
     def _forward(self):
         transfers = self.hidden_transfers
-        transfers =[lookup(i, vp_transfer) for i in transfers]
+        transfers = [lookup(i, vp_transfer) for i in transfers]
         transfer_insizes = [getattr(i, 'in_size', 1) for i in transfers]
         transfer_outsizes = [1] + [getattr(i, 'out_size', 1) for i in transfers]
 

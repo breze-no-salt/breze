@@ -57,8 +57,8 @@ def supervised_loss(target, prediction, loss, coord_axis=1,
     >>> from breze.arch.component.varprop.loss import diag_gaussian_nll
     >>> loss_dict = supervised_loss(target, prediction, diag_gaussian_nll,
     ...   prefix='mymodel-')
-    >>> sorted(loss_dict.items())
-    [('mymodel-loss', Elemwise{true_div,no_inplace}.0), ('mymodel-loss_coord_wise', Elemwise{mul,no_inplace}.0), ('mymodel-loss_sample_wise', Sum{1}.0), ('mymodel-prediction', prediction), ('mymodel-target', target)]
+    >>> sorted(loss_dict.items())  # doctest: +ELLIPSIS
+    [('mymodel-loss', ...), ('mymodel-loss_coord_wise', ...), ('mymodel-loss_sample_wise', ...), ('mymodel-prediction', prediction), ('mymodel-target', target)]
     """
     f_loss = lookup(loss, loss_)
     loss_coord_wise = f_loss(target, prediction)
@@ -115,8 +115,8 @@ def unsupervised_loss(output, loss, coord_axis=1, prefix=''):
     >>> output = T.matrix('output')
     >>> my_loss = lambda x: abs(x)
     >>> loss_dict = unsupervised_loss(output, my_loss, prefix='$')
-    >>> sorted(loss_dict.items())
-    [('$loss', Elemwise{true_div,no_inplace}.0), ('$loss_coord_wise', Elemwise{abs_,no_inplace}.0), ('$loss_sample_wise', Sum{1}.0), ('$output', output)]
+    >>> sorted(loss_dict.items()) # doctest: +ELLIPSIS
+    [('$loss', ...), ('$loss_coord_wise', ...), ('$loss_sample_wise', ...), ('$output', ...)]
     """
     f_loss = lookup(loss, loss_)
     loss_coord_wise = f_loss(output)

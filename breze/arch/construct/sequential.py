@@ -9,6 +9,10 @@ from breze.arch.util import lookup
 
 
 class Recurrent(Layer):
+    """Recurrent class.
+
+    Represents a recurrent layer as found in neural networks.
+    """
 
     def __init__(self, inpt, n_inpt, transfer='identity', declare=None,
                  name=None):

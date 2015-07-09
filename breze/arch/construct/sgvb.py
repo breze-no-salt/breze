@@ -38,7 +38,16 @@ class VariationalAutoEncoder(Layer):
                 [self.recog_sample, self.condition], axis=self.latent.ndim - 1)
 
         # Generative model
-        self.gen = self.make_gen(gen_inpt)
+        self.gen = self.gen_class(gen_inpt, self.declare)
         self.gen_sample = self.gen.sample()
+        self.output = self.gen.output
 
-        self.output = self.gen.stt
+    # TODO this is a pretty ugly hack to make things picklable.
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if 'recog_class' in state:
+            del state['recog_class']
+        if 'gen_class' in state:
+            del state['gen_class']
+        if 'assumptions' in state:
+            del state['assumptions']
