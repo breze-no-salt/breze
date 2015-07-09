@@ -407,7 +407,6 @@ class GenericVariationalAutoEncoder(
     shortcut = None
 
     def __init__(self, n_inpt, n_latent,
-                 gen_class, prior_class, rec_class, condition_func=None,
                  use_imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
@@ -461,10 +460,6 @@ class GenericVariationalAutoEncoder(
         self.n_inpt = n_inpt
         self.n_latent = n_latent
         self.n_output = n_inpt
-        self.rec_class = rec_class
-        self.prior_class = prior_class
-        self.gen_class = gen_class
-        self.condition_func = condition_func
 
         self.use_imp_weight = use_imp_weight
         self.batch_size = batch_size
@@ -495,19 +490,19 @@ class GenericVariationalAutoEncoder(
 
     def _init_exprs(self):
         inpt, self.imp_weight = self._make_start_exprs()
-        parameters = ParameterSet()
+        self.parameters = ParameterSet()
 
         n_dim = inpt.ndim
 
         self.vae = _VariationalAutoEncoder(inpt, self.n_inpt,
                                            self.n_latent, self.n_output,
-                                           self.gen_class,
-                                           self.prior_class,
-                                           self.rec_class,
-                                           self.condition_func,
-                                           declare=parameters.declare)
+                                           self.make_recog,
+                                           self.make_prior,
+                                           self.make_gen,
+                                           getattr(self, 'make_cond', None),
+                                           declare=self.parameters.declare)
 
-        self.sample = self.vae.sample
+        self.recog_sample = self.vae.recog_sample
 
         if self.use_imp_weight:
             imp_weight = T.addbroadcast(self.imp_weight, n_dim - 1)
@@ -533,10 +528,10 @@ class GenericVariationalAutoEncoder(
         loss = self.kl + self.rec_loss
 
         UnsupervisedModel.__init__(self, inpt=inpt,
-                                 output=output,
-                                 loss=loss,
-                                 parameters=parameters,
-                                 imp_weight=self.imp_weight)
+                                   output=output,
+                                   loss=loss,
+                                   parameters=self.parameters,
+                                   imp_weight=self.imp_weight)
 
         # TODO: this has to become transform_expr or sth like that
         # TODO: convert distribution parameters to latent stt
@@ -555,13 +550,13 @@ class GenericVariationalAutoEncoder(
 
     def _output_from_sample(self, S):
         if self.f_out_from_sample is None:
-            self.f_out_from_sample = self.function([self.vae.sample], self.output)
+            self.f_out_from_sample = self.function([self.vae.recog_sample], self.output)
         return self.f_out_from_sample(S)
 
     def _rec_loss_of_sample(self, X, S):
         if self.f_rec_loss_of_sample is None:
             self.f_rec_loss_of_sample = self.function(
-                ['inpt', self.vae.sample], self.rec_loss_sample_wise)
+                ['inpt', self.vae.recog_sample], self.rec_loss_sample_wise)
         return self.f_rec_loss_of_sample(X, S)
 
     def estimate_nll(self, X, n_samples=10):
@@ -592,7 +587,7 @@ class GenericVariationalAutoEncoder(
         return self.f_estimate_nll(X, n_samples)
 
     def _make_f_estimate_nll(self):
-        ndim = self.vae.sample.ndim
+        ndim = self.vae.recog_sample.ndim
         if ndim == 3:
             latent_sample = T.tensor3('sample')
             latent_sample.tag.test_value = np.zeros(
@@ -609,6 +604,10 @@ class GenericVariationalAutoEncoder(
 
         # Map a sample s to the prior log probability p(z)
         nll_z = self.vae.prior.nll(latent_sample).sum(axis=ndim - 1)
+
+        # Depends on the shape of the input otherwis.
+        nll_z = theano.clone(nll_z, {self.recog_sample: latent_sample})
+
         f_nll_z = self.function([latent_sample], nll_z, on_unused_input='ignore')
 
         # Map a given visible x and a sample z to the generating
@@ -616,16 +615,16 @@ class GenericVariationalAutoEncoder(
         nll_x_given_z = self.vae.gen.nll(
             self.inpt, self.output).sum(axis=ndim - 1)
         f_nll_x_given_z = self.function([self.inpt, latent_sample], nll_x_given_z,
-                                        givens={self.vae.sample: latent_sample})
+                                        givens={self.vae.recog_sample: latent_sample})
 
         # Map a given visible x and a sample z to the recognition
         # probability q(z|x).
-        nll_z_given_x = self.recog.nll(latent_sample).sum(axis=ndim - 1)
+        nll_z_given_x = self.vae.recog.nll(latent_sample).sum(axis=ndim - 1)
         f_nll_z_given_x = self.function(
             [latent_sample, self.inpt], nll_z_given_x)
 
         # Sample some z from q(z|x).
-        f_sample_z_given_x = self.function([self.inpt], self.vae.sample)
+        f_sample_z_given_x = self.function([self.inpt], self.vae.recog_sample)
 
         def inner(X, n):
             return estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
@@ -635,6 +634,49 @@ class GenericVariationalAutoEncoder(
         inner.breze_func = True
 
         return inner
+
+
+class GaussLatentVAEMixin(object):
+
+    def make_prior(self, sample):
+        return NormalGauss(sample.shape)
+
+    def make_recog(self, inpt):
+        return  MlpDiagGauss(
+            inpt, self.n_inpt,
+            self.n_hiddens_recog,
+            self.n_latent,
+            self.recog_transfers,
+            out_transfer_mean='identity',
+            out_transfer_var=lambda x: x ** 2 + 1e-5,
+            declare=self.parameters.declare)
+
+
+class GaussVisibleVAEMixin(object):
+
+    def make_gen(self, latent_sample):
+        return MlpDiagGauss(
+            latent_sample, self.n_latent,
+            self.n_hiddens_gen,
+            self.n_inpt,
+            self.gen_transfers,
+            # TODO where to get the transfers from?
+            # remove lambda
+            out_transfer_mean='identity',
+            out_transfer_var=lambda x: x ** 2 + 1e-5,
+            declare=self.parameters.declare)
+
+
+class BernoulliVisibleVAEMixin(object):
+
+    def make_gen(self, latent_sample):
+        return MlpBernoulli(
+            latent_sample, self.n_latent,
+            self.n_hiddens_gen,
+            self.n_inpt,
+            self.gen_transfers,
+            declare=self.parameters.declare)
+
 
 class VariationalAutoEncoder(GenericVariationalAutoEncoder):
 
@@ -652,30 +694,11 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
         self.recog_transfers = recog_transfers
         self.gen_transfers = gen_transfers
 
-        rec_class = lambda inpt, declare: MlpDiagGauss(
-            inpt, n_inpt,
-            n_hiddens_recog,
-            n_latent,
-            recog_transfers,
-            out_transfer_mean='identity',
-            out_transfer_var=lambda x: x ** 2 + 1e-5,
-            declare=declare)
-
-        prior_class = lambda inpt, declare: NormalGauss(inpt.shape)
-
-        gen_class = lambda inpt, declare: MlpDiagGauss(
-            inpt, n_latent,
-            n_hiddens_gen,
-            n_inpt,
-            gen_transfers,
-            out_transfer_mean='identity',
-            out_transfer_var=lambda x: x ** 2 + 1e-5,
-            declare=declare)
-
-        GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
-                 rec_class, prior_class, gen_class, use_imp_weight=use_imp_weight,
-                 batch_size=batch_size, optimizer=optimizer,
-                 max_iter=verbose, verbose=verbose)
+        super(VariationalAutoEncoder, self).__init__(
+            n_inpt, n_latent,
+            use_imp_weight=use_imp_weight,
+            batch_size=batch_size, optimizer=optimizer,
+            max_iter=verbose, verbose=verbose)
 
 
 class FastDropoutVariationalAutoEncoder(GenericVariationalAutoEncoder):
