@@ -89,7 +89,7 @@ class NormalGauss(Distribution):
 
     def nll(self, X, inpt=None):
         X_flat = X.flatten()
-        nll = -normal_logpdf(X_flat, self.mean, self.var)
+        nll = -normal_logpdf(X_flat, self.mean.flatten(), self.var.flatten())
         return nll.reshape(X.shape)
 
 
@@ -102,7 +102,7 @@ class Bernoulli(Distribution):
 
     def sample(self, epsilon=None):
         if epsilon == None:
-            noise = rng.uniform(size=self.rate.shape)
+            noise = self.rng.uniform(size=self.rate.shape)
         else:
             noise = epsilon
         sample = noise < self.rate
