@@ -370,7 +370,10 @@ class FastDropoutRnn(Layer):
 
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hiddens = p_dropout_hiddens
-        self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
+        if p_dropout_hidden_to_out is None:
+            self.p_dropout_hidden_to_out = p_dropout_hiddens[-1]
+        else:
+            self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
 
         super(FastDropoutRnn, self).__init__(declare, name)
 

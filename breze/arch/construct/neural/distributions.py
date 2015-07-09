@@ -94,14 +94,10 @@ class RnnDiagGauss(DiagGauss):
 class FastDropoutMlpDiagGauss(DiagGauss):
 
     def __init__(self, inpt, n_inpt, n_hiddens, n_output,
-                 hidden_transfers, out_transfer, p_dropout_inpt,
-                 p_dropout_hiddens, dropout_parameterized=False,
+                 hidden_transfers, out_transfer='identity',
+                 p_dropout_inpt=.1,
+                 p_dropout_hiddens=.1, dropout_parameterized=False,
                  declare=None, name=None, rng=None):
-        if rng is None:
-            self.rng = T.shared_randomstreams.RandomStreams()
-        else:
-            self.rng = rng
-
         self.inpt = inpt
         self.n_inpt = n_inpt
         self.n_hiddens = n_hiddens
@@ -123,6 +119,36 @@ class FastDropoutMlpDiagGauss(DiagGauss):
         super(FastDropoutMlpDiagGauss, self).__init__(
             self.mlp.output[:, :self.n_output],
             self.mlp.output[:, self.n_output:],
+            rng)
+
+
+class FastDropoutMlpBernoulli(Bernoulli):
+
+    def __init__(self, inpt, n_inpt, n_hiddens, n_output,
+                 hidden_transfers, out_transfer='sigmoid',
+                 p_dropout_inpt=.1,
+                 p_dropout_hiddens=.1, dropout_parameterized=False,
+                 declare=None, name=None, rng=None):
+        self.inpt = inpt
+        self.n_inpt = n_inpt
+        self.n_hiddens = n_hiddens
+        self.n_output = n_output
+        self.hidden_transfers = hidden_transfers
+        self.out_transfer = out_transfer
+        self.p_dropout_inpt = p_dropout_inpt
+        self.p_dropout_hiddens = p_dropout_hiddens
+        self.dropout_parameterized = dropout_parameterized
+
+        self.mlp = FastDropoutMlp(
+            self.inpt, self.n_inpt, self.n_hiddens,
+            self.n_output, self.hidden_transfers,
+            self.out_transfer, self.p_dropout_inpt,
+            self.p_dropout_hiddens,
+            dropout_parameterized=self.dropout_parameterized,
+            declare=declare)
+
+        super(FastDropoutMlpBernoulli, self).__init__(
+            self.mlp.output[:, :self.n_output],
             rng)
 
 
@@ -168,3 +194,83 @@ class RnnBernoulli(Bernoulli):
             declare=declare)
 
         super(RnnBernoulli, self).__init__(self.rnn.output, rng)
+
+
+class FastDropoutRnnBernoulli(Bernoulli):
+
+    def __init__(self, inpt,
+                 n_inpt, n_hiddens, n_output,
+                 hidden_transfers, out_transfer='sigmoid',
+                 pooling=None,
+                 p_dropout_inpt=.1, p_dropout_hiddens=.1,
+                 declare=None, name=None, rng=None):
+        self.inpt = inpt
+        self.n_inpt = n_inpt
+        self.n_hiddens = n_hiddens
+        self.n_output = n_output
+        self.hidden_transfers = hidden_transfers
+        self.out_transfer = out_transfer
+        self.pooling = pooling
+
+        self.p_dropout_inpt = p_dropout_inpt
+        self.p_dropout_hiddens = p_dropout_hiddens
+
+        self.rnn = FastDropoutRnn(
+            self.inpt, self.n_inpt, self.n_hiddens, self.n_output * 2,
+            self.hidden_transfers,
+            self.out_transfer,
+            pooling=pooling,
+            p_dropout_inpt=self.p_dropout_inpt,
+            p_dropout_hiddens=self.p_dropout_hiddens,
+            declare=declare
+        )
+
+        if self.pooling:
+            super(FastDropoutRnnBernoulli, self).__init__(
+                self.rnn.output[:, :self.n_output],
+                rng)
+        else:
+            super(FastDropoutRnnBernoulli, self).__init__(
+                self.rnn.output[:, :, :self.n_output],
+                rng)
+
+
+class FastDropoutRnnDiagGauss(DiagGauss):
+
+    def __init__(self, inpt,
+                 n_inpt, n_hiddens, n_output,
+                 hidden_transfers, out_transfer='identity',
+                 pooling=None,
+                 p_dropout_inpt=.1, p_dropout_hiddens=.1,
+                 declare=None, name=None, rng=None):
+        self.inpt = inpt
+        self.n_inpt = n_inpt
+        self.n_hiddens = n_hiddens
+        self.n_output = n_output
+        self.hidden_transfers = hidden_transfers
+        self.out_transfer = out_transfer
+        self.pooling = pooling
+
+        self.p_dropout_inpt = p_dropout_inpt
+        self.p_dropout_hiddens = p_dropout_hiddens
+
+        self.rnn = FastDropoutRnn(
+            self.inpt, self.n_inpt, self.n_hiddens, self.n_output * 2,
+            self.hidden_transfers,
+            self.out_transfer,
+            pooling=pooling,
+            p_dropout_inpt=self.p_dropout_inpt,
+            p_dropout_hiddens=self.p_dropout_hiddens,
+            declare=declare
+        )
+
+        if self.pooling:
+            super(FastDropoutRnnDiagGauss, self).__init__(
+                self.rnn.output[:, :self.n_output],
+                self.rnn.output[:, self.n_output:],
+                rng)
+        else:
+            super(FastDropoutRnnDiagGauss, self).__init__(
+                self.rnn.output[:, :, :self.n_output],
+                self.rnn.output[:, :, self.n_output:],
+                rng)
