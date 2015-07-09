@@ -310,15 +310,6 @@ class ParameterSet(object):
             self.flat = theano.sandbox.cuda.fvector('parameters')
         else:
             self.flat = T.vector('parameters')
-<<<<<<< HEAD
-        #self.flat.tag.test_value = np.empty(
-        #    (2048,), dtype=theano.config.floatX)
-=======
-
-        if theano.config.compute_test_value:
-            self.flat.tag.test_value = np.empty(
-                (20480,), dtype=theano.config.floatX)
->>>>>>> saltier
 
     def declare(self, shape, group=None):
         if group is not None:
