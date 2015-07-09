@@ -3,9 +3,7 @@
 import theano.tensor as T
 import numpy as np
 
-from breze.arch.component.varprop.loss import (
-    diag_gaussian_nll as diag_gauss_nll)
-from breze.arch.component.common import supervised_loss
+from breze.arch.util import wild_reshape
 
 
 def assert_no_time(X):
@@ -46,7 +44,7 @@ class DiagGauss(Distribution):
     def __init__(self, mean, var, rng=None):
         self.mean = mean
         self.var = var
-        self.stt = T.concatenate((mean,var), -1)
+        self.stt = T.concatenate((mean, var), -1)
         super(DiagGauss, self).__init__(rng)
 
     def sample(self, epsilon=None):
@@ -81,7 +79,7 @@ class NormalGauss(Distribution):
         self.shape = shape
         self.mean = T.zeros(shape)
         self.var = T.ones(shape)
-        self.stt = T.concatenate(( self.mean, self.var), -1)
+        self.stt = T.concatenate((self.mean, self.var), -1)
         super(NormalGauss, self).__init__(rng)
 
     def sample(self):
@@ -101,7 +99,7 @@ class Bernoulli(Distribution):
         super(Bernoulli, self).__init__(rng)
 
     def sample(self, epsilon=None):
-        if epsilon == None:
+        if epsilon is None:
             noise = self.rng.uniform(size=self.rate.shape)
         else:
             noise = epsilon

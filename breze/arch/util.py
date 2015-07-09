@@ -693,3 +693,18 @@ def n_pars_by_partition(partition):
         n += np.prod(shape)
 
     return int(n)
+
+
+def wild_reshape(tensor, shape):
+    n_m1 = shape.count(-1)
+    if n_m1 > 1:
+        raise ValueError(' only one -1 allowed in shape')
+    elif n_m1 == 1:
+        rest = tensor.size
+        for s in shape:
+            if s != -1:
+                rest = rest // s
+        shape = tuple(i if i != -1 else rest for i in shape)
+    return tensor.reshape(shape)
+
+

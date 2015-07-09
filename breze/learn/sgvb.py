@@ -63,7 +63,7 @@ from breze.arch.component.varprop.transfer import sigmoid
 from breze.arch.component.varprop.loss import (
     diag_gaussian_nll as diag_gauss_nll, bern_ces)
 
-from breze.arch.util import ParameterSet
+from breze.arch.util import ParameterSet, wild_reshape
 from breze.learn.utils import theano_floatx
 
 import climin.initialize
@@ -109,19 +109,6 @@ def normal_logpdf(xs, means, vrs):
     energy = -(xs - means) ** 2 / (2 * vrs)
     partition_func = -T.log(T.sqrt(2 * np.pi * vrs))
     return partition_func + energy
-
-
-def wild_reshape(tensor, shape):
-    n_m1 = shape.count(-1)
-    if n_m1 > 1:
-        raise ValueError(' only one -1 allowed in shape')
-    elif n_m1 == 1:
-        rest = tensor.size
-        for s in shape:
-            if s != -1:
-                rest = rest // s
-        shape = tuple(i if i != -1 else rest for i in shape)
-    return tensor.reshape(shape)
 
 
 # TODO document
