@@ -260,7 +260,7 @@ class FastDropoutRnnDiagGauss(DiagGauss):
         self.p_dropout_hiddens = p_dropout_hiddens
 
         self.rnn = FastDropoutRnn(
-            self.inpt, self.n_inpt, self.n_hiddens, self.n_output * 2,
+            self.inpt, self.n_inpt, self.n_hiddens, self.n_output,
             self.hidden_transfers,
             self.out_transfer,
             pooling=pooling,
