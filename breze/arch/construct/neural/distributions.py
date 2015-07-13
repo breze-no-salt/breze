@@ -204,6 +204,7 @@ class FastDropoutRnnBernoulli(Bernoulli):
                  hidden_transfers, out_transfer='sigmoid',
                  pooling=None,
                  p_dropout_inpt=.1, p_dropout_hiddens=.1,
+                 p_dropout_hidden_to_out=None,
                  declare=None, name=None, rng=None):
         self.inpt = inpt
         self.n_inpt = n_inpt
@@ -215,6 +216,7 @@ class FastDropoutRnnBernoulli(Bernoulli):
 
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hiddens = p_dropout_hiddens
+        self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
 
         self.rnn = FastDropoutRnn(
             self.inpt, self.n_inpt, self.n_hiddens, self.n_output * 2,
@@ -223,6 +225,7 @@ class FastDropoutRnnBernoulli(Bernoulli):
             pooling=pooling,
             p_dropout_inpt=self.p_dropout_inpt,
             p_dropout_hiddens=self.p_dropout_hiddens,
+            p_dropout_hidden_to_out=p_dropout_hidden_to_out,
             declare=declare
         )
 
@@ -243,6 +246,7 @@ class FastDropoutRnnDiagGauss(DiagGauss):
                  hidden_transfers, out_transfer='identity',
                  pooling=None,
                  p_dropout_inpt=.1, p_dropout_hiddens=.1,
+                 p_dropout_hidden_to_out=None,
                  declare=None, name=None, rng=None):
         self.inpt = inpt
         self.n_inpt = n_inpt
@@ -262,6 +266,7 @@ class FastDropoutRnnDiagGauss(DiagGauss):
             pooling=pooling,
             p_dropout_inpt=self.p_dropout_inpt,
             p_dropout_hiddens=self.p_dropout_hiddens,
+            p_dropout_hidden_to_out=p_dropout_hidden_to_out,
             declare=declare
         )
 
