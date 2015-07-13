@@ -57,9 +57,10 @@ class MlpDiagGauss(DiagGauss):
             ConcatTransfer(self.out_transfer_mean, self.out_transfer_var),
             declare=declare)
 
-        super(MlpDiagGauss, self).__init__(self.mlp.output[:, :self.n_output],
-                                           self.mlp.output[:, self.n_output:],
-                                           rng)
+        super(MlpDiagGauss, self).__init__(
+            self.mlp.output[:, :self.n_output],
+            self.mlp.output[:, self.n_output:],
+            rng)
 
 
 class RnnDiagGauss(DiagGauss):
