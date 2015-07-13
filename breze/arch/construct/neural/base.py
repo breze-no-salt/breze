@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 
 
-from collections import namedtuple
-
 import theano.tensor as T
 
 from breze.arch.component import transfer as _transfer
@@ -271,9 +269,6 @@ class FastDropoutMlp(Layer):
 
 class Rnn(Layer):
 
-    HiddenLayer = namedtuple('HiddenLayer', 'affine recurrent'.split())
-    OutputLayer = namedtuple('OutputLayer', ['affine'])
-
     @property
     def hidden_layers(self):
         return [i for i in self.layers if isinstance(i, self.HiddenLayer)]
@@ -346,11 +341,6 @@ class Rnn(Layer):
 
 class FastDropoutRnn(Layer):
 
-    InputLayer = namedtuple('InputLayer', ['fast_dropout'])
-    HiddenLayer = namedtuple('HiddenLayer',
-                             'affine recurrent'.split())
-    OutputLayer = namedtuple('OutputLayer', 'fast_dropout affine'.split())
-
     @property
     def hidden_layers(self):
         return [i for i in self.layers if isinstance(i, self.HiddenLayer)]
@@ -408,8 +398,10 @@ class FastDropoutRnn(Layer):
             pre_rec_mean, pre_rec_var, n_output, transfer, p_dropout=p_dropout,
             declare=self.declare)
         x_mean, x_var = recurrent.outputs
-        layer = self.HiddenLayer(affine, recurrent)
-        return x_mean, x_var, layer
+
+        self.layers += [affine, recurrent]
+
+        return x_mean, x_var
 
     def _forward(self):
         transfers = self.hidden_transfers
@@ -435,15 +427,14 @@ class FastDropoutRnn(Layer):
 
         fd_layer = vp_simple.FastDropout(
             self.inpt, inpt_var, p_dropout_inpt)
-        self.layers.append(self.InputLayer(fd_layer))
+        self.layers.append(fd_layer)
         x_mean, x_var = fd_layer.outputs
 
         for m, n, t, d, tis, tos in zip(n_incoming, n_outgoing, transfers,
                                         p_dropouts,
                                         transfer_insizes, transfer_outsizes):
-            x_mean, x_var, layer = self._make_rec_layer(
+            x_mean, x_var = self._make_rec_layer(
                 x_mean, x_var, m, n, t, tos, tis, d)
-            self.layers.append(layer)
 
         x_mean_flat = wild_reshape(x_mean, (-1, n))
         x_var_flat = wild_reshape(x_var, (-1, n))
@@ -461,7 +452,7 @@ class FastDropoutRnn(Layer):
             x_mean_flat, x_var_flat, n, self.n_output, self.out_transfer,
             declare=self.declare)
         output_mean_flat, output_var_flat = affine.outputs
-        self.layers.append(self.OutputLayer(fd, affine))
+        self.layers += [fd, affine]
 
         output_mean = wild_reshape(
             output_mean_flat, (n_time_steps, -1, self.n_output))
@@ -476,10 +467,6 @@ class FastDropoutRnn(Layer):
 
 
 class BidirectFastDropoutRnn(FastDropoutRnn):
-
-    HiddenLayer = namedtuple(
-        'HiddenLayer',
-        'affine recurrent_forward recurrent_backward'.split())
 
     def _make_rec_layer(self, x_mean, x_var, n_inpt, n_output, transfer,
                         tos, tis, p_dropout):

@@ -7,10 +7,7 @@ import theano
 
 from breze.learn import sgvb
 from breze.learn.utils import theano_floatx
-
-
-class Assmptn(sgvb.DiagGaussLatentAssumption, sgvb.DiagGaussVisibleAssumption):
-    pass
+from breze.utils.testhelpers import use_test_values
 
 
 def test_vae():
@@ -50,27 +47,40 @@ def test_vae_imp_weight():
     m.transform(X)
 
 
+@use_test_values('raise')
 def test_storn():
-    theano.config.compute_test_value = 'raise'
-    X = np.random.random((3, 5, 2))
+    X = np.random.random((3, 3, 2))
     X, = theano_floatx(X)
 
-    class Assmptn(sgvb.DiagGaussLatentAssumption, sgvb.DiagGaussVisibleAssumption):
+    class MyStorn(sgvb.StochasticRnn,
+                  sgvb.GaussLatentStornMixin,
+                  sgvb.GaussVisibleStornMixin):
         pass
 
-    m = sgvb.StochasticRnn(
-        2, [5], 17, [5],
-        ['tanh'] * 1, ['rectifier'] * 1,
-        assumptions=Assmptn(),
-        optimizer='rprop', batch_size=None,
-        max_iter=3)
+    kwargs = {
+        'n_inpt': X.shape[2],
+        'n_hiddens_recog': [5],
+        'n_latent': 11,
+        'n_hiddens_gen': [7],
+        'recog_transfers': ['tanh'],
+        'gen_transfers': ['rectifier'],
+        'p_dropout_inpt': .1,
+        'p_dropout_hiddens': [.1],
+        'p_dropout_shortcut': [.1],
+        'p_dropout_hidden_to_out': .1,
+        'use_imp_weight': False,
+        'optimizer': 'adam',
+        'batch_size': None,
+        'verbose': False,
+        'max_iter': 3,
+    }
+
+    m = MyStorn(**kwargs)
 
     print 'fitting'
     m.fit(X)
     print 'scoring'
     m.score(X)
-    print 'transforming'
-    m.transform(X)
 
     print 'initializing'
     m.initialize()
