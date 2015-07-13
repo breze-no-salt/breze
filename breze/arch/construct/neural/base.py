@@ -227,7 +227,11 @@ class FastDropoutMlp(Layer):
         self.hidden_transfers = hidden_transfers
         self.out_transfer = out_transfer
         self.p_dropout_inpt = p_dropout_inpt
+
+        if isinstance(p_dropout_hiddens, float):
+            p_dropout_hiddens = [p_dropout_hiddens] * len(hidden_transfers)
         self.p_dropout_hiddens = p_dropout_hiddens
+
         self.dropout_parameterized = dropout_parameterized
 
         super(FastDropoutMlp, self).__init__(declare, name)
@@ -239,6 +243,7 @@ class FastDropoutMlp(Layer):
         n_inpts = [self.n_inpt] + self.n_hiddens
         n_outputs = self.n_hiddens + [self.n_output]
         transfers = self.hidden_transfers + [self.out_transfer]
+
         p_dropouts = [self.p_dropout_inpt] + self.p_dropout_hiddens
 
         inpt_mean = self.inpt
@@ -369,7 +374,11 @@ class FastDropoutRnn(Layer):
         self.pooling = pooling
 
         self.p_dropout_inpt = p_dropout_inpt
+
+        if isinstance(p_dropout_hiddens, float):
+            p_dropout_hiddens = [p_dropout_hiddens] * len(hidden_transfers)
         self.p_dropout_hiddens = p_dropout_hiddens
+
         if p_dropout_hidden_to_out is None:
             self.p_dropout_hidden_to_out = p_dropout_hiddens[-1]
         else:
