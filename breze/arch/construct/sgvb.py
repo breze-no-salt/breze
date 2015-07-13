@@ -33,7 +33,7 @@ class VariationalAutoEncoder(Layer):
         if self.make_cond is None:
             gen_inpt = self.recog_sample
         else:
-            self.condition = self.make_cond(self.recog)
+            self.condition = self.make_cond(self.inpt)
             gen_inpt = T.concatenate(
                 [self.recog_sample, self.condition], axis=self.latent.ndim - 1)
 
