@@ -41,57 +41,35 @@ References
 .. [DLGM] Rezende, Danilo Jimenez, Shakir Mohamed, and Daan Wierstra. "Stochastic Back-propagation and Variational Inference in Deep Latent Gaussian Models." arXiv preprint arXiv:1401.4082 (2014).
 """
 
+
 import climin.initialize
+from climin import mathadapt as ma
+
 import numpy as np
+
+from scipy.misc import logsumexp
+
 import theano
 import theano.tensor as T
 import theano.tensor.nnet
-
-from climin import mathadapt as ma
-from scipy.misc import logsumexp
 from theano.compile import optdb
 
-from breze.arch.component.common import supervised_loss
 from breze.arch.component.misc import inter_gauss_kl
-<<<<<<< HEAD
-from breze.arch.component.transfer import diag_gauss
-from breze.arch.component.varprop.transfer import sigmoid
+from breze.arch.component.transfer import diag_gauss, sigmoid
 from breze.arch.component.varprop.loss import (
     diag_gaussian_nll as diag_gauss_nll, bern_ces)
-
-from breze.arch.util import ParameterSet, wild_reshape
-from breze.learn.utils import theano_floatx
-
-import climin.initialize
-from climin import mathadapt as ma
-
-
-from breze.arch.construct.sgvb import VariationalAutoEncoder as _VariationalAutoEncoder
-
-from breze.learn.base import (
-    UnsupervisedModel, TransformBrezeWrapperMixin,
-    ReconstructBrezeWrapperMixin)
-
 from breze.arch.construct import neural
-from breze.arch.construct.neural.distributions import (MlpDiagGauss, MlpBernoulli, FastDropoutMlpDiagGauss)
 from breze.arch.construct.layer.distributions import NormalGauss
-
 from breze.arch.construct.layer.kldivergence import kl_div
-
-
-# TODO find a better home for the following functions.
-=======
-from breze.arch.component.transfer import diag_gauss, sigmoid
-from breze.arch.component.varprop.loss import ( diag_gaussian_nll as diag_gauss_nll, bern_ces, unpack_mean_var)
-from breze.arch.component.varprop.transfer import sigmoid as vp_sigmoid
-from breze.arch.construct import neural
+from breze.arch.construct.neural.distributions import (
+    MlpDiagGauss, MlpBernoulli,
+    FastDropoutMlpDiagGauss, FastDropoutMlpBernoulli)
 from breze.arch.construct.sgvb import (
     VariationalAutoEncoder as _VariationalAutoEncoder)
-from breze.arch.util import ParameterSet
+from breze.arch.util import ParameterSet, wild_reshape
 from breze.learn.base import (
     UnsupervisedModel, TransformBrezeWrapperMixin, ReconstructBrezeWrapperMixin)
 from breze.learn.utils import theano_floatx
->>>>>>> saltier
 
 
 def flatten_list(lst):
@@ -250,6 +228,7 @@ class DiagGaussLatentAssumption(object):
         else:
             return sample
 
+
 class DiagGaussVisibleAssumption(object):
 
     def statify_visible(self, X, var=None):
@@ -290,6 +269,7 @@ class DiagGaussVisibleAssumption(object):
             return recover_time(mode, stt.shape[0])
         else:
             return mode
+
 
 class FastDropoutDiagGaussVisibleAssumption(object):
 
@@ -508,11 +488,7 @@ class GenericVariationalAutoEncoder(UnsupervisedModel,
         self.rec_loss_sample_wise = rec_loss.sum(axis=n_dim - 1)
         self.rec_loss = self.rec_loss_sample_wise.mean()
 
-<<<<<<< HEAD
         output = self.vae.gen.stt
-=======
-        output = self.vae.gen.output
->>>>>>> saltier
 
         # Create the KL divergence part of the loss.
         n_dim = inpt.ndim
@@ -530,11 +506,7 @@ class GenericVariationalAutoEncoder(UnsupervisedModel,
         UnsupervisedModel.__init__(self, inpt=inpt,
                                    output=output,
                                    loss=loss,
-<<<<<<< HEAD
                                    parameters=self.parameters,
-=======
-                                   parameters=parameters,
->>>>>>> saltier
                                    imp_weight=self.imp_weight)
 
         # TODO: this has to become transform_expr or sth like that
@@ -554,12 +526,7 @@ class GenericVariationalAutoEncoder(UnsupervisedModel,
 
     def _output_from_sample(self, S):
         if self.f_out_from_sample is None:
-<<<<<<< HEAD
             self.f_out_from_sample = self.function([self.vae.recog_sample], self.output)
-=======
-            self.f_out_from_sample = self.function(
-                [self.vae.sample], self.output)
->>>>>>> saltier
         return self.f_out_from_sample(S)
 
     def _rec_loss_of_sample(self, X, S):
@@ -645,7 +612,7 @@ class GenericVariationalAutoEncoder(UnsupervisedModel,
         return inner
 
 
-class GaussLatentVAEMixin(object):
+class MlpGaussLatentVAEMixin(object):
 
     def make_prior(self, sample):
         return NormalGauss(sample.shape)
@@ -661,7 +628,7 @@ class GaussLatentVAEMixin(object):
             declare=self.parameters.declare)
 
 
-class GaussVisibleVAEMixin(object):
+class MlpGaussVisibleVAEMixin(object):
 
     def make_gen(self, latent_sample):
         return MlpDiagGauss(
@@ -676,7 +643,7 @@ class GaussVisibleVAEMixin(object):
             declare=self.parameters.declare)
 
 
-class BernoulliVisibleVAEMixin(object):
+class MlpBernoulliVisibleVAEMixin(object):
 
     def make_gen(self, latent_sample):
         return MlpBernoulli(
@@ -684,6 +651,53 @@ class BernoulliVisibleVAEMixin(object):
             self.n_hiddens_gen,
             self.n_inpt,
             self.gen_transfers,
+            declare=self.parameters.declare)
+
+
+class FastDropoutMlpGaussLatentVAEMixin(object):
+
+    def make_prior(self, sample):
+        return NormalGauss(sample.shape)
+
+    def make_recog(self, inpt):
+        return FastDropoutMlpDiagGauss(
+            inpt, self.n_inpt,
+            self.n_hiddens_recog,
+            self.n_latent,
+            self.recog_transfers,
+            out_transfer='identity',
+            #p_dropout_inpt=self.p_dropout_inpt,
+            #p_dropout_hiddens=self.p_dropout_hiddens,
+            dropout_parameterized=True,
+            declare=self.parameters.declare)
+
+
+class FastDropoutMlpGaussVisibleVAEMixin(object):
+
+    def make_gen(self, latent_sample):
+        return FastDropoutMlpDiagGauss(
+            latent_sample, self.n_latent,
+            self.n_hiddens_gen,
+            self.n_inpt,
+            self.gen_transfers,
+            out_transfer='identity',
+            p_dropout_inpt=self.p_dropout_inpt,
+            p_dropout_hiddens=self.p_dropout_hiddens,
+            declare=self.parameters.declare)
+
+
+class FastDropoutMlpBernoulliVisibleVAEMixin(object):
+
+    def make_gen(self, latent_sample):
+        print self.__dict__
+        return FastDropoutMlpBernoulli(
+            latent_sample, self.n_latent,
+            self.n_hiddens_gen,
+            self.n_inpt,
+            self.gen_transfers,
+            out_transfer='sigmoid',
+            p_dropout_inpt=self.p_dropout_inpt,
+            p_dropout_hiddens=self.p_dropout_hiddens,
             declare=self.parameters.declare)
 
 
@@ -710,7 +724,7 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
             max_iter=verbose, verbose=verbose)
 
 
-class FastDropoutVariationalAutoEncoder(GenericVariationalAutoEncoder):
+class FastDropoutVariationalAutoEncoder(VariationalAutoEncoder):
 
     """
         Variational Autoencoder with FastDropout Mlp as recognition and generative model
@@ -722,43 +736,13 @@ class FastDropoutVariationalAutoEncoder(GenericVariationalAutoEncoder):
                  use_imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
-        self.n_hiddens_recog = n_hiddens_recog
-        self.n_hiddens_gen = n_hiddens_gen
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hiddens = p_dropout_hiddens
-        self.recog_transfers = recog_transfers
-        self.gen_transfers = gen_transfers
 
-        if isinstance(p_dropout_hiddens, float):
-            p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
-
-        rec_class = lambda inpt, declare: FastDropoutMlpDiagGauss(
-            inpt, n_inpt,
-            n_hiddens_recog,
-            n_latent,
-            recog_transfers, 'identity',
-            p_dropout_inpt, p_dropout_hiddens,
-            dropout_parameterized=True,
-            declare=declare)
-
-        gen_class = lambda inpt, declare: FastDropoutMlpDiagGauss(
-            inpt, n_latent,
-            n_hiddens_gen,
-            n_inpt,
-            gen_transfers, 'identity',
-            p_dropout_inpt, p_dropout_hiddens,
-            dropout_parameterized=True,
-            declare=declare)
-
-<<<<<<< HEAD
-        GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
-                 rec_class, gen_class, use_imp_weight=use_imp_weight,
-                 batch_size=batch_size, optimizer=optimizer,
-                 max_iter=verbose, verbose=verbose)
-=======
-        GenericVariationalAutoEncoder.__init__(
-            self, n_inpt, n_latent,
-            assumptions, rec_class, gen_class, use_imp_weight=use_imp_weight,
+        super(FastDropoutVariationalAutoEncoder, self).__init__(
+            n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
+            recog_transfers, gen_transfers,
+            use_imp_weight=use_imp_weight,
             batch_size=batch_size, optimizer=optimizer,
             max_iter=verbose, verbose=verbose)
 
@@ -849,7 +833,6 @@ class ConvolutionalVAE(GenericVariationalAutoEncoder):
             imp_weight = None
 
         return inpt, imp_weight
->>>>>>> saltier
 
 
 class StochasticRnn(GenericVariationalAutoEncoder):
