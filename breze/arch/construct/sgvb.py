@@ -45,9 +45,7 @@ class VariationalAutoEncoder(Layer):
     # TODO this is a pretty ugly hack to make things picklable.
     def __getstate__(self):
         state = self.__dict__.copy()
-        if 'recog_class' in state:
-            del state['recog_class']
-        if 'gen_class' in state:
-            del state['gen_class']
-        if 'assumptions' in state:
-            del state['assumptions']
+        unpicklables = 'make_gen make_recog make_prior make_cond'.split()
+        for i in unpicklables:
+            if i in state:
+                del state[i]
