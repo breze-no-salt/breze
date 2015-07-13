@@ -183,8 +183,6 @@ class Lenet(Layer):
         self.n_output = n_output
         self.out_transfer = out_transfer
 
-        print self.__dict__
-
         super(Lenet, self).__init__(declare=declare, name=name)
 
     def _forward(self):
