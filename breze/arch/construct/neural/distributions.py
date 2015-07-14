@@ -271,7 +271,7 @@ class FastDropoutRnnDiagGauss(BaseFastDropoutRnnDistribution, DiagGauss):
 
     def _make_model(self):
         if self.out_transfer is None:
-            out_transfer = 'sigmoid'
+            out_transfer = 'identity'
         else:
             out_transfer = self.out_transfer
 
@@ -328,10 +328,15 @@ class FastDropoutRnnConstDiagGauss(BaseFastDropoutRnnDistribution, DiagGauss):
             declare, name, rng)
 
     def _make_model(self):
+        if self.out_transfer is None:
+            out_transfer = 'identity'
+        else:
+            out_transfer = self.out_transfer
+
         return self.model_klass(
             self.inpt, self.n_inpt, self.n_hiddens, self.n_output,
             self.hidden_transfers,
-            self.out_transfer,
+            out_transfer,
             pooling=self.pooling,
             p_dropout_inpt=self.p_dropout_inpt,
             p_dropout_hiddens=self.p_dropout_hiddens,
