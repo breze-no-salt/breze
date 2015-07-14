@@ -3,7 +3,7 @@
 import theano.tensor as T
 
 from breze.arch.construct.neural import (
-    Mlp, FastDropoutMlp, Rnn, FastDropoutRnn)
+    Mlp, FastDropoutMlp, Rnn, FastDropoutRnn, BidirectFastDropoutRnn)
 
 from breze.arch.util import lookup
 from breze.arch.component import transfer as _transfer
@@ -197,11 +197,19 @@ class RnnBernoulli(Bernoulli):
         super(RnnBernoulli, self).__init__(self.rnn.output, rng)
 
 
-class FastDropoutRnnBernoulli(Bernoulli):
+class BaseFastDropoutRnnDistribution(object):
+
+    model_klass = FastDropoutRnn
+
+    def _make_model(self):
+        raise NotImplemented
+
+    def _init_distribution(self):
+        raise NotImplemented
 
     def __init__(self, inpt,
                  n_inpt, n_hiddens, n_output,
-                 hidden_transfers, out_transfer='sigmoid',
+                 hidden_transfers, out_transfer=None,
                  pooling=None,
                  p_dropout_inpt=.1, p_dropout_hiddens=.1,
                  p_dropout_hidden_to_out=None,
@@ -218,28 +226,87 @@ class FastDropoutRnnBernoulli(Bernoulli):
         self.p_dropout_hiddens = p_dropout_hiddens
         self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
 
-        self.rnn = FastDropoutRnn(
-            self.inpt, self.n_inpt, self.n_hiddens, self.n_output * 2,
+        self.declare = declare
+        self.name = name
+        self.rng = rng
+
+        self.rnn = self._make_model()
+        self._init_distribution()
+
+
+class FastDropoutRnnBernoulli(BaseFastDropoutRnnDistribution, Bernoulli):
+
+        def _make_model(self):
+            if self.out_transfer is None:
+                out_transfer = 'sigmoid'
+            else:
+                out_transfer = self.out_transfer
+
+            return self.model_klass(
+                self.inpt, self.n_inpt, self.n_hiddens, self.n_output * 2,
+                self.hidden_transfers,
+                out_transfer,
+                pooling=self.pooling,
+                p_dropout_inpt=self.p_dropout_inpt,
+                p_dropout_hiddens=self.p_dropout_hiddens,
+                p_dropout_hidden_to_out=self.p_dropout_hidden_to_out,
+                declare=self.declare
+            )
+
+        def _init_distribution(self):
+            if self.pooling:
+                Bernoulli.__init__(
+                    self, self.rnn.output[:, :self.n_output], self.rng)
+            else:
+                Bernoulli.__init__(
+                    self, self.rnn.output[:, :, :self.n_output], self.rng)
+
+
+class FastDropoutBiRnnBernoulli(FastDropoutRnnBernoulli):
+
+    model_klass = BidirectFastDropoutRnn
+
+
+class FastDropoutRnnDiagGauss(BaseFastDropoutRnnDistribution, DiagGauss):
+
+    def _make_model(self):
+        if self.out_transfer is None:
+            out_transfer = 'sigmoid'
+        else:
+            out_transfer = self.out_transfer
+
+        return self.model_klass(
+            self.inpt, self.n_inpt, self.n_hiddens, self.n_output,
             self.hidden_transfers,
-            self.out_transfer,
-            pooling=pooling,
+            out_transfer,
+            pooling=self.pooling,
             p_dropout_inpt=self.p_dropout_inpt,
             p_dropout_hiddens=self.p_dropout_hiddens,
-            p_dropout_hidden_to_out=p_dropout_hidden_to_out,
-            declare=declare
+            p_dropout_hidden_to_out=self.p_dropout_hidden_to_out,
+            declare=self.declare
         )
 
+    def _init_distribution(self):
         if self.pooling:
-            super(FastDropoutRnnBernoulli, self).__init__(
+            DiagGauss.__init__(
+                self,
                 self.rnn.output[:, :self.n_output],
-                rng)
+                self.rnn.output[:, self.n_output:],
+                self.rng)
         else:
-            super(FastDropoutRnnBernoulli, self).__init__(
+            DiagGauss.__init__(
+                self,
                 self.rnn.output[:, :, :self.n_output],
-                rng)
+                self.rnn.output[:, :, self.n_output:],
+                self.rng)
 
 
-class FastDropoutRnnDiagGauss(DiagGauss):
+class FastDropoutBiRnnDiagGauss(FastDropoutRnnDiagGauss):
+
+    model_klass = BidirectFastDropoutRnn
+
+
+class FastDropoutRnnConstDiagGauss(BaseFastDropoutRnnDistribution, DiagGauss):
 
     def __init__(self, inpt,
                  n_inpt, n_hiddens, n_output,
@@ -248,35 +315,46 @@ class FastDropoutRnnDiagGauss(DiagGauss):
                  p_dropout_inpt=.1, p_dropout_hiddens=.1,
                  p_dropout_hidden_to_out=None,
                  declare=None, name=None, rng=None):
-        self.inpt = inpt
-        self.n_inpt = n_inpt
-        self.n_hiddens = n_hiddens
-        self.n_output = n_output
-        self.hidden_transfers = hidden_transfers
-        self.out_transfer = out_transfer
-        self.pooling = pooling
+        self.stds = declare((n_output))
 
-        self.p_dropout_inpt = p_dropout_inpt
-        self.p_dropout_hiddens = p_dropout_hiddens
+        BaseFastDropoutRnnDistribution.__init__(
+            self,
+            inpt,
+            n_inpt, n_hiddens, n_output,
+            hidden_transfers, out_transfer,
+            pooling,
+            p_dropout_inpt, p_dropout_hiddens,
+            p_dropout_hidden_to_out,
+            declare, name, rng)
 
-        self.rnn = FastDropoutRnn(
+    def _make_model(self):
+        return self.model_klass(
             self.inpt, self.n_inpt, self.n_hiddens, self.n_output,
             self.hidden_transfers,
             self.out_transfer,
-            pooling=pooling,
+            pooling=self.pooling,
             p_dropout_inpt=self.p_dropout_inpt,
             p_dropout_hiddens=self.p_dropout_hiddens,
-            p_dropout_hidden_to_out=p_dropout_hidden_to_out,
-            declare=declare
+            p_dropout_hidden_to_out=self.p_dropout_hidden_to_out,
+            declare=self.declare
         )
 
+    def _init_distribution(self):
+        variances = self.stds ** 2 + 1e-5
         if self.pooling:
-            super(FastDropoutRnnDiagGauss, self).__init__(
+            DiagGauss.__init__(
+                self,
                 self.rnn.output[:, :self.n_output],
-                self.rnn.output[:, self.n_output:],
-                rng)
+                variances.dimshuffle('x', 0),
+                self.rng)
         else:
-            super(FastDropoutRnnDiagGauss, self).__init__(
+            DiagGauss.__init__(
+                self,
                 self.rnn.output[:, :, :self.n_output],
-                self.rnn.output[:, :, self.n_output:],
-                rng)
+                variances.dimshuffle('x', 'x', 0),
+                self.rng)
+
+
+class FastDropoutBiRnnConstDiagGauss(FastDropoutRnnConstDiagGauss):
+
+    model_klass = BidirectFastDropoutRnn

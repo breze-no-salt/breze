@@ -53,7 +53,7 @@ def test_storn():
     X, = theano_floatx(X)
 
     class MyStorn(sgvb.StochasticRnn,
-                  sgvb.GaussLatentStornMixin,
+                  sgvb.GaussLatentBiStornMixin,
                   sgvb.GaussVisibleStornMixin):
         pass
 
@@ -91,7 +91,9 @@ def test_storn_sampling():
     X = np.random.random((3, 5, 2))
     X, = theano_floatx(X)
 
-    class Assmptn(sgvb.DiagGaussLatentAssumption, sgvb.DiagGaussVisibleAssumption):
+    class MyStorn(sgvb.StochasticRnn,
+                  sgvb.GaussLatentBiStornMixin,
+                  sgvb.GaussVisibleStornMixin):
         pass
 
     m = sgvb.StochasticRnn(
