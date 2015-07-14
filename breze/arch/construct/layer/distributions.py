@@ -45,6 +45,7 @@ class DiagGauss(Distribution):
         self.mean = mean
         self.var = var
         self.stt = T.concatenate((mean, var), -1)
+        self.maximum = self.mean
         super(DiagGauss, self).__init__(rng)
 
     def sample(self, epsilon=None):
@@ -80,6 +81,7 @@ class NormalGauss(Distribution):
         self.mean = T.zeros(shape)
         self.var = T.ones(shape)
         self.stt = T.concatenate((self.mean, self.var), -1)
+        self.maximum = self.mean
         super(NormalGauss, self).__init__(rng)
 
     def sample(self):
@@ -96,6 +98,7 @@ class Bernoulli(Distribution):
     def __init__(self, rate, rng=None):
         self.rate = rate
         self.stt = rate
+        self.maximum = self.rate > 0.5
         super(Bernoulli, self).__init__(rng)
 
     def sample(self, epsilon=None):
