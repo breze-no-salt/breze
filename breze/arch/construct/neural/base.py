@@ -330,7 +330,7 @@ class Rnn(Layer):
         self.layers.append(self.OutputLayer(affine))
 
         output = output_affine.output.reshape(
-                            (n_time_steps, -1, self.n_output))
+            (n_time_steps, -1, self.n_output))
 
         if self.pooling:
             self.pre_pooling = output
