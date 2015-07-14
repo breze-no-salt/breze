@@ -314,8 +314,17 @@ class FastDropoutRnnConstDiagGauss(BaseFastDropoutRnnDistribution, DiagGauss):
                  pooling=None,
                  p_dropout_inpt=.1, p_dropout_hiddens=.1,
                  p_dropout_hidden_to_out=None,
+                 shared_std=True,
+                 fixed_std=None,
                  declare=None, name=None, rng=None):
-        self.stds = declare((n_output))
+        if fixed_std is None:
+            if shared_std:
+                self.std = declare((1,))
+            else:
+                self.std = declare((n_output))
+        else:
+            self.std = fixed_std
+        self.shared_std = shared_std
 
         BaseFastDropoutRnnDistribution.__init__(
             self,
@@ -345,18 +354,18 @@ class FastDropoutRnnConstDiagGauss(BaseFastDropoutRnnDistribution, DiagGauss):
         )
 
     def _init_distribution(self):
-        variances = self.stds ** 2 + 1e-5
+        var = self.std ** 2 + 1e-5
         if self.pooling:
             DiagGauss.__init__(
                 self,
                 self.rnn.output[:, :self.n_output],
-                variances.dimshuffle('x', 0),
+                var.dimshuffle('x', 0),
                 self.rng)
         else:
             DiagGauss.__init__(
                 self,
                 self.rnn.output[:, :, :self.n_output],
-                variances.dimshuffle('x', 'x', 0),
+                var.dimshuffle('x', 'x', 0),
                 self.rng)
 
 
