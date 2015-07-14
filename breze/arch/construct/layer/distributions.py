@@ -43,8 +43,11 @@ class DiagGauss(Distribution):
 
     def __init__(self, mean, var, rng=None):
         self.mean = mean
-        self.var = var
-        self.stt = T.concatenate((mean, var), -1)
+
+        # This allows to use var with shape (1, 1, n)
+        self.var = T.fill(mean, var)
+
+        self.stt = T.concatenate((mean, self.var), -1)
         self.maximum = self.mean
         super(DiagGauss, self).__init__(rng)
 
