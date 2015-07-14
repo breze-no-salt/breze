@@ -341,10 +341,6 @@ class Rnn(Layer):
 
 class FastDropoutRnn(Layer):
 
-    @property
-    def hidden_layers(self):
-        return [i for i in self.layers if isinstance(i, self.HiddenLayer)]
-
     def __init__(self, inpt,
                  n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer='identity',
@@ -499,5 +495,5 @@ class BidirectFastDropoutRnn(FastDropoutRnn):
         x_mean = recurrent_fw.outputs[0] + recurrent_bw.outputs[0]
         x_var = recurrent_fw.outputs[1] + recurrent_bw.outputs[1]
 
-        layer = self.HiddenLayer(affine, recurrent_fw, recurrent_bw)
-        return x_mean, x_var, layer
+        self.layers += [affine, recurrent_fw, recurrent_bw]
+        return x_mean, x_var
