@@ -333,24 +333,24 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedModel):
                    sparsify_affine=None, sparsify_rec=None,
                    spectral_radius=None):
         climin.initialize.randomize_normal(self.parameters.data, 0, par_std)
-        for i, layer in enumerate(self.rnn.layers):
-            if hasattr(layer, 'recurrent'):
-                p = self.parameters[layer.recurrent.weights]
-                if par_std_rec:
-                    climin.initialize.randomize_normal(p, 0, par_std_rec)
-                if spectral_radius:
-                    climin.initialize.bound_spectral_radius(p, spectral_radius)
-                if sparsify_rec:
-                    climin.initialize.sparsify_columns(p, sparsify_rec)
-                #self.parameters[layer.recurrent.initial_mean][...] = 0
-                #self.parameters[layer.recurrent.initial_std][...] = 1e-8
-            if hasattr(layer, 'affine'):
-                p = self.parameters[layer.affine.weights]
-                if i == 1 and par_std_in:
-                    climin.initialize.randomize_normal(p, 0, par_std_in)
-                elif par_std_affine:
-                    climin.initialize.randomize_normal(p, 0, par_std_affine)
-                if sparsify_affine:
-                    climin.initialize.sparsify_columns(p, sparsify_affine)
 
-                #self.parameters[layer.affine.bias][...] = 0
+        for i, layer in enumerate(self.rnn.affine_layers):
+            p = self.parameters[layer.weights]
+            if i == 0 and par_std_in:
+                climin.initialize.randomize_normal(p, 0, par_std_in)
+            elif par_std_affine:
+                climin.initialize.randomize_normal(p, 0, par_std_affine)
+            if sparsify_affine:
+                climin.initialize.sparsify_columns(p, sparsify_affine)
+            self.parameters[layer.bias][...] = 0
+
+        for i, layer in enumerate(self.rnn.recurrent_layers):
+            p = self.parameters[layer.weights]
+            if par_std_rec:
+                climin.initialize.randomize_normal(p, 0, par_std_rec)
+            if spectral_radius:
+                climin.initialize.bound_spectral_radius(p, spectral_radius)
+            if sparsify_rec:
+                climin.initialize.sparsify_columns(p, sparsify_rec)
+            self.parameters[layer.initial_mean][...] = 0
+            self.parameters[layer.initial_std][...] = 1e-8

@@ -7,6 +7,9 @@ import theano.tensor as T
 from theano.gradient import jacobian
 from nose.tools import with_setup
 
+from breze.arch.construct.layer.varprop.sequential import FDRecurrent
+from breze.arch.construct.layer.varprop.simple import AffineNonlinear
+
 from breze.learn.rnn import (
     SupervisedFastDropoutRnn,
     SupervisedRnn)
@@ -237,10 +240,6 @@ def test_fdrnn_initialize_stds():
 
     assert np.isfinite(p.data).all()
 
-    affine_layers = [i.affine for i in m.rnn.layers if hasattr(i, 'affine')]
-    rec_layers = [i.recurrent for i in m.rnn.layers
-                  if hasattr(i, 'recurrent')]
-
     tolerance = 1e-1
 
     def works(key, tensor):
@@ -251,11 +250,11 @@ def test_fdrnn_initialize_stds():
         assert success, '%s did not work: %g instead of %g' % (
             key, std, target)
 
-    works('par_std_in', affine_layers[0].weights)
-    for l in affine_layers[1:]:
+    works('par_std_in', m.rnn.affine_layers[0].weights)
+    for l in m.rnn.affine_layers[1:]:
         works('par_std_affine', l.weights)
 
-    for l in rec_layers:
+    for l in m.rnn.recurrent_layers:
         works('par_std_rec', l.weights)
 
 
@@ -272,11 +271,10 @@ def test_fdrnn_initialize_sparsify():
     m.initialize(**inits)
     assert np.isfinite(p.data).all()
 
-    affine_layers = [i.affine for i in m.rnn.layers if hasattr(i, 'affine')]
-    rec_layers = [i.recurrent for i in m.rnn.layers
-                  if hasattr(i, 'recurrent')]
+    aff_layers = [i for i in m.rnn.layers if isinstance(i, AffineNonlinear)]
+    rec_layers = [i for i in m.rnn.layers if isinstance(i, FDRecurrent)]
 
-    for l in affine_layers:
+    for l in aff_layers:
         w = p[l.weights]
         cond = ((w != 0).sum(axis=0) == inits['sparsify_affine']).all()
         assert cond, 'sparsify affine did not work for %s' % l
@@ -287,7 +285,7 @@ def test_fdrnn_initialize_sparsify():
         assert cond, 'sparsify recurrent did not work for %s' % l
 
 
-@use_test_values('ignore')
+@with_setup(*use_test_values('ignore'))
 def test_fdrnn_initialize_spectral_radius():
     m = SupervisedFastDropoutRnn(
         50, [50], 50,
@@ -300,8 +298,7 @@ def test_fdrnn_initialize_spectral_radius():
     m.initialize(**inits)
     assert np.isfinite(p.data).all()
 
-    rec_layers = [i.recurrent for i in m.rnn.layers
-                  if hasattr(i, 'recurrent')]
+    rec_layers = [i for i in m.rnn.layers if isinstance(i, FDRecurrent)]
 
     tol = .1
 

@@ -270,8 +270,13 @@ class FastDropoutMlp(Layer):
 class Rnn(Layer):
 
     @property
-    def hidden_layers(self):
-        return [i for i in self.layers if isinstance(i, self.HiddenLayer)]
+    def affine_layers(self):
+        return [i for i in self.layers if isinstance(i, simple.AffineNonlinear)]
+
+    @property
+    def recurrent_layers(self):
+        return [i for i in self.layers
+                if isinstance(i, vp_sequential.FDRecurrent)]
 
     def __init__(self, inpt,
                  n_inpt, n_hiddens, n_output,
@@ -317,7 +322,7 @@ class Rnn(Layer):
                 pre_recurrent, m * tout, t, declare=self.declare)
             x = recurrent.output
 
-            self.layers.append(self.HiddenLayer(affine, recurrent))
+            self.layers += [affine, recurrent]
 
         x_flat = x.reshape((-1, m * tout))
         out_transfer = lookup(self.out_transfer, _transfer)
@@ -327,7 +332,7 @@ class Rnn(Layer):
             declare=self.declare
             )
 
-        self.layers.append(self.OutputLayer(affine))
+        self.layers.append(affine)
 
         output = output_affine.output.reshape(
             (n_time_steps, -1, self.n_output))
@@ -340,6 +345,14 @@ class Rnn(Layer):
 
 
 class FastDropoutRnn(Layer):
+
+    @property
+    def affine_layers(self):
+        return [i for i in self.layers if isinstance(i, vp_simple.AffineNonlinear)]
+
+    @property
+    def recurrent_layers(self):
+        return [i for i in self.layers if isinstance(i, vp_sequential.FDRecurrent)]
 
     def __init__(self, inpt,
                  n_inpt, n_hiddens, n_output,
