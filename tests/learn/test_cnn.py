@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
+
+
 import numpy as np
+import theano
+
+from nose.tools import with_setup
 
 from breze.learn.cnn import SimpleCnn2d, Lenet
 from breze.learn.utils import theano_floatx
-import theano
-
-theano.config.exception_verbosity = 'high'
+from breze.utils.testhelpers import use_test_values
 
 
+@with_setup(*use_test_values('raise'))
 def test_simplecnn2d_fit():
     image_height, image_width = 4, 4
     X = np.random.standard_normal((11, 1, image_height, image_width))
@@ -22,7 +26,6 @@ def test_simplecnn2d_fit():
     out_transfer = 'identity'
     loss = 'squared'
 
-    theano.config.compute_test_value = 'raise'
     m = SimpleCnn2d(
         image_height, image_width, n_channel,
         n_hiddens,
@@ -37,6 +40,7 @@ def test_simplecnn2d_fit():
     m.fit(X, Z)
 
 
+@with_setup(*use_test_values('raise'))
 def test_lenet():
     image_height, image_width = 16, 16
     X = np.random.standard_normal((11, 1, image_height, image_width))
@@ -54,7 +58,6 @@ def test_lenet():
     out_transfer = 'identity'
     loss = 'squared'
 
-    theano.config.compute_test_value = 'raise'
     m = Lenet(
         image_height, image_width, n_channel,
         n_hiddens_conv,

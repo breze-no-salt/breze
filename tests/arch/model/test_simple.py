@@ -4,13 +4,15 @@
 import numpy as np
 import theano.tensor as T
 
+from nose.tools import with_setup
+
 from breze.arch.construct.simple import AffineNonlinear
 from breze.arch.component.loss import squared
 from breze.learn.base import SupervisedModel
 from breze.utils.testhelpers import use_test_values
 
 
-@use_test_values('raise')
+@with_setup(*use_test_values('raise'))
 def test_linear_regression():
     inpt = T.matrix('inpt')
     inpt.tag.test_value = np.zeros((3, 10))

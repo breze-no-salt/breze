@@ -2,9 +2,11 @@
 
 
 import numpy as np
-
 import theano
 import theano.tensor as T
+
+from nose.tools import with_setup
+
 from breze.arch.construct.layer import simple, sequential
 from breze.utils.testhelpers import use_test_values
 
@@ -13,7 +15,7 @@ X = np.zeros((10, 2)).astype(theano.config.floatX)
 Z = np.zeros((10, 3)).astype(theano.config.floatX)
 
 
-@use_test_values('raise')
+@with_setup(*use_test_values('raise'))
 def test_sequential():
     inpt = T.tensor3('inpt')
     inpt.tag.test_value = np.zeros((2, 3, 4)).astype(theano.config.floatX)
@@ -25,7 +27,7 @@ def test_sequential():
     assert recons[0].tag.test_value.shape == (2, 3, 4)
 
 
-@use_test_values('raise')
+@with_setup(*use_test_values('raise'))
 def test_supervised_loss():
     prediction = T.matrix('prediction')
     y = prediction.tag.test_value = np.zeros((2, 3)
