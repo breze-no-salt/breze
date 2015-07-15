@@ -8,13 +8,14 @@ import numpy as np
 from climin import mathadapt as ma
 from scipy.misc import logsumexp
 
-
-from breze.learn.utils import theano_floatx
-from breze.arch.util import ParameterSet
-
-from breze.arch.construct.sgvb import ( VariationalAutoEncoder as _VariationalAutoEncoder)
-from breze.learn.base import ( UnsupervisedModel, TransformBrezeWrapperMixin, ReconstructBrezeWrapperMixin)
 from breze.arch.construct.layer.kldivergence import kl_div
+from breze.arch.construct.sgvb import (
+    VariationalAutoEncoder as _VariationalAutoEncoder)
+from breze.arch.util import ParameterSet
+from breze.learn.base import (
+    UnsupervisedModel, TransformBrezeWrapperMixin,
+    ReconstructBrezeWrapperMixin)
+from breze.learn.utils import theano_floatx
 
 
 # TODO document
@@ -211,7 +212,8 @@ class GenericVariationalAutoEncoder(UnsupervisedModel,
 
     def _output_from_sample(self, S):
         if self.f_out_from_sample is None:
-            self.f_out_from_sample = self.function([self.vae.recog_sample], self.output)
+            self.f_out_from_sample = self.function(
+                [self.vae.recog_sample], self.output)
         return self.f_out_from_sample(S)
 
     def _rec_loss_of_sample(self, X, S):
@@ -269,14 +271,16 @@ class GenericVariationalAutoEncoder(UnsupervisedModel,
         # Depends on the shape of the input otherwis.
         nll_z = theano.clone(nll_z, {self.recog_sample: latent_sample})
 
-        f_nll_z = self.function([latent_sample], nll_z, on_unused_input='ignore')
+        f_nll_z = self.function([latent_sample], nll_z,
+                                on_unused_input='ignore')
 
         # Map a given visible x and a sample z to the generating
         # probability p(x|z).
         nll_x_given_z = self.vae.gen.nll(
             self.inpt, self.output).sum(axis=ndim - 1)
-        f_nll_x_given_z = self.function([self.inpt, latent_sample], nll_x_given_z,
-                                        givens={self.vae.recog_sample: latent_sample})
+        f_nll_x_given_z = self.function(
+            [self.inpt, latent_sample], nll_x_given_z,
+            givens={self.vae.recog_sample: latent_sample})
 
         # Map a given visible x and a sample z to the recognition
         # probability q(z|x).
@@ -295,5 +299,3 @@ class GenericVariationalAutoEncoder(UnsupervisedModel,
         inner.breze_func = True
 
         return inner
-
-
