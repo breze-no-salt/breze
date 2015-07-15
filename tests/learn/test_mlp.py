@@ -2,6 +2,7 @@
 
 import cPickle
 
+import climin.initialize
 import numpy as np
 
 from breze.learn.mlp import Mlp
@@ -20,6 +21,7 @@ def test_mlp_pickle():
 
     mlp = Mlp(2, [10], 1, ['tanh'], 'identity', 'squared', max_iter=2)
 
+    climin.initialize.randomize_normal(mlp.parameters.data, 0, 1)
     mlp.fit(X, Z)
 
     Y = mlp.predict(X)

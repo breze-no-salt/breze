@@ -300,7 +300,7 @@ def test_fdrnn_initialize_spectral_radius():
 
     rec_layers = [i for i in m.rnn.layers if isinstance(i, FDRecurrent)]
 
-    tol = .1
+    tol = .3
 
     for l in rec_layers:
         val, vec = np.linalg.eig(p[l.weights])
