@@ -310,8 +310,8 @@ class ParameterSet(object):
             self.flat = theano.sandbox.cuda.fvector('parameters')
         else:
             self.flat = T.vector('parameters')
-        #self.flat.tag.test_value = np.empty(
-        #    (2048,), dtype=theano.config.floatX)
+        if theano.config.compute_test_value in ('raise', 'warn'):
+            self.flat.tag.test_value = np.empty(1024 ** 2)
 
     def declare(self, shape, group=None):
         if group is not None:
@@ -322,6 +322,11 @@ class ParameterSet(object):
         start, stop = self._n_pars, self._n_pars + size
         self._n_pars = stop
         x = self.flat[start:stop].reshape(shape)
+        #if theano.config.compute_test_value in ('raise', 'warn'):
+        #    old_par_test_val = self.flat.tag.test_value
+        #    new_par_test_val = np.zeros(old_par_test_val.size + size)
+        #    x.tag.test_value = new_par_test_val
+
         self._var_to_slice[x] = (start, stop)
         self._var_to_shape[x] = shape
         return x
@@ -343,7 +348,8 @@ class ParameterSet(object):
         else:
             self.data = np.empty(self._n_pars).astype(theano.config.floatX)
 
-        self.flat.tag.test_value = self.data
+        if theano.config.compute_test_value:
+            self.flat.tag.test_value = self.data
 
     def __contains__(self, key):
         return key in self._var_to_slice
@@ -672,6 +678,50 @@ class WarnNaNMode(theano.Mode):
 
 
 def array_partition_views(array, partition):
+    """Return a dictlist with different items corresponding to different sub
+    views into an array.
+
+    This function can be used to use different parts of a one-dimensional
+    array as a collection of arrays with differing without the need to
+    reallocate. E.g the first half of an array might correspond to a matrix,
+    the next entry to a scalar and the rest to a vector.
+
+    The function takes two arguments. The first, ``array`` is supposed to
+    resemble the flat array, while the second is a dictlist partitioning the
+    array into views of given shapes.
+
+    Here, the leaves of ``partition`` will be treated as shapes, of which a
+    view into ``array`` should be contained in the result with the same path.
+
+
+    Parameters
+    ----------
+
+    array : np.array or gp.garray
+        numpy or gnumpy array of ndim 1.
+
+    partition : dictlist
+        Dictlist -- that is a a dictionary containing either lists or dicts as
+        its elements, except leave nodes. These should be either tuples or ints
+        to represent shapes of arays.
+
+
+    Examples
+    --------
+
+    >>> from breze.arch.util import array_partition_views
+    >>> partition = {'first': (2,),
+    ...              'second': (2, 3),}
+    >>> flat = np.arange(8)
+    >>> views = array_partition_views(flat, partition)
+    >>> views['first']
+    ... # doctest: +NORMALIZE_WHITESPACE
+        array([0, 1])
+    >>> views['second']
+    ... # doctest: +NORMALIZE_WHITESPACE
+        array([[2, 3, 4],
+               [5, 6, 7]])
+    """
     views = dictlist.copy(partition)
     pathsshapes = sorted(list(dictlist.leafs(partition)))
 

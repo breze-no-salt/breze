@@ -11,6 +11,8 @@ References
      by Gomes, R. and Krause, A. and Perona, P., NIPS 2010
 """
 
+import numpy as np
+import theano
 import theano.tensor as T
 
 from breze.arch.util import ParameterSet
@@ -55,7 +57,7 @@ class Rim(UnsupervisedModel,
 
     transform_expr_name = 'output'
 
-    def __init__(self, n_inpt, n_cluster, c_rim, optimizer='lbfgs',
+    def __init__(self, n_inpt, n_cluster, c_rim, optimizer='rprop',
                  max_iter=1000, verbose=False):
         """Create a Rim object.
 
@@ -93,19 +95,23 @@ class Rim(UnsupervisedModel,
         self.max_iter = max_iter
         self.verbose = verbose
 
+        self.use_imp_weight = False
+
         self._init_exprs()
 
     def _init_exprs(self):
         inpt = T.matrix('inpt')
+        if theano.config.compute_test_value:
+            inpt.tag.test_value = np.empty((2, self.n_inpt))
+
         P = self.parameters = ParameterSet()
 
         self.layer = AffineNonlinear(inpt, self.n_inpt, self.n_cluster,
                                      'softmax', declare=P.declare)
 
         self.loss_layer = RimLoss(self.layer.output, [self.layer.weights],
-                                   self.c_rim)
+                                  self.c_rim)
 
         super(Rim, self).__init__(
             inpt=inpt, output=self.layer.output, loss=self.loss_layer.total,
             parameters=P)
-

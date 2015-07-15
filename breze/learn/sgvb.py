@@ -41,49 +41,35 @@ References
 .. [DLGM] Rezende, Danilo Jimenez, Shakir Mohamed, and Daan Wierstra. "Stochastic Back-propagation and Variational Inference in Deep Latent Gaussian Models." arXiv preprint arXiv:1401.4082 (2014).
 """
 
-# TODO assumption classes
-# TODO rename denoise to map denoise
-# TODO fix estimation of nll
-# TODO rename recurrent models to the ones used in the paper
-# TODO make function for missing value imputation
-
-import theano
-import theano.tensor as T
-import theano.tensor.nnet
-import numpy as np
-
-from theano.compile import optdb
-
-from scipy.misc import logsumexp
-
-from breze.arch.component.common import supervised_loss
-from breze.arch.component.misc import inter_gauss_kl
-from breze.arch.component.transfer import diag_gauss
-from breze.arch.component.varprop.transfer import sigmoid
-from breze.arch.component.varprop.loss import (
-    diag_gaussian_nll as diag_gauss_nll, bern_ces)
-
-from breze.arch.util import ParameterSet, wild_reshape
-from breze.learn.utils import theano_floatx
 
 import climin.initialize
 from climin import mathadapt as ma
 
+import numpy as np
 
-from breze.arch.construct.sgvb import VariationalAutoEncoder as _VariationalAutoEncoder
+from scipy.misc import logsumexp
 
-from breze.learn.base import (
-    UnsupervisedModel, TransformBrezeWrapperMixin,
-    ReconstructBrezeWrapperMixin)
+import theano
+import theano.tensor as T
+import theano.tensor.nnet
+from theano.compile import optdb
 
+from breze.arch.construct.layer.varprop.simple import AffineNonlinear
+from breze.arch.construct.layer.varprop.sequential import FDRecurrent
+from breze.arch.component.misc import inter_gauss_kl
+from breze.arch.component.transfer import diag_gauss, sigmoid
+from breze.arch.component.varprop.loss import (
+    diag_gaussian_nll as diag_gauss_nll, bern_ces)
 from breze.arch.construct import neural
-from breze.arch.construct.neural.distributions import (MlpDiagGauss, MlpBernoulli, FastDropoutMlpDiagGauss)
 from breze.arch.construct.layer.distributions import NormalGauss
-
 from breze.arch.construct.layer.kldivergence import kl_div
-
-
-# TODO find a better home for the following functions.
+from breze.arch.construct.neural import distributions as neural_dists
+from breze.arch.construct.sgvb import (
+    VariationalAutoEncoder as _VariationalAutoEncoder)
+from breze.arch.util import ParameterSet, wild_reshape
+from breze.learn.base import (
+    UnsupervisedModel, TransformBrezeWrapperMixin, ReconstructBrezeWrapperMixin)
+from breze.learn.utils import theano_floatx
 
 
 def flatten_list(lst):
@@ -242,6 +228,7 @@ class DiagGaussLatentAssumption(object):
         else:
             return sample
 
+
 class DiagGaussVisibleAssumption(object):
 
     def statify_visible(self, X, var=None):
@@ -282,6 +269,7 @@ class DiagGaussVisibleAssumption(object):
             return recover_time(mode, stt.shape[0])
         else:
             return mode
+
 
 class FastDropoutDiagGaussVisibleAssumption(object):
 
@@ -378,9 +366,9 @@ class BernoulliVisibleAssumption(object):
             return sample
 
 
-class GenericVariationalAutoEncoder(
-    UnsupervisedModel, TransformBrezeWrapperMixin,
-    ReconstructBrezeWrapperMixin):
+class GenericVariationalAutoEncoder(UnsupervisedModel,
+                                    TransformBrezeWrapperMixin,
+                                    ReconstructBrezeWrapperMixin):
     """Class representing a variational auto encoder.
 
     Described in [SGVB]_.
@@ -511,7 +499,8 @@ class GenericVariationalAutoEncoder(
         self.kl_sample_wise = self.kl_coord_wise.sum(axis=n_dim - 1)
         self.kl = self.kl_sample_wise.mean()
 
-        self.loss_sample_wise = self.kl_sample_wise + self.rec_loss_sample_wise
+        # FIXME: this does not work with convolutional aes
+        # self.loss_sample_wise = self.kl_sample_wise + self.rec_loss_sample_wise
         loss = self.kl + self.rec_loss
 
         UnsupervisedModel.__init__(self, inpt=inpt,
@@ -623,13 +612,13 @@ class GenericVariationalAutoEncoder(
         return inner
 
 
-class GaussLatentVAEMixin(object):
+class MlpGaussLatentVAEMixin(object):
 
     def make_prior(self, sample):
         return NormalGauss(sample.shape)
 
     def make_recog(self, inpt):
-        return  MlpDiagGauss(
+        return  neural_dists.MlpDiagGauss(
             inpt, self.n_inpt,
             self.n_hiddens_recog,
             self.n_latent,
@@ -639,10 +628,10 @@ class GaussLatentVAEMixin(object):
             declare=self.parameters.declare)
 
 
-class GaussVisibleVAEMixin(object):
+class MlpGaussVisibleVAEMixin(object):
 
     def make_gen(self, latent_sample):
-        return MlpDiagGauss(
+        return neural_dists.MlpDiagGauss(
             latent_sample, self.n_latent,
             self.n_hiddens_gen,
             self.n_inpt,
@@ -654,14 +643,58 @@ class GaussVisibleVAEMixin(object):
             declare=self.parameters.declare)
 
 
-class BernoulliVisibleVAEMixin(object):
+class MlpBernoulliVisibleVAEMixin(object):
 
     def make_gen(self, latent_sample):
-        return MlpBernoulli(
+        return neural_dists.MlpBernoulli(
             latent_sample, self.n_latent,
             self.n_hiddens_gen,
             self.n_inpt,
             self.gen_transfers,
+            declare=self.parameters.declare)
+
+
+class FastDropoutMlpGaussLatentVAEMixin(object):
+
+    def make_prior(self, sample):
+        return NormalGauss(sample.shape)
+
+    def make_recog(self, inpt):
+        return neural_dists.FastDropoutMlpDiagGauss(
+            inpt, self.n_inpt,
+            self.n_hiddens_recog,
+            self.n_latent,
+            self.recog_transfers,
+            out_transfer='identity',
+            dropout_parameterized=True,
+            declare=self.parameters.declare)
+
+
+class FastDropoutMlpGaussVisibleVAEMixin(object):
+
+    def make_gen(self, latent_sample):
+        return neural_dists.FastDropoutMlpDiagGauss(
+            latent_sample, self.n_latent,
+            self.n_hiddens_gen,
+            self.n_inpt,
+            self.gen_transfers,
+            out_transfer='identity',
+            p_dropout_inpt=self.p_dropout_inpt,
+            p_dropout_hiddens=self.p_dropout_hiddens,
+            declare=self.parameters.declare)
+
+
+class FastDropoutMlpBernoulliVisibleVAEMixin(object):
+
+    def make_gen(self, latent_sample):
+        return neural_dists.FastDropoutMlpBernoulli(
+            latent_sample, self.n_latent,
+            self.n_hiddens_gen,
+            self.n_inpt,
+            self.gen_transfers,
+            out_transfer='sigmoid',
+            p_dropout_inpt=self.p_dropout_inpt,
+            p_dropout_hiddens=self.p_dropout_hiddens,
             declare=self.parameters.declare)
 
 
@@ -688,7 +721,7 @@ class VariationalAutoEncoder(GenericVariationalAutoEncoder):
             max_iter=verbose, verbose=verbose)
 
 
-class FastDropoutVariationalAutoEncoder(GenericVariationalAutoEncoder):
+class FastDropoutVariationalAutoEncoder(VariationalAutoEncoder):
 
     """
         Variational Autoencoder with FastDropout Mlp as recognition and generative model
@@ -700,38 +733,178 @@ class FastDropoutVariationalAutoEncoder(GenericVariationalAutoEncoder):
                  use_imp_weight=False,
                  batch_size=None, optimizer='rprop',
                  max_iter=1000, verbose=False):
-        self.n_hiddens_recog = n_hiddens_recog
-        self.n_hiddens_gen = n_hiddens_gen
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hiddens = p_dropout_hiddens
-        self.recog_transfers = recog_transfers
-        self.gen_transfers = gen_transfers
 
-        if isinstance(p_dropout_hiddens, float):
-            p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
+        super(FastDropoutVariationalAutoEncoder, self).__init__(
+            n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
+            recog_transfers, gen_transfers,
+            use_imp_weight=use_imp_weight,
+            batch_size=batch_size, optimizer=optimizer,
+            max_iter=verbose, verbose=verbose)
 
-        rec_class = lambda inpt, declare: FastDropoutMlpDiagGauss(
-            inpt, n_inpt,
-            n_hiddens_recog,
-            n_latent,
-            recog_transfers, 'identity',
-            p_dropout_inpt, p_dropout_hiddens,
-            dropout_parameterized=True,
+
+class ConvolutionalVAE(GenericVariationalAutoEncoder):
+
+    def __init__(self, image_height, image_width, n_channel,
+                 recog_n_hiddens_conv,
+                 recog_filter_shapes, recog_pool_shapes,
+                 recog_n_hiddens_full,
+                 recog_transfers_conv, recog_transfers_full,
+                 n_latent,
+                 gen_n_hiddens_full,
+                 gen_n_hiddens_conv,
+                 gen_filter_shapes, gen_unpool_factors,
+                 gen_transfers_conv, gen_transfers_full,
+                 assumptions,
+                 recog_strides=None,
+                 use_imp_weight=False,
+                 batch_size=None,
+                 optimizer='adam',
+                 max_iter=1000, verbose=False):
+        self.image_height = image_height
+        self.image_width = image_width
+        self.n_channel = n_channel
+
+        self.recog_n_hiddens_conv = recog_n_hiddens_conv
+        self.recog_filter_shapes = recog_filter_shapes
+        self.recog_pool_shapes = recog_pool_shapes
+        self.recog_n_hiddens_full = recog_n_hiddens_full
+        self.recog_transfers_conv = recog_transfers_conv
+        self.recog_transfers_full = recog_transfers_full
+        self.recog_strides = recog_strides
+
+        self.n_latent = n_latent
+        self.gen_n_hiddens_conv = gen_n_hiddens_conv
+        self.gen_filter_shapes = gen_filter_shapes
+        self.gen_unpool_factors = gen_unpool_factors
+        self.gen_n_hiddens_full = gen_n_hiddens_full
+        self.gen_transfers_conv = gen_transfers_conv
+        self.gen_transfers_full = gen_transfers_full
+
+        rec_class = lambda inpt, declare: neural.Lenet(
+            inpt, self.image_height, self.image_width, self.n_channel,
+            self.recog_n_hiddens_conv,
+            self.recog_filter_shapes, self.recog_pool_shapes,
+            self.recog_n_hiddens_full,
+            self.recog_transfers_conv, self.recog_transfers_full,
+            assumptions.latent_layer_size(self.n_latent),
+            assumptions.statify_latent,
+            strides=self.recog_strides,
             declare=declare)
 
-        gen_class = lambda inpt, declare: FastDropoutMlpDiagGauss(
-            inpt, n_latent,
-            n_hiddens_gen,
-            n_inpt,
-            gen_transfers, 'identity',
-            p_dropout_inpt, p_dropout_hiddens,
-            dropout_parameterized=True,
+        gen_class = lambda inpt, declare: neural.DeconvNet2d(
+            inpt=inpt, n_inpt=n_latent,
+            n_hiddens_full=self.gen_n_hiddens_full,
+            n_interim_channel=1,
+            n_hiddens_conv=self.gen_n_hiddens_conv,
+            filter_shapes=self.gen_filter_shapes,
+            unpool_factors=self.gen_unpool_factors,
+            hidden_transfers_full=self.gen_transfers_full,
+            hidden_transfers_conv=self.gen_transfers_conv,
+            output_height=self.image_height,
+            output_width=self.image_width,
+            n_output_channel=self.n_channel,
+            out_transfer_conv=assumptions.statify_visible,
+            out_transfer_full='identity',
             declare=declare)
 
-        GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
-                 rec_class, gen_class, use_imp_weight=use_imp_weight,
-                 batch_size=batch_size, optimizer=optimizer,
-                 max_iter=verbose, verbose=verbose)
+        # TODO n_inpt is not a reasonable input for a convnet; this is why None
+        # is used here instead.
+        GenericVariationalAutoEncoder.__init__(
+            self, None, n_latent,
+            assumptions, rec_class, gen_class, use_imp_weight=use_imp_weight,
+            batch_size=batch_size, optimizer=optimizer,
+            max_iter=verbose, verbose=verbose)
+
+    def _make_start_exprs(self):
+        inpt = T.tensor4('inpt')
+        inpt.tag.test_value, = theano_floatx(np.ones(
+            (3, self.n_channel, self.image_height, self.image_width)))
+
+        if self.use_imp_weight:
+            imp_weight = T.tensor4('imp_weight')
+            imp_weight.tag.test_value, = theano_floatx(np.ones(
+                (3, self.n_channel, self.image_height, self.image_width)))
+        else:
+            imp_weight = None
+
+        return inpt, imp_weight
+
+
+class BernoulliVisibleStornMixin(object):
+
+    def make_gen(self, latent_sample):
+        return neural_dists.FastDropoutRnnBernoulli(
+            latent_sample,
+            n_inpt=self.n_latent + self.n_inpt,
+            n_hiddens=self.n_hiddens_gen,
+            n_output=self.n_inpt,
+            hidden_transfers=self.gen_transfers,
+            p_dropout_inpt=self.p_dropout_inpt,
+            p_dropout_hiddens=self.p_dropout_hiddens,
+            p_dropout_hidden_to_out=self.p_dropout_hidden_to_out,
+            declare=self.parameters.declare)
+
+
+class GaussVisibleStornMixin(object):
+
+    def make_gen(self, latent_sample):
+        return neural_dists.FastDropoutRnnDiagGauss(
+            latent_sample,
+            n_inpt=self.n_latent + self.n_inpt,
+            n_hiddens=self.n_hiddens_gen,
+            n_output=self.n_inpt,
+            hidden_transfers=self.gen_transfers,
+            p_dropout_inpt=self.p_dropout_inpt,
+            p_dropout_hiddens=self.p_dropout_hiddens,
+            p_dropout_hidden_to_out=self.p_dropout_hidden_to_out,
+            declare=self.parameters.declare)
+
+
+class ConstVarGaussVisibleStornMixin(object):
+
+    shared_std = False
+    fixed_std = None
+
+    def make_gen(self, latent_sample):
+        return neural_dists.FastDropoutRnnConstDiagGauss(
+            latent_sample,
+            n_inpt=self.n_latent + self.n_inpt,
+            n_hiddens=self.n_hiddens_gen,
+            n_output=self.n_inpt,
+            hidden_transfers=self.gen_transfers,
+            p_dropout_inpt=self.p_dropout_inpt,
+            p_dropout_hiddens=self.p_dropout_hiddens,
+            p_dropout_hidden_to_out=self.p_dropout_hidden_to_out,
+            shared_std=self.shared_std,
+            fixed_std=self.fixed_std,
+            declare=self.parameters.declare)
+
+
+class GaussLatentStornMixin(object):
+
+    distribution_klass = neural_dists.FastDropoutRnnDiagGauss
+
+    def make_prior(self, sample):
+        return NormalGauss(sample.shape)
+
+    def make_recog(self, inpt):
+        return self.distribution_klass(
+            inpt,
+            n_inpt=self.n_inpt,
+            n_hiddens=self.n_hiddens_recog,
+            n_output=self.n_latent,
+            hidden_transfers=self.recog_transfers,
+            p_dropout_inpt='parameterized',
+            p_dropout_hiddens=['parameterized' for _ in self.n_hiddens_recog],
+            p_dropout_hidden_to_out='parameterized',
+            declare=self.parameters.declare)
+
+
+class GaussLatentBiStornMixin(GaussLatentStornMixin):
+
+    distribution_klass = neural_dists.FastDropoutBiRnnDiagGauss
 
 
 class StochasticRnn(GenericVariationalAutoEncoder):
@@ -743,7 +916,6 @@ class StochasticRnn(GenericVariationalAutoEncoder):
 
     def __init__(self, n_inpt, n_hiddens_recog, n_latent, n_hiddens_gen,
                  recog_transfers, gen_transfers,
-                 assumptions,
                  p_dropout_inpt=.1, p_dropout_hiddens=.1,
                  p_dropout_hidden_to_out=None,
                  p_dropout_shortcut=None,
@@ -757,20 +929,13 @@ class StochasticRnn(GenericVariationalAutoEncoder):
         self.recog_transfers = recog_transfers
         self.gen_transfers = gen_transfers
 
-        if isinstance(p_dropout_hiddens, float):
-            p_dropout_hiddens = [p_dropout_hiddens] * len(n_hiddens_recog)
         self.p_dropout_inpt = p_dropout_inpt
         self.p_dropout_hiddens = p_dropout_hiddens
-        if p_dropout_hidden_to_out is None:
-            p_dropout_hidden_to_out = p_dropout_hiddens[-1]
-        else:
-            p_dropout_hidden_to_out = p_dropout_hidden_to_out
         self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
-
         self.p_dropout_shortcut = p_dropout_shortcut
 
-        GenericVariationalAutoEncoder.__init__(self, n_inpt, n_latent,
-            assumptions, self._make_recog, self._make_gen, self._make_condition,
+        super(StochasticRnn, self).__init__(
+            n_inpt, n_latent,
             use_imp_weight=use_imp_weight,
             batch_size=batch_size, optimizer=optimizer,
             max_iter=verbose, verbose=verbose)
@@ -787,29 +952,8 @@ class StochasticRnn(GenericVariationalAutoEncoder):
 
         return inpt, imp_weight
 
-    def _make_recog(self, inpt, declare):
-        return  neural.FastDropoutRnn(
-            inpt, self.n_inpt,
-            self.n_hiddens_recog,
-            self.n_latent,
-            self.recog_transfers, self.assumptions.statify_latent,
-            p_dropout_inpt='parameterized',
-            p_dropout_hiddens=['parameterized' for _ in self.n_hiddens_recog],
-            p_dropout_hidden_to_out='parameterized',
-            declare=declare)
-
-    def _make_gen(self, inpt, declare):
-        return neural.FastDropoutRnn(
-            inpt, self.n_latent + self.n_inpt,
-            self.n_hiddens_gen,
-            self.assumptions.visible_layer_size(self.n_inpt),
-            self.gen_transfers, self.assumptions.statify_visible,
-            self.p_dropout_inpt, self.p_dropout_hiddens, self.p_dropout_hidden_to_out,
-            declare=declare)
-
-    def _make_condition(self, rec_model):
-        return T.concatenate(
-            [T.zeros_like(rec_model.inpt[:1]), rec_model.inpt[:-1]], 0)
+    def make_cond(self, inpt):
+        return T.concatenate([T.zeros_like(inpt[:1]), inpt[:-1]], 0)
 
     def initialize(self,
                    par_std=1, par_std_affine=None, par_std_rec=None,
@@ -817,20 +961,21 @@ class StochasticRnn(GenericVariationalAutoEncoder):
                    sparsify_affine=None, sparsify_rec=None,
                    spectral_radius=None):
         climin.initialize.randomize_normal(self.parameters.data, 0, par_std)
-        all_layers = self.vae.recog.layers + self.vae.gen.layers
+        all_layers = self.vae.recog.rnn.layers + self.vae.gen.rnn.layers
+        P = self.parameters
         for i, layer in enumerate(all_layers):
-            if hasattr(layer, 'recurrent'):
-                p = self.parameters[layer.recurrent.weights]
+            if isinstance(layer, FDRecurrent):
+                p = P[layer.weights]
                 if par_std_rec:
                     climin.initialize.randomize_normal(p, 0, par_std_rec)
                 if sparsify_rec:
                     climin.initialize.sparsify_columns(p, sparsify_rec)
                 if spectral_radius:
                     climin.initialize.bound_spectral_radius(p, spectral_radius)
-                self.parameters[layer.recurrent.initial_mean][...] = 0
-                self.parameters[layer.recurrent.initial_std][...] = 1
-            if hasattr(layer, 'affine'):
-                p = self.parameters[layer.affine.weights]
+                P[layer.initial_mean][...] = 0
+                P[layer.initial_std][...] = 1
+            if isinstance(layer, AffineNonlinear):
+                p = self.parameters[layer.weights]
                 if par_std_affine:
                     if i == 0 and par_std_in:
                         climin.initialize.randomize_normal(p, 0, par_std_in)
@@ -839,121 +984,67 @@ class StochasticRnn(GenericVariationalAutoEncoder):
                 if sparsify_affine:
                     climin.initialize.sparsify_columns(p, sparsify_affine)
 
-                self.parameters[layer.affine.bias][...] = 0
+                self.parameters[layer.bias][...] = 0
 
-    def _make_gen_hidden(self):
-        hidden_exprs = [T.concatenate(i.recurrent.outputs, 2)
-                        for i in self.vae.gen.hidden_layers]
+    #def _make_gen_hidden(self):
+    #    hidden_exprs = [T.concatenate(i.recurrent.outputs, 2)
+    #                    for i in self.vae.gen.hidden_layers]
 
-        return self.function(['inpt'], hidden_exprs)
+    #    return self.function(['inpt'], hidden_exprs)
 
-    def gen_hidden(self, X):
-        if getattr(self, 'f_gen_hiddens', None) is None:
-            self.f_gen_hiddens = self._make_gen_hidden()
-        return self.f_gen_hiddens(X)
+    #def gen_hidden(self, X):
+    #    if getattr(self, 'f_gen_hiddens', None) is None:
+    #        self.f_gen_hiddens = self._make_gen_hidden()
+    #    return self.f_gen_hiddens(X)
 
     def sample(self, n_time_steps, prefix=None, visible_map=False):
         if prefix is None:
-            raise ValueError('prefix is not None')
-        if not visible_map:
-            raise ValueError('no visible sampling yet')
-        if not isinstance(self.assumptions, DiagGaussLatentAssumption):
-            raise ValueError('only for latent gauss assumption')
-        if not isinstance(self.assumptions, DiagGaussVisibleAssumption):
-            raise ValueError('only for visible gauss assumption')
+            raise ValueError('need to give prefix')
 
         if not hasattr(self, 'f_gen'):
-            gen_expr = T.concatenate(self.vae.gen.outputs, 2)
+            vis_sample = self.vae.gen.inpt
+
             inpt_m1 = T.tensor3('inpt_m1')
             inpt_m1.tag.test_value = np.zeros((3, 2, self.n_inpt))
-            sample = T.tensor3('sample_sub')
-            sample.tag.test_value = np.zeros((3, 2, self.n_latent))
-            gen_inpt_sub = T.concatenate([sample, inpt_m1], axis=2)
-            gen_expr = theano.clone(gen_expr,
-                {self.vae.gen.inpt: gen_inpt_sub})
 
-            self.f_gen = self.function([inpt_m1, sample], gen_expr)
+            latent_prior_sample = T.tensor3('latent_prior_sample')
+            latent_prior_sample.tag.test_value = np.zeros((3, 2, self.n_latent))
+
+            gen_inpt_sub = T.concatenate([latent_prior_sample, inpt_m1], axis=2)
+
+            vis_sample = theano.clone(
+                vis_sample,
+                {self.vae.gen.inpt: gen_inpt_sub}
+            )
+
+            gen_out_sub = theano.clone(self.vae.gen.rnn.output, {self.vae.gen.inpt: gen_inpt_sub})
+            self._f_gen_output = self.function([inpt_m1, latent_prior_sample], gen_out_sub, mode='FAST_COMPILE',
+                                                on_unused_input ='warn')
+            out = self.vae.gen.sample() if not visible_map else self.vae.gen.maximum
+            self._f_visible_sample_by_gen_output = self.function([self.vae.gen.rnn.output], out,
+                                                            on_unused_input ='warn')
+
+            def f_gen(inpt_m1, latent_prior_sample):
+                rnn_out = self._f_gen_output(inpt_m1, latent_prior_sample)
+                return self._f_visible_sample_by_gen_output(rnn_out)
+
+            self.f_gen = f_gen
 
         prefix_length = prefix.shape[0]
-        S = np.empty((prefix.shape[0] + n_time_steps, prefix.shape[1], prefix.shape[2])).astype(theano.config.floatX)
+        S = np.empty(
+            (prefix.shape[0] + n_time_steps, prefix.shape[1],
+            prefix.shape[2])
+        ).astype(theano.config.floatX)
         S[:prefix_length][...] = prefix
         latent_samples = np.zeros(
             (prefix.shape[0] + n_time_steps, prefix.shape[1], self.n_latent)
             ).astype(theano.config.floatX)
         latent_samples[prefix_length:] = np.random.standard_normal(
             (n_time_steps, prefix.shape[1], self.n_latent))
-        for i in range(n_time_steps - 1):
-            p = self.f_gen(S[:prefix_length + i], latent_samples[:prefix_length + i])[-1, :, :self.n_inpt]
+        for i in range(n_time_steps):
+            p = self.f_gen(S[:prefix_length + i],
+                        latent_samples[:prefix_length + i]
+                        )[-1, :, :self.n_inpt]
             S[prefix_length + i] = p
+
         return S[prefix_length + 1:]
-
-
-class BidirectStochasticRnn(StochasticRnn):
-
-    def _make_recog(self, inpt, declare):
-        return  neural.BidirectFastDropoutRnn(
-            inpt, self.n_inpt,
-            self.n_hiddens_recog,
-            self.n_latent,
-            self.recog_transfers, self.assumptions.statify_latent,
-            p_dropout_inpt='parameterized',
-            p_dropout_hiddens=['parameterized' for _ in self.n_hiddens_recog],
-            p_dropout_hidden_to_out='parameterized',
-            declare=declare)
-
-    def initialize(self,
-                   par_std=1, par_std_affine=None, par_std_rec=None,
-                   par_std_in=None,
-                   sparsify_affine=None, sparsify_rec=None,
-                   spectral_radius=None):
-        P = self.parameters
-        climin.initialize.randomize_normal(P.data, 0, par_std)
-        for i, layer in enumerate(self.vae.gen.layers):
-            if hasattr(layer, 'recurrent'):
-                p = P[layer.recurrent.weights]
-                if par_std_rec:
-                    climin.initialize.randomize_normal(p, 0, par_std_rec)
-                if sparsify_rec:
-                    climin.initialize.sparsify_columns(p, sparsify_rec)
-                if spectral_radius:
-                    climin.initialize.bound_spectral_radius(p, spectral_radius)
-                P[layer.recurrent.initial_mean][...] = 0
-                P[layer.recurrent.initial_std][...] = 1
-            if hasattr(layer, 'affine'):
-                p = P[layer.affine.weights]
-                if par_std_affine:
-                    if i == 0 and par_std_in:
-                        climin.initialize.randomize_normal(p, 0, par_std_in)
-                    else:
-                        climin.initialize.randomize_normal(p, 0, par_std_affine)
-                if sparsify_affine:
-                    climin.initialize.sparsify_columns(p, sparsify_affine)
-
-                P[layer.affine.bias][...] = 0
-
-        for i, layer in enumerate(self.vae.recog.layers):
-            if hasattr(layer, 'recurrent_forward'):
-                for p in (P[layer.recurrent_forward.weights],
-                          P[layer.recurrent_backward.weights]):
-
-                    if par_std_rec:
-                        climin.initialize.randomize_normal(p, 0, par_std_rec)
-                    if sparsify_rec:
-                        climin.initialize.sparsify_columns(p, sparsify_rec)
-                    if spectral_radius:
-                        climin.initialize.bound_spectral_radius(p, spectral_radius)
-                P[layer.recurrent_forward.initial_mean][...] = 0
-                P[layer.recurrent_forward.initial_std][...] = 1
-                P[layer.recurrent_backward.initial_mean][...] = 0
-                P[layer.recurrent_backward.initial_std][...] = 1
-            if hasattr(layer, 'affine'):
-                p = P[layer.affine.weights]
-                if par_std_affine:
-                    if i == 0 and par_std_in:
-                        climin.initialize.randomize_normal(p, 0, par_std_in)
-                    else:
-                        climin.initialize.randomize_normal(p, 0, par_std_affine)
-                if sparsify_affine:
-                    climin.initialize.sparsify_columns(p, sparsify_affine)
-
-                P[layer.affine.bias][...] = 0

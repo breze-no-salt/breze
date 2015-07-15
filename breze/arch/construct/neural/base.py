@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 
 
-from collections import namedtuple
-
 import theano.tensor as T
 
 from breze.arch.component import transfer as _transfer
@@ -57,6 +55,159 @@ class Mlp(Layer):
         self.output = inpt
 
 
+class SimpleCnn2d(Layer):
+
+    def __init__(self, inpt, image_height, image_width, n_channel,
+                 n_hiddens, filter_shapes, n_output,
+                 hidden_transfers, out_transfer,
+                 batch_size=None,
+                 declare=None, name=None):
+        self.inpt = inpt
+        self.image_height = image_height
+        self.image_width = image_width
+        self.n_channel = n_channel
+        self.n_hiddens = n_hiddens
+        self.filter_shapes = filter_shapes
+        self.n_output = n_output
+        self.hidden_transfers = hidden_transfers
+        self.out_transfer = out_transfer
+        self.batch_size = batch_size
+
+        super(SimpleCnn2d, self).__init__(declare, name)
+
+    def _forward(self):
+        self.layers = []
+
+        n_inpts = [self.n_channel] + self.n_hiddens[:-1]
+        n_outputs = self.n_hiddens
+        transfers = self.hidden_transfers
+
+        inpt = self.inpt
+        height, width = self.image_height, self.image_width
+        for n, m, fs, t in zip(n_inpts, n_outputs, self.filter_shapes,
+                               transfers):
+            filter_height, filter_width = fs
+            layer = simple.Conv2d(
+                inpt, height, width, n,
+                filter_height, filter_width,
+                m, t,
+                n_samples=self.batch_size,
+                declare=self.declare)
+            self.layers.append(layer)
+
+            inpt = layer.output
+            height, width = layer.output_height, layer.output_width
+
+        inpt = inpt.reshape((inpt.shape[0], -1))
+
+        self.final_layer = simple.AffineNonlinear(
+            inpt, height * width * m, self.n_output, self.out_transfer,
+            declare=self.declare)
+
+        self.output = self.final_layer.output
+
+
+class Cnn2d(Layer):
+
+    def __init__(self, inpt, image_height, image_width, n_channel,
+                 n_hiddens, filter_shapes, pool_shapes,
+                 hidden_transfers,
+                 batch_size=None,
+                 declare=None, name=None):
+        self.inpt = inpt
+        self.image_height = image_height
+        self.image_width = image_width
+        self.n_channel = n_channel
+        self.n_hiddens = n_hiddens
+        self.filter_shapes = filter_shapes
+        self.pool_shapes = pool_shapes
+        self.hidden_transfers = hidden_transfers
+        self.batch_size = batch_size
+
+        super(Cnn2d, self).__init__(declare, name)
+
+    def _forward(self):
+        self.layers = []
+
+        n_inpts = [self.n_channel] + self.n_hiddens[:-1]
+        n_outputs = self.n_hiddens
+        transfers = self.hidden_transfers
+
+        inpt = self.inpt
+        height, width = self.image_height, self.image_width
+        for n, m, fs, ps, t in zip(n_inpts, n_outputs, self.filter_shapes,
+                                   self.pool_shapes, transfers):
+            filter_height, filter_width = fs
+            layer = simple.Conv2d(
+                inpt, height, width, n,
+                filter_height, filter_width,
+                m, 'identity',
+                n_samples=self.batch_size,
+                subsample=(1, 1),
+                declare=self.declare)
+            self.layers.append(layer)
+
+            layer = simple.MaxPool2d(
+                layer.output, layer.output_height, layer.output_width,
+                ps[0], ps[1], layer.n_output, transfer=t)
+
+            self.layers.append(layer)
+
+            inpt = layer.output
+            height, width = layer.output_height, layer.output_width
+
+        self.output = self.layers[-1].output
+
+
+class Lenet(Layer):
+
+    def __init__(self, inpt, image_height, image_width, n_channel,
+                 n_hiddens_conv, filter_shapes, pool_shapes,
+                 n_hiddens_full,
+                 hidden_transfers_conv, hidden_transfers_full,
+                 n_output,
+                 out_transfer,
+                 declare=None, name=None):
+        self.inpt = inpt
+        self.image_height = image_height
+        self.image_width = image_width
+        self.n_channel = n_channel
+        self.n_hiddens_conv = n_hiddens_conv
+        self.n_hiddens_full = n_hiddens_full
+        self.filter_shapes = filter_shapes
+        self.pool_shapes = pool_shapes
+        self.hidden_transfers_conv = hidden_transfers_conv
+        self.hidden_transfers_full = hidden_transfers_full
+        self.n_output = n_output
+        self.out_transfer = out_transfer
+
+        super(Lenet, self).__init__(declare=declare, name=name)
+
+    def _forward(self):
+        self.cnn = Cnn2d(
+            self.inpt,
+            self.image_height, self.image_width,
+            self.n_channel, self.n_hiddens_conv,
+            self.filter_shapes, self.pool_shapes,
+            self.hidden_transfers_conv,
+            declare=self.declare)
+
+        last_cnn_layer = self.cnn.layers[-1]
+        n_cnn_outputs = (last_cnn_layer.output_height *
+                         last_cnn_layer.output_width *
+                         last_cnn_layer.n_output)
+
+        mlp_inpt = self.cnn.output.reshape((self.cnn.output.shape[0], -1))
+        self.mlp = Mlp(
+            mlp_inpt,
+            n_cnn_outputs,
+            self.n_hiddens_full, self.n_output,
+            self.hidden_transfers_full, self.out_transfer,
+            declare=self.declare)
+
+        self.output = self.mlp.output
+
+
 class FastDropoutMlp(Layer):
 
     def __init__(self, inpt, n_inpt, n_hiddens, n_output,
@@ -72,7 +223,11 @@ class FastDropoutMlp(Layer):
         self.hidden_transfers = hidden_transfers
         self.out_transfer = out_transfer
         self.p_dropout_inpt = p_dropout_inpt
+
+        if isinstance(p_dropout_hiddens, float):
+            p_dropout_hiddens = [p_dropout_hiddens] * len(hidden_transfers)
         self.p_dropout_hiddens = p_dropout_hiddens
+
         self.dropout_parameterized = dropout_parameterized
 
         super(FastDropoutMlp, self).__init__(declare, name)
@@ -84,6 +239,7 @@ class FastDropoutMlp(Layer):
         n_inpts = [self.n_inpt] + self.n_hiddens
         n_outputs = self.n_hiddens + [self.n_output]
         transfers = self.hidden_transfers + [self.out_transfer]
+
         p_dropouts = [self.p_dropout_inpt] + self.p_dropout_hiddens
 
         inpt_mean = self.inpt
@@ -113,12 +269,14 @@ class FastDropoutMlp(Layer):
 
 class Rnn(Layer):
 
-    HiddenLayer = namedtuple('HiddenLayer', 'affine recurrent'.split())
-    OutputLayer = namedtuple('OutputLayer', ['affine'])
+    @property
+    def affine_layers(self):
+        return [i for i in self.layers if isinstance(i, simple.AffineNonlinear)]
 
     @property
-    def hidden_layers(self):
-        return [i for i in self.layers if isinstance(i, self.HiddenLayer)]
+    def recurrent_layers(self):
+        return [i for i in self.layers
+                if isinstance(i, vp_sequential.FDRecurrent)]
 
     def __init__(self, inpt,
                  n_inpt, n_hiddens, n_output,
@@ -137,7 +295,7 @@ class Rnn(Layer):
 
     def _forward(self):
         transfers = self.hidden_transfers
-        transfers =[lookup(i, _transfer) for i in transfers]
+        transfers = [lookup(i, _transfer) for i in transfers]
         transfer_insizes = [getattr(i, 'in_size', 1) for i in transfers]
         transfer_outsizes = [1] + [getattr(i, 'out_size', 1) for i in transfers]
 
@@ -159,24 +317,25 @@ class Rnn(Layer):
             pre_recurrent = pre_recurrent_flat.reshape(
                 (n_time_steps, -1, m * tis))
 
+            tout = getattr(t, 'out_size', 1)
             recurrent = sequential.Recurrent(
-                pre_recurrent, m * t.out_size, t, declare=self.declare)
+                pre_recurrent, m * tout, t, declare=self.declare)
             x = recurrent.output
 
-            self.layers.append(self.HiddenLayer(affine, recurrent))
+            self.layers += [affine, recurrent]
 
-        x_flat = x.reshape((-1, m * t.out_size))
+        x_flat = x.reshape((-1, m * tout))
         out_transfer = lookup(self.out_transfer, _transfer)
         out_in_size = getattr(out_transfer, 'in_size', 1)
         output_affine = simple.AffineNonlinear(
-            x_flat, m, self.n_output * out_in_size , out_transfer,
+            x_flat, m, self.n_output * out_in_size, out_transfer,
             declare=self.declare
             )
 
-        self.layers.append(self.OutputLayer(affine))
+        self.layers.append(affine)
 
         output = output_affine.output.reshape(
-                            (n_time_steps, -1, self.n_output))
+            (n_time_steps, -1, self.n_output))
 
         if self.pooling:
             self.pre_pooling = output
@@ -187,14 +346,13 @@ class Rnn(Layer):
 
 class FastDropoutRnn(Layer):
 
-    InputLayer = namedtuple('InputLayer', ['fast_dropout'])
-    HiddenLayer = namedtuple('HiddenLayer',
-                             'affine recurrent'.split())
-    OutputLayer = namedtuple('OutputLayer', 'fast_dropout affine'.split())
+    @property
+    def affine_layers(self):
+        return [i for i in self.layers if isinstance(i, vp_simple.AffineNonlinear)]
 
     @property
-    def hidden_layers(self):
-        return [i for i in self.layers if isinstance(i, self.HiddenLayer)]
+    def recurrent_layers(self):
+        return [i for i in self.layers if isinstance(i, vp_sequential.FDRecurrent)]
 
     def __init__(self, inpt,
                  n_inpt, n_hiddens, n_output,
@@ -213,8 +371,15 @@ class FastDropoutRnn(Layer):
         self.pooling = pooling
 
         self.p_dropout_inpt = p_dropout_inpt
+
+        if isinstance(p_dropout_hiddens, float):
+            p_dropout_hiddens = [p_dropout_hiddens] * len(hidden_transfers)
         self.p_dropout_hiddens = p_dropout_hiddens
-        self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
+
+        if p_dropout_hidden_to_out is None:
+            self.p_dropout_hidden_to_out = p_dropout_hiddens[-1]
+        else:
+            self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
 
         super(FastDropoutRnn, self).__init__(declare, name)
 
@@ -242,12 +407,14 @@ class FastDropoutRnn(Layer):
             pre_rec_mean, pre_rec_var, n_output, transfer, p_dropout=p_dropout,
             declare=self.declare)
         x_mean, x_var = recurrent.outputs
-        layer = self.HiddenLayer(affine, recurrent)
-        return x_mean, x_var, layer
+
+        self.layers += [affine, recurrent]
+
+        return x_mean, x_var
 
     def _forward(self):
         transfers = self.hidden_transfers
-        transfers =[lookup(i, vp_transfer) for i in transfers]
+        transfers = [lookup(i, vp_transfer) for i in transfers]
         transfer_insizes = [getattr(i, 'in_size', 1) for i in transfers]
         transfer_outsizes = [1] + [getattr(i, 'out_size', 1) for i in transfers]
 
@@ -269,15 +436,14 @@ class FastDropoutRnn(Layer):
 
         fd_layer = vp_simple.FastDropout(
             self.inpt, inpt_var, p_dropout_inpt)
-        self.layers.append(self.InputLayer(fd_layer))
+        self.layers.append(fd_layer)
         x_mean, x_var = fd_layer.outputs
 
         for m, n, t, d, tis, tos in zip(n_incoming, n_outgoing, transfers,
                                         p_dropouts,
                                         transfer_insizes, transfer_outsizes):
-            x_mean, x_var, layer = self._make_rec_layer(
+            x_mean, x_var = self._make_rec_layer(
                 x_mean, x_var, m, n, t, tos, tis, d)
-            self.layers.append(layer)
 
         x_mean_flat = wild_reshape(x_mean, (-1, n))
         x_var_flat = wild_reshape(x_var, (-1, n))
@@ -295,7 +461,7 @@ class FastDropoutRnn(Layer):
             x_mean_flat, x_var_flat, n, self.n_output, self.out_transfer,
             declare=self.declare)
         output_mean_flat, output_var_flat = affine.outputs
-        self.layers.append(self.OutputLayer(fd, affine))
+        self.layers += [fd, affine]
 
         output_mean = wild_reshape(
             output_mean_flat, (n_time_steps, -1, self.n_output))
@@ -310,10 +476,6 @@ class FastDropoutRnn(Layer):
 
 
 class BidirectFastDropoutRnn(FastDropoutRnn):
-
-    HiddenLayer = namedtuple(
-        'HiddenLayer',
-        'affine recurrent_forward recurrent_backward'.split())
 
     def _make_rec_layer(self, x_mean, x_var, n_inpt, n_output, transfer,
                         tos, tis, p_dropout):
@@ -346,5 +508,5 @@ class BidirectFastDropoutRnn(FastDropoutRnn):
         x_mean = recurrent_fw.outputs[0] + recurrent_bw.outputs[0]
         x_var = recurrent_fw.outputs[1] + recurrent_bw.outputs[1]
 
-        layer = self.HiddenLayer(affine, recurrent_fw, recurrent_bw)
-        return x_mean, x_var, layer
+        self.layers += [affine, recurrent_fw, recurrent_bw]
+        return x_mean, x_var

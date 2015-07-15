@@ -176,19 +176,25 @@ def test_pickling_models():
     cPickle.dumps(m)
 
 
-def test_parameter_groups():
-    assert False, 'not implemented'
-
-
 def test_array_partition_views():
-    flat = np.arange(14).astype('float64')
-    partition = make_dictlist()
+    flat = np.arange(1024).astype('float64')
+    partition = {
+        'bla': 2,
+        'blo': [(2, 3), 5],
+        'blu': {'foo': (2, 4),
+                'far': [1, 2]},
+        'blubb': (2, 3),
+    }
 
     views = array_partition_views(flat, partition)
 
-    assert np.allclose(views['bar'], np.arange(4).reshape((2, 2)))
-    assert np.allclose(views['fank']['fenk'][0], 4.)
-    assert np.allclose(views['fank']['funk'], np.array([6, 7]).reshape((2, 1)))
+    assert views['bla'].shape == (2,)
+    assert views['blo'][0].shape == (2, 3)
+    assert views['blo'][1].shape == (5,)
+    assert views['blu']['foo'].shape == (2, 4)
+    assert views['blu']['far'][0].shape == (1,)
+    assert views['blu']['far'][1].shape == (2,)
+    assert views['blubb'].shape == (2, 3)
 
 
 def test_nested_exprs():

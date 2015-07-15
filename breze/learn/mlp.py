@@ -9,14 +9,16 @@ import climin
 import climin.util
 import climin.gd
 
+import numpy as np
+import theano
 import theano.tensor as T
 
 from breze.arch.component.varprop import loss as vp_loss
-from breze.arch.util import lookup
 from breze.arch.construct import neural
+from breze.arch.util import lookup
 
-from breze.arch.util import ParameterSet
 from breze.arch.construct.simple import SupervisedLoss
+from breze.arch.util import ParameterSet
 from breze.learn.base import SupervisedModel
 
 
@@ -75,7 +77,7 @@ class Mlp(SupervisedModel):
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
                  imp_weight=False,
-                 optimizer='lbfgs',
+                 optimizer='adam',
                  batch_size=None,
                  max_iter=1000, verbose=False):
         self.n_inpt = n_inpt
@@ -101,6 +103,10 @@ class Mlp(SupervisedModel):
         target = T.matrix('target')
         parameters = ParameterSet()
 
+        if theano.config.compute_test_value:
+            inpt.tag.test_value = np.empty((2, self.n_inpt))
+            target.tag.test_value = np.empty((2, self.n_output))
+
         self.mlp = neural.Mlp(
             inpt,
             self.n_inpt, self.n_hiddens, self.n_output,
@@ -109,6 +115,8 @@ class Mlp(SupervisedModel):
 
         if self.imp_weight:
             imp_weight = T.matrix('imp_weight')
+            if theano.config.compute_test_value:
+                imp_weight.tag.test_value = np.empty((2, self.n_output))
         else:
             imp_weight = None
 
@@ -182,7 +190,7 @@ class DropoutMlp(Mlp):
                  hidden_transfers, out_transfer, loss,
                  p_dropout_inpt=.2, p_dropout_hiddens=.5,
                  max_length=None,
-                 optimizer='rprop',
+                 optimizer='adam',
                  batch_size=None,
                  max_iter=1000, verbose=False):
         """Create a DropoutMlp object.
@@ -242,7 +250,7 @@ class FastDropoutNetwork(SupervisedModel):
     def __init__(self, n_inpt, n_hiddens, n_output,
                  hidden_transfers, out_transfer, loss,
                  imp_weight=False,
-                 optimizer='lbfgs',
+                 optimizer='adam',
                  batch_size=None,
                  p_dropout_inpt=.2,
                  p_dropout_hiddens=.5,
@@ -294,6 +302,10 @@ class FastDropoutNetwork(SupervisedModel):
         target = T.matrix('target')
         parameters = ParameterSet()
 
+        if theano.config.compute_test_value:
+            inpt.tag.test_value = np.empty((2, self.n_inpt))
+            target.tag.test_value = np.empty((2, self.n_output))
+
         self.mlp = neural.FastDropoutMlp(
             inpt,
             self.n_inpt, self.n_hiddens, self.n_output,
@@ -303,6 +315,8 @@ class FastDropoutNetwork(SupervisedModel):
 
         if self.imp_weight:
             imp_weight = T.matrix('imp_weight')
+            if theano.config.compute_test_value:
+                imp_weight.tag.test_value = np.empty((2, self.n_output))
         else:
             imp_weight = None
 
