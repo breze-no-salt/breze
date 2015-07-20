@@ -11,8 +11,6 @@ import theano.sandbox.cuda.var
 
 from breze.utils import dictlist
 
-import attrdict
-
 
 try:
     gpu_environ = os.environ['BREZE_PARAMETERSET_DEVICE']
@@ -302,44 +300,62 @@ class ParameterSet(object):
         in this dictionary.
     """
 
-    def __init__(self, **kwargs):
-        dictlist.replace(kwargs, lambda x: (x,) if isinstance(x, int) else x)
-        self.n_pars = n_pars_by_partition(kwargs)
+    def __init__(self):
+        self._alloced = False
+        self._n_pars = 0
+        self._var_to_slice = {}
+        self._var_to_shape = {}
 
-        # Create two representations of the parameters of the object. The first
-        # is the symbolic theano variable (of which the type is GPU/CPU
-        # specific), the second either a gnumpy or numpy array (depending on
-        # GPU/CPU again). Also set a default size for testing.
         if GPU:
-            self.data = gnumpy.zeros(self.n_pars)
             self.flat = theano.sandbox.cuda.fvector('parameters')
         else:
-            self.data = np.empty(self.n_pars).astype(theano.config.floatX)
             self.flat = T.vector('parameters')
 
-        self.flat.tag.test_value = self.data
+        if theano.config.compute_test_value:
+            self.flat.tag.test_value = np.empty(
+                (20480,), dtype=theano.config.floatX)
 
-        # Go through parameters and assign space and variable.
-        self.views = array_partition_views(self.data, kwargs)
+    def declare(self, shape, group=None):
+        if group is not None:
+            raise NotImplementedError('we do not know about groups yet')
 
-        # Make sure the keys are legit -- that they do not overwrite
-        # anything.
-        for key in kwargs:
-            if hasattr(self, key):
-                raise ValueError("%s is an illegal name for a variable")
+        shape = (shape,) if isinstance(shape, int) or isinstance(shape, long) else shape
+        size = np.prod(shape)
+        start, stop = self._n_pars, self._n_pars + size
+        self._n_pars = stop
+        x = self.flat[start:stop].reshape(shape)
+        self._var_to_slice[x] = (start, stop)
+        self._var_to_shape[x] = shape
+        return x
 
-        variables = array_partition_views(self.flat, kwargs)
-        variables = dictlist.copy(variables, dct_maker=attrdict.AttrDict)
-        self.__dict__.update(variables)
+    def view(self, variable, flat_arr=None):
+        if flat_arr is None:
+            flat_arr = self.data
+
+        start, stop = self._var_to_slice[variable]
+        return flat_arr[start:stop].reshape(self._var_to_shape[variable])
+
+    def alloc(self):
+        if self._alloced:
+            raise ValueError('cannot alloc ParameterSet more than once')
+        self._alloced = True
+
+        if GPU:
+            self.data = gnumpy.zeros(self._n_pars)
+        else:
+            self.data = np.empty(self._n_pars).astype(theano.config.floatX)
+
+        if theano.config.compute_test_value:
+            self.flat.tag.test_value = self.data
 
     def __contains__(self, key):
-        return key in self.views
+        return key in self._var_to_slice
 
     def __getitem__(self, key):
-        return self.views[key]
+        return self.view(key)
 
     def __setitem__(self, key, value):
-        self.views[key][:] = value
+        self.view(key)[...] = value
 
 
 class Model(object):
@@ -390,20 +406,13 @@ class Model(object):
     updates : dict
         Containing update variables, e.g. due to the use of ``theano.scan``.
     """
+
     def __init__(self):
         self.updates = collections.defaultdict(dict)
-        self._init_pars()
-        self._init_exprs()
 
         # This is a dictionary which is supposed to hold substitions of
         # variables from .exprs for the use with the GPU.
         self.gpu_variable_subs = {}
-
-    def _init_pars(self):
-        pass
-
-    def _init_exprs(self):
-        pass
 
     def _lookup(self, container, ident):
         tensor_types = (theano.tensor.basic.TensorVariable,
@@ -666,6 +675,50 @@ class WarnNaNMode(theano.Mode):
 
 
 def array_partition_views(array, partition):
+    """Return a dictlist with different items corresponding to different sub
+    views into an array.
+
+    This function can be used to use different parts of a one-dimensional
+    array as a collection of arrays with differing without the need to
+    reallocate. E.g the first half of an array might correspond to a matrix,
+    the next entry to a scalar and the rest to a vector.
+
+    The function takes two arguments. The first, ``array`` is supposed to
+    resemble the flat array, while the second is a dictlist partitioning the
+    array into views of given shapes.
+
+    Here, the leaves of ``partition`` will be treated as shapes, of which a
+    view into ``array`` should be contained in the result with the same path.
+
+
+    Parameters
+    ----------
+
+    array : np.array or gp.garray
+        numpy or gnumpy array of ndim 1.
+
+    partition : dictlist
+        Dictlist -- that is a a dictionary containing either lists or dicts as
+        its elements, except leave nodes. These should be either tuples or ints
+        to represent shapes of arays.
+
+
+    Examples
+    --------
+
+    >>> from breze.arch.util import array_partition_views
+    >>> partition = {'first': (2,),
+    ...              'second': (2, 3),}
+    >>> flat = np.arange(8)
+    >>> views = array_partition_views(flat, partition)
+    >>> views['first']
+    ... # doctest: +NORMALIZE_WHITESPACE
+        array([0, 1])
+    >>> views['second']
+    ... # doctest: +NORMALIZE_WHITESPACE
+        array([[2, 3, 4],
+               [5, 6, 7]])
+    """
     views = dictlist.copy(partition)
     pathsshapes = sorted(list(dictlist.leafs(partition)))
 

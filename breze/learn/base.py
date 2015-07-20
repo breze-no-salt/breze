@@ -15,12 +15,16 @@ import numpy as np
 import theano
 import theano.tensor as T
 
+#from climin.util import iter_minibatches2 as iter_minibatches
 from climin.util import iter_minibatches
 
 
 GPU = theano.config.device == 'gpu'
 if GPU:
     import gnumpy as gp
+
+
+from breze.arch.util import Model
 
 
 def cast_array_to_local_type(arr):
@@ -37,6 +41,8 @@ def cast_array_to_local_type(arr):
     elif isinstance(arr, np.ndarray) and arr.dtype != theano.config.floatX:
         res = arr.astype(theano.config.floatX)
     return res
+
+theanox = cast_array_to_local_type
 
 
 def assert_ndarray(arr):
@@ -170,7 +176,7 @@ class BrezeWrapperBase(object):
         self.CTRL_C_FLAG = True
 
 
-class SupervisedBrezeWrapperBase(BrezeWrapperBase):
+class SupervisedModel(Model, BrezeWrapperBase):
 
     data_arguments = 'inpt', 'target'
     sample_dim = 0, 0
@@ -185,6 +191,35 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
     _f_dloss = None
 
     gradient_clip_threshold = None
+
+    @property
+    def inpt(self):
+        return self.exprs['inpt']
+
+    @property
+    def output(self):
+        return self.exprs['output']
+
+    @property
+    def target(self):
+        return self.exprs['target']
+
+    @property
+    def loss(self):
+        return self.exprs['loss']
+
+    def __init__(self, inpt, target, output, loss, parameters):
+        self.parameters = parameters
+        self.parameters.alloc()
+
+        self.exprs = {
+            'inpt': inpt,
+            'target': target,
+            'output': output,
+            'loss': loss,
+        }
+
+        super(SupervisedModel, self).__init__()
 
     def _make_loss_functions(self, mode=None, givens=None,
                              on_unused_input='raise', imp_weight=False):
@@ -350,7 +385,7 @@ class SupervisedBrezeWrapperBase(BrezeWrapperBase):
         return self.f_score(X, Z, imp_weight)
 
 
-class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
+class UnsupervisedModel(Model, BrezeWrapperBase):
 
     data_arguments = 'inpt',
     sample_dim = 0,
@@ -359,6 +394,31 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
     _f_dloss = None
 
     gradient_clip_threshold = None
+
+    @property
+    def inpt(self):
+        return self.exprs['inpt']
+
+    @property
+    def output(self):
+        return self.exprs['output']
+
+    @property
+    def loss(self):
+        return self.exprs['loss']
+
+    def __init__(self, inpt, output, loss, parameters, imp_weight=None):
+        self.parameters = parameters
+        self.parameters.alloc()
+
+        self.exprs = {
+            'inpt': inpt,
+            'output': output,
+            'loss': loss,
+            'imp_weight': imp_weight
+        }
+
+        super(UnsupervisedModel, self).__init__()
 
     def _make_loss_functions(self, mode=None, givens=None,
                              on_unused_input='raise', imp_weight=False):
@@ -435,7 +495,7 @@ class UnsupervisedBrezeWrapperBase(BrezeWrapperBase):
     def _make_args(self, X, W=None):
         batch_size = getattr(self, 'batch_size', None)
         use_imp_weight = W is not None
-        if self.imp_weight != use_imp_weight:
+        if self.use_imp_weight != use_imp_weight:
             raise ValueError('need to give ``W`` in accordinace to '
                              '``self.imp_weight``')
         item = [X, W] if use_imp_weight else [X]

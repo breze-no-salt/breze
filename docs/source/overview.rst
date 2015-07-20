@@ -72,7 +72,7 @@ CPU/GPU usage. Nevertheless, only few models are of openly available.
 Furthermore, some tasks are still rather repetitive. Breze jumps in in the
 following two ways:
 
- - Quite some models are implemented: neural networks, Gaussian processes,
+ - Quite some models are implemented: neural networks,
    several feature extractors and recurrent networks.
  - Breze makes it easier to do the bookkeeping: holding groups of expressions,
    accessing parameter variables and their values, compiling functions

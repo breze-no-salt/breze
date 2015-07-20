@@ -4,6 +4,8 @@
 
 import datetime
 
+import numpy as np
+
 from climin import mathadapt as ma
 from climin.stops import never, always
 from climin.util import clear_info
@@ -94,8 +96,8 @@ class Trainer(object):
         False. Useful for distinguishing between interrupt and stop.
     """
 
-    def __init__(self, model, stop, score=score_.simple,
-                 pause=always, interrupt=never, report=report_.point_print):
+    def __init__(self, model, data, stop, score=score_.simple,
+                 pause=always, interrupt=never, report=report_.point_print, loss_keys=['val']):
         """Create a Trainer object.
 
         Parameters
@@ -127,11 +129,15 @@ class Trainer(object):
 
         self.model = model
 
+        self.data = data
+
         self._score = score
         self.pause = pause
         self.stop = stop
         self.interrupt = interrupt
         self.report = report
+
+        self.loss_keys = loss_keys
 
         self.best_pars = None
         self.best_loss = float('inf')
@@ -139,51 +145,44 @@ class Trainer(object):
         self.infos = []
         self.current_info = None
 
-        self.eval_data = {}
-        self.val_key = None
+
         self.stopped = False
 
     def score(self, *data):
         return self._score(self.model.score, *data)
 
-    def fit(self, *fit_data):
-        """Run ``.iter_fit()`` until it terminates
+    def fit(self):
+            """Run ``.iter_fit()`` until it terminates
+            Termination will occur when either stop or interrupt is True. During
+            each pause, ``.report(info)`` will be executed."""
+            for i in self.iter_fit():
+                self.report(i)
 
-        Termination will occur when either stop or interrupt is True. During
-        each pause, ``.report(info)`` will be executed."""
-        for i in self.iter_fit(*fit_data):
-            self.report(i)
-
-    def iter_fit(self, *fit_data):
+    def iter_fit(self):
         """Iteratively fit the given training data.
-
         Generator function containing the main logic of the Trainer object.
-
         The arguments are of variable length and have to match that of the
         ``model.iter_fit()`` and ultimately the used loss function of that
         model.
-
         Each iteration of the fitting constitutes of running the optimizer of
         the model until either interrupt or pause returns True.
-
         In both cases, the generator will yield to the user. Additionally:
-
             - If interrupt returns True, the generator will stop yielding
             values afterwards.
             - stop will be tested. If it is true it will stop yielding
             afterwards and additionally ``.stopped`` will be set to True
             afterwards.
             - ``best_pars`` and ``best_loss`` will be updated.
-
         The values yielded from this function will be climin info dictionaries
         stripped from any numpy or gnumpy arrays.
         """
-        for info in self.model.iter_fit(*fit_data, info_opt=self.current_info):
+        for info in self.model.iter_fit(*self.data['train'], info_opt=self.current_info):
             interrupt = self.interrupt(info)
             if self.pause(info) or interrupt:
-                info['val_loss'] = ma.scalar(self.score(*self.eval_data[self.val_key]))
+                for key in self.loss_keys:
+                    info['%s_loss' % (key)] = ma.scalar(self.score(*self.data[key]))
 
-                cur_val_loss = info['%s_loss' % self.val_key]
+                cur_val_loss = info['val_loss']
                 if cur_val_loss < self.best_loss:
                     self.best_loss = cur_val_loss
                     self.best_pars = self.model.parameters.data.copy()
@@ -206,3 +205,12 @@ class Trainer(object):
                     break
                 if interrupt:
                     break
+
+
+    def switch_to_best_pars(self):
+        last_pars = self.model.parameters.data.copy()
+        self.model.parameters.data[...] = self.best_pars
+        return last_pars
+
+    def switch_to_pars(self, pars):
+        self.model.parameters.data[...] = pars
