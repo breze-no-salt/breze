@@ -4,3 +4,6 @@ cover/*
 *.pyc
 notebooks/.ipynb*
 notebooks/*pickle
+.coverage
+coverage-html/**
+.noseids

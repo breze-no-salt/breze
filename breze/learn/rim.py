@@ -57,7 +57,7 @@ class Rim(UnsupervisedModel,
 
     transform_expr_name = 'output'
 
-    def __init__(self, n_inpt, n_cluster, c_rim, optimizer='lbfgs',
+    def __init__(self, n_inpt, n_cluster, c_rim, optimizer='rprop',
                  max_iter=1000, verbose=False):
         """Create a Rim object.
 
@@ -110,7 +110,7 @@ class Rim(UnsupervisedModel,
                                      'softmax', declare=P.declare)
 
         self.loss_layer = RimLoss(self.layer.output, [self.layer.weights],
-                                   self.c_rim)
+                                  self.c_rim)
 
         super(Rim, self).__init__(
             inpt=inpt, output=self.layer.output, loss=self.loss_layer.total,

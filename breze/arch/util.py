@@ -310,10 +310,8 @@ class ParameterSet(object):
             self.flat = theano.sandbox.cuda.fvector('parameters')
         else:
             self.flat = T.vector('parameters')
-
-        if theano.config.compute_test_value:
-            self.flat.tag.test_value = np.empty(
-                (20480,), dtype=theano.config.floatX)
+        if theano.config.compute_test_value in ('raise', 'warn'):
+            self.flat.tag.test_value = np.empty(1024 ** 2)
 
     def declare(self, shape, group=None):
         if group is not None:
@@ -324,6 +322,11 @@ class ParameterSet(object):
         start, stop = self._n_pars, self._n_pars + size
         self._n_pars = stop
         x = self.flat[start:stop].reshape(shape)
+        #if theano.config.compute_test_value in ('raise', 'warn'):
+        #    old_par_test_val = self.flat.tag.test_value
+        #    new_par_test_val = np.zeros(old_par_test_val.size + size)
+        #    x.tag.test_value = new_par_test_val
+
         self._var_to_slice[x] = (start, stop)
         self._var_to_shape[x] = shape
         return x
@@ -740,3 +743,18 @@ def n_pars_by_partition(partition):
         n += np.prod(shape)
 
     return int(n)
+
+
+def wild_reshape(tensor, shape):
+    n_m1 = shape.count(-1)
+    if n_m1 > 1:
+        raise ValueError(' only one -1 allowed in shape')
+    elif n_m1 == 1:
+        rest = tensor.size
+        for s in shape:
+            if s != -1:
+                rest = rest // s
+        shape = tuple(i if i != -1 else rest for i in shape)
+    return tensor.reshape(shape)
+
+

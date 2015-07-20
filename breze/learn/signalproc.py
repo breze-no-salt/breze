@@ -2,13 +2,19 @@
 
 
 import itertools
+import warnings
 
 import climin.util
 import numpy as np
-import pywt
 import scipy.linalg
 import theano
 import theano.tensor as T
+
+try:
+    import pywt
+except ImportError:
+    warnings.warn('pywt not available--limited functionality',
+                  ImportWarning)
 
 
 def window_aggr_filter(func):

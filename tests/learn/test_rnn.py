@@ -3,7 +3,12 @@
 import numpy as np
 import theano
 import theano.tensor as T
+
 from theano.gradient import jacobian
+from nose.tools import with_setup
+
+from breze.arch.construct.layer.varprop.sequential import FDRecurrent
+from breze.arch.construct.layer.varprop.simple import AffineNonlinear
 
 from breze.learn.rnn import (
     SupervisedFastDropoutRnn,
@@ -24,11 +29,12 @@ def test_srnn_fit():
     rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'], max_iter=2)
     rnn.fit(X, Z)
 
-    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'],
-        max_iter=2, imp_weight=True)
+    rnn = SupervisedRnn(
+        2, [10], 3, hidden_transfers=['tanh'], max_iter=2, imp_weight=True)
     rnn.fit(X, Z, W)
 
 
+@with_setup(*use_test_values('raise'))
 def test_srnn_lstm_fit():
     X = np.random.standard_normal((13, 5, 4)).astype(theano.config.floatX)
     Z = np.random.standard_normal((13, 5, 3)).astype(theano.config.floatX)
@@ -36,14 +42,11 @@ def test_srnn_lstm_fit():
 
     X, Z, W = theano_floatx(X, Z, W)
 
-    old, theano.config.compute_test_value = theano.config.compute_test_value, 'raise'
-
     rnn = SupervisedRnn(4, [10], 3, hidden_transfers=['lstm'], max_iter=2)
     rnn.fit(X, Z)
 
-    theano.config.compute_test_value = old
 
-
+@with_setup(*use_test_values('raise'))
 def test_fdsrnn_lstm_fit():
     X = np.random.standard_normal((13, 5, 4)).astype(theano.config.floatX)
     Z = np.random.standard_normal((13, 5, 3)).astype(theano.config.floatX)
@@ -51,15 +54,13 @@ def test_fdsrnn_lstm_fit():
 
     X, Z, W = theano_floatx(X, Z, W)
 
-    old, theano.config.compute_test_value = theano.config.compute_test_value, 'raise'
-
-    rnn = SupervisedFastDropoutRnn(4, [10], 3, hidden_transfers=['lstm'], max_iter=2)
+    rnn = SupervisedFastDropoutRnn(4, [10], 3, hidden_transfers=['lstm'],
+                                   max_iter=2)
     rnn.mode = 'FAST_COMPILE'
     rnn.fit(X, Z)
 
-    theano.config.compute_test_value = old
 
-
+@with_setup(*use_test_values('raise'))
 def test_srnn_pooling_fit():
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((5, 3)).astype(theano.config.floatX)
@@ -71,11 +72,13 @@ def test_srnn_pooling_fit():
                         pooling='sum')
     rnn.fit(X, Z)
 
-    rnn = SupervisedRnn(2, [10], 3, hidden_transfers=['tanh'],
-        max_iter=2, imp_weight=True, pooling='sum')
+    rnn = SupervisedRnn(
+        2, [10], 3, hidden_transfers=['tanh'], max_iter=2, imp_weight=True,
+        pooling='sum')
     rnn.fit(X, Z, W)
 
 
+@with_setup(*use_test_values('raise'))
 def test_srnn_iter_fit():
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
@@ -92,6 +95,7 @@ def test_srnn_iter_fit():
             break
 
 
+@with_setup(*use_test_values('raise'))
 def test_srnn_predict():
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     X, = theano_floatx(X)
@@ -103,8 +107,8 @@ def test_srnn_predict():
     rnn.predict(X)
 
 
+@with_setup(*use_test_values('raise'))
 def test_fd_srnn_compile():
-    theano.config.compute_test_value = 'raise'
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
     Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
     W = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
@@ -220,7 +224,7 @@ def test_gn_product_rnn():
     assert np.allclose(Gp, Gp_expl)
 
 
-@use_test_values('ignore')
+@with_setup(*use_test_values('ignore'))
 def test_fdrnn_initialize_stds():
     m = SupervisedFastDropoutRnn(
         50, [50], 50,
@@ -236,10 +240,6 @@ def test_fdrnn_initialize_stds():
 
     assert np.isfinite(p.data).all()
 
-    affine_layers = [i.affine for i in m.rnn.layers if hasattr(i, 'affine')]
-    rec_layers = [i.recurrent for i in m.rnn.layers
-                  if hasattr(i, 'recurrent')]
-
     tolerance = 1e-1
 
     def works(key, tensor):
@@ -250,15 +250,15 @@ def test_fdrnn_initialize_stds():
         assert success, '%s did not work: %g instead of %g' % (
             key, std, target)
 
-    works('par_std_in', affine_layers[0].weights)
-    for l in affine_layers[1:]:
+    works('par_std_in', m.rnn.affine_layers[0].weights)
+    for l in m.rnn.affine_layers[1:]:
         works('par_std_affine', l.weights)
 
-    for l in rec_layers:
+    for l in m.rnn.recurrent_layers:
         works('par_std_rec', l.weights)
 
 
-@use_test_values('ignore')
+@with_setup(*use_test_values('ignore'))
 def test_fdrnn_initialize_sparsify():
     m = SupervisedFastDropoutRnn(
         50, [50], 50,
@@ -271,11 +271,10 @@ def test_fdrnn_initialize_sparsify():
     m.initialize(**inits)
     assert np.isfinite(p.data).all()
 
-    affine_layers = [i.affine for i in m.rnn.layers if hasattr(i, 'affine')]
-    rec_layers = [i.recurrent for i in m.rnn.layers
-                  if hasattr(i, 'recurrent')]
+    aff_layers = [i for i in m.rnn.layers if isinstance(i, AffineNonlinear)]
+    rec_layers = [i for i in m.rnn.layers if isinstance(i, FDRecurrent)]
 
-    for l in affine_layers:
+    for l in aff_layers:
         w = p[l.weights]
         cond = ((w != 0).sum(axis=0) == inits['sparsify_affine']).all()
         assert cond, 'sparsify affine did not work for %s' % l
@@ -286,7 +285,7 @@ def test_fdrnn_initialize_sparsify():
         assert cond, 'sparsify recurrent did not work for %s' % l
 
 
-@use_test_values('ignore')
+@with_setup(*use_test_values('ignore'))
 def test_fdrnn_initialize_spectral_radius():
     m = SupervisedFastDropoutRnn(
         50, [50], 50,
@@ -299,15 +298,15 @@ def test_fdrnn_initialize_spectral_radius():
     m.initialize(**inits)
     assert np.isfinite(p.data).all()
 
-    rec_layers = [i.recurrent for i in m.rnn.layers
-                  if hasattr(i, 'recurrent')]
+    rec_layers = [i for i in m.rnn.layers if isinstance(i, FDRecurrent)]
 
-    tol = .1
+    tol = .3
 
     for l in rec_layers:
         val, vec = np.linalg.eig(p[l.weights])
         sr = abs(sorted(val)[0])
         print abs(sr)
-        cond = inits['spectral_radius'] - tol < sr < inits['spectral_radius'] + tol
+        isr = inits['spectral_radius']
+        cond = isr - tol < sr < isr + tol
         assert cond, 'spectral radius in it did not work for %s: %g' % (
             l, sr)

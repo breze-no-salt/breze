@@ -15,7 +15,7 @@ class Linear(SupervisedModel):
 
     def __init__(self, n_inpt, n_output,
                  out_transfer='identity', loss='squared',
-                 optimizer='lbfgs', batch_size=None,
+                 optimizer='adam', batch_size=None,
                  max_iter=1000, verbose=False):
         """Create a Linear object.
 
@@ -88,6 +88,6 @@ class Linear(SupervisedModel):
         )
 
         SupervisedModel.__init__(self, inpt=inpt, target=target,
-                                     output=self.predict_layer.output,
-                                     loss=self.loss_layer.total,
-                                     parameters=parameters)
+                                 output=self.predict_layer.output,
+                                 loss=self.loss_layer.total,
+                                 parameters=parameters)
