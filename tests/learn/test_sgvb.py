@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import cPickle
 
 import numpy as np
 import theano
@@ -139,7 +140,9 @@ def test_storn_copy():
 
     m.parameters.data[...] = 1
 
-    m2 = copy.deepcopy(m)
+    dumped = cPickle.dumps(m)
+
+    m2 = cPickle.loads(dumped)
 
     print dir(m)
     print dir(m2)

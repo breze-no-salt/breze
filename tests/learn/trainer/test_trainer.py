@@ -45,12 +45,15 @@ def test_minibatch_score_trainer():
                 max_iter=10)
 
     score = MinibatchScore(cut_size, [0, 0])
+    data = {
+        'train': (X,Z),
+        'val': (X,Z),
+        'test': (X,Z)
+    }
     trainer = Trainer(
-        m, score=score, pause=lambda info: True, stop=lambda info: False)
-    trainer.eval_data = {'val': (X, Z)}
-    trainer.val_key = 'val'
+        m, data=data, score=score, pause=lambda info: True, stop=lambda info: False)
 
-    for _ in trainer.iter_fit(X, Z):
+    for _ in trainer.fit():
         break
 
 
@@ -65,22 +68,28 @@ def test_checkpoint_trainer():
                 optimizer=optimizer)
 
     # Train the mdoel with a trainer for 2 epochs.
+    data = {
+        'train': (X,Z),
+        'val': (X,Z),
+        'test': (X,Z)
+    }
     t = Trainer(
         m,
+        data=data,
         stop=climin.stops.AfterNIterations(2),
         pause=climin.stops.always)
-    t.val_key = 'val'
-    t.eval_data = {'val': (X, Z)}
-    t.fit(X, Z)
+    t.fit()
 
     # Make a copy of the trainer.
     t2 = copy.deepcopy(t)
+    print type(t.current_info)
+    print type(t2.current_info)
     intermediate_pars = t2.model.parameters.data.copy()
     intermediate_info = t2.current_info.copy()
 
     # Train original for 2 more epochs.
     t.stop = climin.stops.AfterNIterations(4)
-    t.fit(X, Z)
+    t.fit()
 
     # Check that the snapshot has not changed
     assert np.all(t2.model.parameters.data == intermediate_pars)
@@ -91,7 +100,7 @@ def test_checkpoint_trainer():
     check_infos(intermediate_info, t2.current_info)
 
     t2.stop = climin.stops.AfterNIterations(4)
-    t2.fit(X, Z)
+    t2.fit()
     check_infos(final_info, t2.current_info)
 
     assert np.allclose(final_pars, t2.model.parameters.data)
@@ -100,7 +109,7 @@ def test_checkpoint_trainer():
     t_unpickled = cPickle.loads(t_pickled)
     t.stop = climin.stops.AfterNIterations(4)
 
-    t_unpickled.fit(X, Z)
+    t_unpickled.fit()
 
     assert np.allclose(
         final_pars, t_unpickled.model.parameters.data, atol=5.e-3)
@@ -119,14 +128,18 @@ def test_training_continuation():
     # Train the mdoel with a trainer for 2 epochs.
     stopper = climin.stops.OnSignal()
     stops = climin.stops.Any([stopper, climin.stops.AfterNIterations(5)])
+    data = {
+        'train': (X,Z),
+        'val': (X,Z),
+        'test': (X,Z)
+    }
     t = Trainer(
         m,
+        data=data,
         stop=stops,
         pause=climin.stops.always)
 
-    t.val_key = 'val'
-    t.eval_data = {'val': (X, Z)}
-    for info in t.iter_fit(X, Z):
+    for info in t.fit():
         os.kill(os.getpid(), stopper.sig)
 
     assert info['n_iter'] == 1

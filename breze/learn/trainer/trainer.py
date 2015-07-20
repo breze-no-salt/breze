@@ -97,7 +97,7 @@ class Trainer(object):
     """
 
     def __init__(self, model, data, stop, score=score_.simple,
-                 pause=always, interrupt=never, report=report_.point_print):
+                 pause=always, interrupt=never, report=report_.point_print, loss_keys=['val']):
         """Create a Trainer object.
 
         Parameters
@@ -137,6 +137,8 @@ class Trainer(object):
         self.interrupt = interrupt
         self.report = report
 
+        self.loss_keys = loss_keys
+
         self.best_pars = None
         self.best_loss = float('inf')
 
@@ -150,27 +152,59 @@ class Trainer(object):
         return self._score(self.model.score, *data)
 
     def fit(self):
-        """Run ``.iter_fit()`` until it terminates
+            """Run ``.iter_fit()`` until it terminates
+            Termination will occur when either stop or interrupt is True. During
+            each pause, ``.report(info)`` will be executed."""
+            for i in self.iter_fit():
+                self.report(i)
 
-        Termination will occur when either stop or interrupt is True. During
-        each pause, ``.report(info)`` will be executed."""
-        for info in self.model.powerfit(self.data['test'], self.data['val'], self.stop, self.pause):
-            self.best_pars = info['best_pars']
-            self.best_loss = info['best_loss']
+    def iter_fit(self):
+        """Iteratively fit the given training data.
+        Generator function containing the main logic of the Trainer object.
+        The arguments are of variable length and have to match that of the
+        ``model.iter_fit()`` and ultimately the used loss function of that
+        model.
+        Each iteration of the fitting constitutes of running the optimizer of
+        the model until either interrupt or pause returns True.
+        In both cases, the generator will yield to the user. Additionally:
+            - If interrupt returns True, the generator will stop yielding
+            values afterwards.
+            - stop will be tested. If it is true it will stop yielding
+            afterwards and additionally ``.stopped`` will be set to True
+            afterwards.
+            - ``best_pars`` and ``best_loss`` will be updated.
+        The values yielded from this function will be climin info dictionaries
+        stripped from any numpy or gnumpy arrays.
+        """
+        for info in self.model.iter_fit(*self.data['train'], info_opt=self.current_info):
+            interrupt = self.interrupt(info)
+            if self.pause(info) or interrupt:
+                for key in self.loss_keys:
+                    info['%s_loss' % (key)] = ma.scalar(self.score(*self.data[key]))
 
+                cur_val_loss = info['val_loss']
+                if cur_val_loss < self.best_loss:
+                    self.best_loss = cur_val_loss
+                    self.best_pars = self.model.parameters.data.copy()
 
-            filtered_info = dict(
-                (k, v) for k, v in info.items()
-                if (not isinstance(v, (np.ndarray, )) or v.size <= 1) and k not in ('args', 'kwargs')
-            )
+                info['best_loss'] = self.best_loss
+                info['best_pars'] = self.best_pars
 
-            for key in filtered_info:
-                if isinstance(filtered_info[key], np.float32):
-                    filtered_info[key] = float(filtered_info[key])
-            filtered_info['max_grad'] = np.sqrt((info['gradient'] ** 2).sum())
-            self.infos.append(filtered_info)
+                info.update({
+                    'datetime': datetime.datetime.now(),
+                })
 
-            self.report(info)
+                filtered_info = clear_info(info)
+
+                self.infos.append(filtered_info)
+                self.current_info = info
+                yield info
+
+                if self.stop(info):
+                    self.stopped = True
+                    break
+                if interrupt:
+                    break
 
 
     def switch_to_best_pars(self):
