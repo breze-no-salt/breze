@@ -728,7 +728,7 @@ def array_partition_views(array, partition):
     n_used = 0
     for path, shape in pathsshapes:
         item = dictlist.get(partition, path)
-        shape = (item,) if isinstance(item, int) else item
+        shape = (item,) if isinstance(item, (int, long)) else item
         size = int(np.prod(shape))
         dictlist.set_(views, path, array[n_used:n_used + size].reshape(shape))
         n_used += size
