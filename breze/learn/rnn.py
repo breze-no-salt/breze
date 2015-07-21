@@ -2,6 +2,7 @@
 
 """Module for learning various types of recurrent networks."""
 
+import sys
 
 import climin.initialize
 import numpy as np
@@ -139,6 +140,15 @@ class BaseRnn(object):
         f_loss = self.function(args, 'loss', explicit_pars=True, mode=mode)
         f_d_loss = self.function(args, d_loss, explicit_pars=True, mode=mode)
         return f_loss, f_d_loss
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        unpicklables = '_f_loss _f_dloss f_predict f_score'.split()
+        for i in unpicklables:
+            if i in state:
+                del state[i]
+        sys.setrecursionlimit(3000)
+        return state
 
 
 class SupervisedRnn(BaseRnn, SupervisedModel):

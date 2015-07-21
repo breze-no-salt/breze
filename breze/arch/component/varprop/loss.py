@@ -55,14 +55,24 @@ def discard_var_loss(loss):
     return inner_discard_var_loss
 
 
-squared = discard_var_loss(loss.squared)
-absolute = discard_var_loss(loss.absolute)
-cat_ce = discard_var_loss(loss.cat_ce)
-ncat_ce = discard_var_loss(loss.ncat_ce)
-bern_ces = discard_var_loss(loss.bern_ces)
-fmeasure = discard_var_loss(loss.fmeasure)
-ncac = discard_var_loss(loss.ncac)
-ncar = discard_var_loss(loss.ncar)
+class DiscardVarLoss(object):
+
+    def __init__(self, loss_func):
+        self.wrapped_loss = loss_func
+
+    def __call__(self, target, prediction):
+        mean, var = unpack_mean_var(prediction)
+        return self.wrapped_loss(target, mean)
+
+
+squared = DiscardVarLoss(loss.squared)
+absolute = DiscardVarLoss(loss.absolute)
+cat_ce = DiscardVarLoss(loss.cat_ce)
+ncat_ce = DiscardVarLoss(loss.ncat_ce)
+bern_ces = DiscardVarLoss(loss.bern_ces)
+fmeasure = DiscardVarLoss(loss.fmeasure)
+ncac = DiscardVarLoss(loss.ncac)
+ncar = DiscardVarLoss(loss.ncar)
 
 
 # TODO: document

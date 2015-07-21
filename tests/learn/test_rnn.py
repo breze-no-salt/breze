@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import pickle
+
 import numpy as np
 import theano
 import theano.tensor as T
@@ -310,3 +312,17 @@ def test_fdrnn_initialize_spectral_radius():
         cond = isr - tol < sr < isr + tol
         assert cond, 'spectral radius in it did not work for %s: %g' % (
             l, sr)
+
+
+def test_fdrnn_pickle():
+    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
+    Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
+    W = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
+    X, Z, W = theano_floatx(X, Z, W)
+
+    rnn = SupervisedFastDropoutRnn(2, [10], 3, hidden_transfers=['rectifier'],
+                                   max_iter=2)
+    rnn.fit(X, Z)
+    rnn.predict(X)
+
+    pickle.dumps(rnn)
