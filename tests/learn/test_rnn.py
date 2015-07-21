@@ -122,6 +122,21 @@ def test_fd_srnn_compile():
     f_loss(rnn.parameters.data, X, Z)
     f_dloss(rnn.parameters.data, X, Z)
 
+@with_setup(*use_test_values('raise'))
+def test_fd_srnn_deep():
+    X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)
+    Z = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
+    W = np.random.standard_normal((10, 5, 3)).astype(theano.config.floatX)
+    X, Z, W = theano_floatx(X, Z, W)
+    p_dropout_hiddens = .2
+    rnn = SupervisedFastDropoutRnn(
+        2, [10] * 2, 3, hidden_transfers=['rectifier'] * 2,
+        p_dropout_hiddens=p_dropout_hiddens, max_iter=10)
+    n_layers = len([i for i in rnn.rnn.layers
+                   if isinstance(i, FDRecurrent)])
+    assert n_layers == 2
+
+
 
 def test_fd_srnn_fit():
     X = np.random.standard_normal((10, 5, 2)).astype(theano.config.floatX)

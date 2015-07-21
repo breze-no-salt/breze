@@ -267,7 +267,8 @@ class SupervisedFastDropoutRnn(BaseRnn, SupervisedModel):
         self.p_dropout_hiddens = p_dropout_hiddens
 
         if isinstance(self.p_dropout_hiddens, float):
-            self.p_dropout_hiddens = [self.p_dropout_hiddens]
+            self.p_dropout_hiddens = (
+                [self.p_dropout_hiddens] * len(hidden_transfers))
         else:
             self.p_dropout_hiddens = self.p_dropout_hiddens
         if p_dropout_hidden_to_out is None:
