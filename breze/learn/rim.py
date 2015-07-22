@@ -15,14 +15,15 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from breze.arch.model import rim
-from breze.arch.util import ParameterSet, Model
+from breze.arch.util import ParameterSet
+from breze.arch.construct.simple import AffineNonlinear
 from breze.learn.base import (
-    UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin)
-from breze.arch.model import linear, rim
+    UnsupervisedModel, TransformBrezeWrapperMixin)
+from breze.arch.construct.rim import RimLoss
 
 
-class Rim(Model, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
+class Rim(UnsupervisedModel,
+          TransformBrezeWrapperMixin):
     """Class for regularized information maximization.
 
     Attributes
@@ -56,7 +57,7 @@ class Rim(Model, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
 
     transform_expr_name = 'output'
 
-    def __init__(self, n_inpt, n_cluster, c_rim, optimizer='lbfgs',
+    def __init__(self, n_inpt, n_cluster, c_rim, optimizer='rprop',
                  max_iter=1000, verbose=False):
         """Create a Rim object.
 
@@ -94,20 +95,23 @@ class Rim(Model, UnsupervisedBrezeWrapperBase, TransformBrezeWrapperMixin):
         self.max_iter = max_iter
         self.verbose = verbose
 
-        super(Rim, self).__init__()
+        self.use_imp_weight = False
 
-    def _init_pars(self):
-        spec = linear.parameters(self.n_inpt, self.n_cluster)
-        self.parameters = ParameterSet(**spec)
-        self.parameters.data[:] = np.random.standard_normal(
-            self.parameters.data.shape).astype(theano.config.floatX)
+        self._init_exprs()
 
     def _init_exprs(self):
-        self.exprs = {
-            'inpt': T.matrix('inpt'),
-        }
-        P = self.parameters
+        inpt = T.matrix('inpt')
+        if theano.config.compute_test_value:
+            inpt.tag.test_value = np.empty((2, self.n_inpt))
 
-        self.exprs.update(linear.exprs(
-            self.exprs['inpt'], P.in_to_out, P.bias, 'softmax'))
-        self.exprs.update(rim.loss(self.exprs['output'], [P.in_to_out], self.c_rim))
+        P = self.parameters = ParameterSet()
+
+        self.layer = AffineNonlinear(inpt, self.n_inpt, self.n_cluster,
+                                     'softmax', declare=P.declare)
+
+        self.loss_layer = RimLoss(self.layer.output, [self.layer.weights],
+                                  self.c_rim)
+
+        super(Rim, self).__init__(
+            inpt=inpt, output=self.layer.output, loss=self.loss_layer.total,
+            parameters=P)

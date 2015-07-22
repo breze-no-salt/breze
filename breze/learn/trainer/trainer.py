@@ -82,11 +82,11 @@ class Trainer(object):
     current_info : dict
         Last info dictionary.
 
-    eval_data : dictionary
+    data : dictionary
         Dictionary of different data sets for evaluation.
 
     val_key : string
-        Key identifying the data set from ``eval_data`` which is used for
+        Key identifying the data set from ``data`` which is used for
         validation.
 
     stopped : boolean
@@ -94,7 +94,7 @@ class Trainer(object):
         False. Useful for distinguishing between interrupt and stop.
     """
 
-    def __init__(self, model, stop, score=score_.simple,
+    def __init__(self, model, data, stop, score=score_.simple,
                  pause=always, interrupt=never, report=report_.point_print):
         """Create a Trainer object.
 
@@ -103,6 +103,9 @@ class Trainer(object):
 
         model : Model object
             Model that is going to be trained by this trainer.
+
+        data : dict
+            Dictionary with the different data parts.
 
         stop : callable
             Callable that given a climin info dictionary determines whether to stop
@@ -126,6 +129,7 @@ class Trainer(object):
         """
 
         self.model = model
+        self.data = data
 
         self._score = score
         self.pause = pause
@@ -139,20 +143,24 @@ class Trainer(object):
         self.infos = []
         self.current_info = None
 
-        self.eval_data = {}
         self.val_key = None
         self.stopped = False
 
     def score(self, *data):
         return self._score(self.model.score, *data)
 
-    def fit(self, *fit_data):
+    def fit(self):
         """Run ``.iter_fit()`` until it terminates
 
         Termination will occur when either stop or interrupt is True. During
         each pause, ``.report(info)`` will be executed."""
-        for i in self.iter_fit(*fit_data):
+        for i in self.iter_fit(*self.data['train']):
             self.report(i)
+
+    def switch_pars(self, pars):
+        old = self.model.parameters.data.copy()
+        self.model.parameters.data[...] = pars
+        return old
 
     def iter_fit(self, *fit_data):
         """Iteratively fit the given training data.
@@ -181,7 +189,7 @@ class Trainer(object):
         for info in self.model.iter_fit(*fit_data, info_opt=self.current_info):
             interrupt = self.interrupt(info)
             if self.pause(info) or interrupt:
-                info['val_loss'] = ma.scalar(self.score(*self.eval_data[self.val_key]))
+                info['val_loss'] = ma.scalar(self.score(*self.data[self.val_key]))
 
                 cur_val_loss = info['%s_loss' % self.val_key]
                 if cur_val_loss < self.best_loss:
@@ -206,3 +214,8 @@ class Trainer(object):
                     break
                 if interrupt:
                     break
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['data']
+        return state
