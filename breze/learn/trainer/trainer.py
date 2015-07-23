@@ -3,6 +3,7 @@
 """Module that contains various functionality for trainers."""
 
 import datetime
+import time
 
 import numpy as np
 
@@ -176,6 +177,7 @@ class Trainer(object):
         The values yielded from this function will be climin info dictionaries
         stripped from any numpy or gnumpy arrays.
         """
+        start = time.time()
         for info in self.model.iter_fit(*self.data['train'], info_opt=self.current_info):
             interrupt = self.interrupt(info)
             if self.pause(info) or interrupt:
@@ -191,6 +193,7 @@ class Trainer(object):
                 info['best_pars'] = self.best_pars
 
                 info.update({
+                    'time': round(time.time() - start, 2),
                     'datetime': datetime.datetime.now(),
                 })
 
@@ -198,7 +201,7 @@ class Trainer(object):
 
                 self.infos.append(filtered_info)
                 self.current_info = info
-                yield info
+                yield filtered_info
 
                 if self.stop(info):
                     self.stopped = True
