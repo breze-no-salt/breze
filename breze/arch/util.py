@@ -311,7 +311,8 @@ class ParameterSet(object):
         else:
             self.flat = T.vector('parameters')
         if theano.config.compute_test_value in ('raise', 'warn'):
-            self.flat.tag.test_value = np.empty(1024 ** 2)
+            self.flat.tag.test_value = np.empty(1024 ** 2).astype(
+                theano.config.floatX)
 
     def declare(self, shape, group=None):
         if group is not None:
