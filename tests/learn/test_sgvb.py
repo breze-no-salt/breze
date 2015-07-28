@@ -17,6 +17,12 @@ class MyVAE(sgvb.VariationalAutoEncoder,
     pass
 
 
+class MyFDVAE(sgvb.FastDropoutVariationalAutoEncoder,
+              sgvb.FastDropoutMlpGaussLatentVAEMixin,
+              sgvb.FastDropoutMlpGaussVisibleVAEMixin):
+    pass
+
+
 class MyStorn(sgvb.StochasticRnn,
               sgvb.GaussLatentStornMixin,
               sgvb.GaussVisibleStornMixin):
@@ -154,3 +160,15 @@ def test_vae_copy():
     print m2.__dict__
 
     assert hasattr(m2, 'exprs')
+
+
+@with_setup(*use_test_values('raise'))
+def test_deep_fdvae():
+    X = np.random.random((2, 10))
+    X, = theano_floatx(X)
+
+    m = MyFDVAE(
+        95, [20, 30], 4, [15, 25],
+        ['rectifier'] * 2, ['rectifier'] * 2,
+        optimizer='rprop', batch_size=None,
+        max_iter=3)
