@@ -226,6 +226,11 @@ class FastDropoutMlp(Layer):
 
         if isinstance(p_dropout_hiddens, float):
             p_dropout_hiddens = [p_dropout_hiddens] * len(hidden_transfers)
+        if not len(p_dropout_hiddens) == len(n_hiddens):
+            raise ValueError("Different lengths for the dropout definition "
+                             "and the hidden layer number. Dropout defines %i "
+                             "layers, n_hiddens %i layers."
+                             %(len(p_dropout_hiddens), len(n_hiddens)))
         self.p_dropout_hiddens = p_dropout_hiddens
 
         self.dropout_parameterized = dropout_parameterized
