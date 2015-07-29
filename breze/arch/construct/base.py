@@ -26,6 +26,8 @@ class Layer(object):
 
         self._forward()
 
+        self.validate()
+
     def make_name(self, name):
         """Give the layer a unique name.
 
@@ -49,3 +51,13 @@ class Layer(object):
         state = self.__dict__.copy()
         state['declare'] = invalid_declare
         return state
+
+    def validate(self):
+        """
+        Make sure that all attributes are set correctly.
+
+        This method has to be called after all attributes of a class inheriting
+         from layer have been set. It must raise verbose exceptions.
+
+        """
+        pass

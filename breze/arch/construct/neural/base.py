@@ -10,8 +10,22 @@ from breze.arch.construct import simple
 from breze.arch.construct import sequential
 from breze.arch.construct.layer.varprop import (
     simple as vp_simple, sequential as vp_sequential)
-from breze.arch.util import lookup, assert_equal_lengths_hidden_activations, \
-    assert_equal_lengths_hidden_dropout
+from breze.arch.util import lookup
+
+
+def assert_equal_lengths_hidden_activations(layer):
+    if not len(layer.n_hiddens) == len(layer.hidden_transfers):
+        raise ValueError("Length of the list defining hidden neuron counts "
+                         "(%i) != length of the list defining hidden transfer"
+                         "functions (%i)"
+                         %(len(layer.n_hiddens), len(layer.hidden_transfers)))
+
+def assert_equal_lengths_hidden_dropout(layer):
+    if not len(layer.n_hiddens) == len(layer.p_dropout_hiddens):
+        raise ValueError("Different lengths for the dropout definition "
+                         "and the hidden layer number. Dropout defines %i "
+                         "layers, n_hiddens %i layers."
+                         %(len(layer.p_dropout_hiddens), len(layer.n_hiddens)))
 
 
 def wild_reshape(tensor, shape):
@@ -38,9 +52,11 @@ class Mlp(Layer):
         self.hidden_transfers = hidden_transfers
         self.out_transfer = out_transfer
 
-        assert_equal_lengths_hidden_activations(self)
-
         super(Mlp, self).__init__(declare, name)
+
+    def validate(self):
+        assert_equal_lengths_hidden_activations(self)
+        super(Mlp, self).validate()
 
     def _forward(self):
         self.layers = []
@@ -76,9 +92,11 @@ class SimpleCnn2d(Layer):
         self.out_transfer = out_transfer
         self.batch_size = batch_size
 
-        assert_equal_lengths_hidden_activations(self)
-
         super(SimpleCnn2d, self).__init__(declare, name)
+
+    def validate(self):
+        assert_equal_lengths_hidden_activations(self)
+        super(SimpleCnn2d, self).validate()
 
     def _forward(self):
         self.layers = []
@@ -129,8 +147,6 @@ class Cnn2d(Layer):
         self.hidden_transfers = hidden_transfers
         self.batch_size = batch_size
 
-        assert_equal_lengths_hidden_activations(self)
-
         super(Cnn2d, self).__init__(declare, name)
 
     def _forward(self):
@@ -165,6 +181,10 @@ class Cnn2d(Layer):
 
         self.output = self.layers[-1].output
 
+    def validate(self):
+        assert_equal_lengths_hidden_activations(self)
+        super(Cnn2d, self).validate()
+
 
 class Lenet(Layer):
 
@@ -188,9 +208,26 @@ class Lenet(Layer):
         self.n_output = n_output
         self.out_transfer = out_transfer
 
-        assert_equal_lengths_hidden_activations(self)
-
         super(Lenet, self).__init__(declare=declare, name=name)
+
+    def validate(self):
+        if not len(self.n_hiddens_conv) == len(self.hidden_transfers_conv):
+            raise ValueError("Length of the list defining hidden neuron counts"
+                             "for the convolutional layers "
+                         " (%i) != length of the list defining hidden transfer"
+                         "functions for the convolutional layers(%i)"
+                         %(len(self.hidden_transfers_conv),
+                           len(self.hidden_transfers_conv)))
+
+        if not len(self.n_hiddens_full) == len(self.hidden_transfers_full):
+            raise ValueError("Length of the list defining hidden neuron counts"
+                             "for the full layers "
+                         " (%i) != length of the list defining hidden transfer"
+                         "functions for the full layers(%i)"
+                         %(len(self.n_hiddens_full),
+                           len(self.hidden_transfers_full)))
+
+        super(Lenet, self).validate()
 
     def _forward(self):
         self.cnn = Cnn2d(
@@ -235,15 +272,30 @@ class FastDropoutMlp(Layer):
 
         if isinstance(p_dropout_hiddens, float):
             p_dropout_hiddens = [p_dropout_hiddens] * len(hidden_transfers)
-
+        if not len(p_dropout_hiddens) == len(n_hiddens):
+            raise ValueError("Different lengths for the dropout definition "
+                             "and the hidden layer number. Dropout defines %i "
+                             "layers, n_hiddens %i layers."
+                             %(len(p_dropout_hiddens), len(n_hiddens)))
         self.p_dropout_hiddens = p_dropout_hiddens
 
         self.dropout_parameterized = dropout_parameterized
 
+        super(FastDropoutMlp, self).__init__(declare, name)
+
+    def validate(self):
         assert_equal_lengths_hidden_activations(self)
         assert_equal_lengths_hidden_dropout(self)
 
-        super(FastDropoutMlp, self).__init__(declare, name)
+        if not all(0 <= p_dropout <= 1 for p_dropout in self.p_dropout_hiddens):
+            raise ValueError("At least one of the dropout percentages is not"
+                             "in [0, 1]. Dropout values are %s"
+                             %self.p_dropout_hiddens)
+        if not 0 <= self.p_dropout_inpt <= 1:
+            raise ValueError("Input dropout chance not in"
+                             "in [0, 1]. Dropout value is %s"
+                             %self.p_dropout_inpt)
+        super(FastDropoutMlp, self).validate()
 
     def _forward(self):
         self.fd_layers = []
@@ -304,9 +356,11 @@ class Rnn(Layer):
         self.out_transfer = out_transfer
         self.pooling = pooling
 
-        assert_equal_lengths_hidden_activations(self)
-
         super(Rnn, self).__init__(declare, name)
+
+    def validate(self):
+        assert_equal_lengths_hidden_activations(self)
+        super(Rnn, self).validate()
 
     def _forward(self):
         transfers = self.hidden_transfers
@@ -396,10 +450,20 @@ class FastDropoutRnn(Layer):
         else:
             self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
 
+        super(FastDropoutRnn, self).__init__(declare, name)
+
+    def validate(self):
         assert_equal_lengths_hidden_activations(self)
         assert_equal_lengths_hidden_dropout(self)
-
-        super(FastDropoutRnn, self).__init__(declare, name)
+        if not all(0 <= p_dropout <= 1 for p_dropout in self.p_dropout_hiddens):
+            raise ValueError("At least one of the dropout percentages is not"
+                             "in [0, 1]. Dropout values are %s"
+                             %self.p_dropout_hiddens)
+        if not 0 <= self.p_dropout_inpt <= 1:
+            raise ValueError("Input dropout chance not in"
+                             "in [0, 1]. Dropout value is %s"
+                             %self.p_dropout_inpt)
+        super(FastDropoutRnn, self).validate()
 
     def _make_rec_layer(self, x_mean, x_var, n_inpt, n_output, transfer,
                         tos, tis, p_dropout):

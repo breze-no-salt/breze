@@ -261,21 +261,6 @@ def tell_variable_in_expr(variable, expr):
             return True
     return False
 
-def assert_equal_lengths_hidden_activations(layer):
-    if not len(layer.n_hiddens) == len(layer.hidden_transfers):
-        raise ValueError("Length of the list defining hidden neuron counts "
-                         "(%i) != length of the list defining hidden transfer"
-                         "functions (%i)"
-                         %(len(layer.n_hiddens), len(layer.hidden_transfers)))
-
-def assert_equal_lengths_hidden_dropout(layer):
-    if not len(layer.n_hiddens) == len(layer.p_dropout_hiddens):
-        raise ValueError("Different lengths for the dropout definition "
-                         "and the hidden layer number. Dropout defines %i "
-                         "layers, n_hiddens %i layers."
-                         %(len(layer.p_dropout_hiddens), len(layer.n_hiddens)))
-
-
 class ParameterSet(object):
     """ParameterSet class.
 
