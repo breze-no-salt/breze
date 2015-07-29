@@ -10,7 +10,8 @@ from breze.arch.construct import simple
 from breze.arch.construct import sequential
 from breze.arch.construct.layer.varprop import (
     simple as vp_simple, sequential as vp_sequential)
-from breze.arch.util import lookup
+from breze.arch.util import lookup, assert_equal_lengths_hidden_activations, \
+    assert_equal_lengths_hidden_dropout
 
 
 def wild_reshape(tensor, shape):
@@ -36,6 +37,8 @@ class Mlp(Layer):
         self.n_output = n_output
         self.hidden_transfers = hidden_transfers
         self.out_transfer = out_transfer
+
+        assert_equal_lengths_hidden_activations(self)
 
         super(Mlp, self).__init__(declare, name)
 
@@ -72,6 +75,8 @@ class SimpleCnn2d(Layer):
         self.hidden_transfers = hidden_transfers
         self.out_transfer = out_transfer
         self.batch_size = batch_size
+
+        assert_equal_lengths_hidden_activations(self)
 
         super(SimpleCnn2d, self).__init__(declare, name)
 
@@ -123,6 +128,8 @@ class Cnn2d(Layer):
         self.pool_shapes = pool_shapes
         self.hidden_transfers = hidden_transfers
         self.batch_size = batch_size
+
+        assert_equal_lengths_hidden_activations(self)
 
         super(Cnn2d, self).__init__(declare, name)
 
@@ -181,6 +188,8 @@ class Lenet(Layer):
         self.n_output = n_output
         self.out_transfer = out_transfer
 
+        assert_equal_lengths_hidden_activations(self)
+
         super(Lenet, self).__init__(declare=declare, name=name)
 
     def _forward(self):
@@ -226,14 +235,13 @@ class FastDropoutMlp(Layer):
 
         if isinstance(p_dropout_hiddens, float):
             p_dropout_hiddens = [p_dropout_hiddens] * len(hidden_transfers)
-        if not len(p_dropout_hiddens) == len(n_hiddens):
-            raise ValueError("Different lengths for the dropout definition "
-                             "and the hidden layer number. Dropout defines %i "
-                             "layers, n_hiddens %i layers."
-                             %(len(p_dropout_hiddens), len(n_hiddens)))
+
         self.p_dropout_hiddens = p_dropout_hiddens
 
         self.dropout_parameterized = dropout_parameterized
+
+        assert_equal_lengths_hidden_activations(self)
+        assert_equal_lengths_hidden_dropout(self)
 
         super(FastDropoutMlp, self).__init__(declare, name)
 
@@ -295,6 +303,8 @@ class Rnn(Layer):
         self.hidden_transfers = hidden_transfers
         self.out_transfer = out_transfer
         self.pooling = pooling
+
+        assert_equal_lengths_hidden_activations(self)
 
         super(Rnn, self).__init__(declare, name)
 
@@ -385,6 +395,9 @@ class FastDropoutRnn(Layer):
             self.p_dropout_hidden_to_out = p_dropout_hiddens[-1]
         else:
             self.p_dropout_hidden_to_out = p_dropout_hidden_to_out
+
+        assert_equal_lengths_hidden_activations(self)
+        assert_equal_lengths_hidden_dropout(self)
 
         super(FastDropoutRnn, self).__init__(declare, name)
 
