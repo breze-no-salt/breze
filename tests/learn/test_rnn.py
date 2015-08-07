@@ -34,6 +34,10 @@ def test_srnn_fit():
     rnn = SupervisedRnn(
         2, [10], 3, hidden_transfers=['tanh'], max_iter=2, imp_weight=True)
     rnn.fit(X, Z, W)
+    
+    rnn = SupervisedRnn(
+        2, [10], 3, hidden_transfers=['tanh'], max_iter=2, pooling='mean')
+    rnn.fit(X, Z)
 
 
 @with_setup(*use_test_values('raise'))
