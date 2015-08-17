@@ -44,6 +44,7 @@ References
 
 from mlp import (
     VariationalAutoEncoder, MlpGaussLatentVAEMixin, MlpGaussVisibleVAEMixin,
+    MlpGaussConstVarVisibleVAEMixin,
     MlpBernoulliVisibleVAEMixin,
     FastDropoutMlpGaussLatentVAEMixin, FastDropoutMlpGaussVisibleVAEMixin,
     FastDropoutMlpBernoulliVisibleVAEMixin)

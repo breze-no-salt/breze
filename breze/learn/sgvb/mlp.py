@@ -38,6 +38,18 @@ class MlpGaussVisibleVAEMixin(object):
             declare=self.parameters.declare)
 
 
+class MlpGaussConstVarVisibleVAEMixin(object):
+
+    def make_gen(self, latent_sample):
+        return neural_dists.MlpDiagConstVarGauss(
+            latent_sample, self.n_latent,
+            self.n_hiddens_gen,
+            self.n_inpt,
+            self.gen_transfers,
+            # TODO where to get the transfers from?
+            declare=self.parameters.declare)
+
+
 class MlpBernoulliVisibleVAEMixin(object):
 
     def make_gen(self, latent_sample):
