@@ -145,6 +145,7 @@ class Trainer(object):
 
         self.val_key = None
         self.stopped = False
+        self.interrupted = False
 
     def score(self, *data):
         return self._score(self.model.score, *data)
@@ -187,10 +188,10 @@ class Trainer(object):
         stripped from any numpy or gnumpy arrays.
         """
         for info in self.model.iter_fit(*fit_data, info_opt=self.current_info):
-            interrupt = self.interrupt(info)
-            if self.pause(info) or interrupt:
-                info['val_loss'] = ma.scalar(self.score(*self.data[self.val_key]))
-
+             self.interrupted = self.interrupted or self.interrupt(info)
+             if self.pause(info) or self.interrupted:
+                 info['val_loss'] = ma.scalar(self.score(*self.data[self.val_key]))
+        
                 cur_val_loss = info['%s_loss' % self.val_key]
                 if cur_val_loss < self.best_loss:
                     self.best_loss = cur_val_loss
@@ -212,7 +213,7 @@ class Trainer(object):
                 if self.stop(info):
                     self.stopped = True
                     break
-                if interrupt:
+                if self.interrupted:
                     break
 
     def __getstate__(self):
