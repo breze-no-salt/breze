@@ -21,7 +21,7 @@ class OneLinePrinter(object):
         the info dictionary and printed to stdout.
     """
 
-    def __init__(self, keys):
+    def __init__(self, keys, spaces=None):
         """Create OneLinePrinter object.
 
         Parameters
@@ -32,14 +32,34 @@ class OneLinePrinter(object):
             from the info dictionary and printed to stdout.
         """
         self.keys = keys
+        self.spaces = spaces
         self.printed_header = False
 
     def __call__(self, info):
-        if not self.printed_header:
-            print '\t'.join(self.keys)
-            print
-            self.printed_header = True
-        print '\t'.join([str(info.get(key, '?')) for key in self.keys])
+        if self.spaces is None:
+            if not self.printed_header:
+                print '\t'.join(self.keys)
+                print
+                self.printed_header = True
+            print '\t'.join([str(info.get(key, '?')) for key in self.keys])
+        else:
+            if not self.printed_header:
+                self.headerformat = ''
+                self.bodyformat = ''
+                for key, space in zip(self.keys, self.spaces):
+                    headerspace = space.partition('.')[0] if isinstance(space, basestring) else space
+                    # create format cells of type '{key:<space}', i.e., a left-bound cell corresponding to key of
+                    # width space
+                    self.headerformat += '{{{}:>{}}} '.format(key, headerspace)
+                    self.bodyformat += '{{{}:>{}}} '.format(key, space)
+                print self.headerformat.format(**dict(zip(self.keys,self.keys))) # fill the headline with keys
+                print
+                self.printed_header = True
+            print self.bodyformat.format(**info) # fill the body with content
+
+
+
+
 
 class KeyPrinter(object):
     """KeyPrinter class.
