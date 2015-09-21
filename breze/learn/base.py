@@ -19,7 +19,7 @@ import theano.tensor as T
 from climin.util import iter_minibatches
 
 
-GPU = theano.config.device == 'gpu'
+GPU = theano.config.device.startswith('gpu')
 if GPU:
     import gnumpy as gp
 
