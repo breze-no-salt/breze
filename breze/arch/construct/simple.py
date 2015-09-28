@@ -253,6 +253,6 @@ class LocalResponseNormalization(Layer):
 
         scale = self.k + scale ** self.beta
         
-        self.output_in = self.inpt / scael
+        self.output_in = self.inpt / scale
         f = lookup(self.transfer, _transfer)
         self.output = f(self.output_in)
