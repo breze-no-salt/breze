@@ -186,7 +186,7 @@ class MaxPool2d(Layer):
 
 
 class LocalResponseNormalization(Layer):
-    """Class representing an Local Response Normalization layer [D] (section 3.3).
+    """Class representing a Local Response Normalization layer [D] (section 3.3).
     
     For a^i_{x,y} the activity of a neuron computed by applying kernel i at position (x,y) and applying ReLU nonlinearity,
     the response normalized activation b^i_{x,y} is given by:
