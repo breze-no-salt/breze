@@ -3,6 +3,7 @@
 """Module that contains various functionality for trainers."""
 
 import datetime
+import time
 
 from climin import mathadapt as ma
 from climin.stops import never, always
@@ -139,6 +140,7 @@ class Trainer(object):
 
         self.best_pars = None
         self.best_loss = float('inf')
+        self.runtime = 0
 
         self.infos = []
         self.current_info = None
@@ -186,6 +188,8 @@ class Trainer(object):
         The values yielded from this function will be climin info dictionaries
         stripped from any numpy or gnumpy arrays.
         """
+        start = time.time()
+
         for info in self.model.iter_fit(*fit_data, info_opt=self.current_info):
             interrupt = self.interrupt(info)
             if self.pause(info) or interrupt:
@@ -196,19 +200,21 @@ class Trainer(object):
                     self.best_loss = cur_val_loss
                     self.best_pars = self.model.parameters.data.copy()
 
-                info['best_loss'] = self.best_loss
-                info['best_pars'] = self.best_pars
-
+                self.runtime += time.time() - start
                 info.update({
+                    'best_loss': self.best_loss,
+                    'best_pars': self.best_pars,
                     'datetime': datetime.datetime.now(),
+                    'runtime': self.runtime
                 })
 
                 filtered_info = clear_info(info)
 
                 self.infos.append(filtered_info)
                 self.current_info = info
-                yield info
 
+                yield info
+                start = time.time()
                 if self.stop(info):
                     self.stopped = True
                     break

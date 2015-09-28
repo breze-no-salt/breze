@@ -63,6 +63,31 @@ class MlpDiagGauss(DiagGauss):
             rng)
 
 
+class MlpDiagConstVarGauss(DiagGauss):
+
+    def __init__(self, inpt, n_inpt, n_hiddens, n_output,
+                 hidden_transfers, out_transfer_mean='identity',
+                 declare=None, name=None, rng=None):
+        self.inpt = inpt
+        self.n_inpt = n_inpt
+        self.n_hiddens = n_hiddens
+        self.n_output = n_output
+        self.hidden_transfers = hidden_transfers
+        self.out_transfer_mean = out_transfer_mean
+
+        self.mean_mlp = Mlp(
+            self.inpt, self.n_inpt, self.n_hiddens, self.n_output,
+            self.hidden_transfers,
+            self.out_transfer_mean,
+            declare=declare)
+
+        self.std = declare((1, n_output))
+
+        super(MlpDiagConstVarGauss, self).__init__(
+            self.mean_mlp.output,
+            self.std ** 2 + 1e-8)
+
+
 class RnnDiagGauss(DiagGauss):
 
     def __init__(self, inpt,
