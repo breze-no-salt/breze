@@ -2,6 +2,7 @@
 
 import numpy as np
 
+import theano
 import theano.tensor as T
 from theano.tensor.nnet import conv
 from theano.tensor.signal import downsample
@@ -10,6 +11,7 @@ from breze.arch.component import transfer as _transfer, loss as _loss
 from breze.arch.construct.base import Layer
 from breze.arch.util import lookup
 
+from theano.tensor.shared_randomstreams import RandomStreams
 
 class AffineNonlinear(Layer):
 
@@ -151,7 +153,7 @@ class Conv2d(Layer):
 
 
 class MaxPool2d(Layer):
-
+    
     def __init__(self, inpt, inpt_height, inpt_width, pool_height, pool_width,
                  n_output,
                  transfer='identity',
@@ -179,6 +181,51 @@ class MaxPool2d(Layer):
         self.output_in = downsample.max_pool_2d(
             input=self.inpt, ds=(self.pool_height, self.pool_width),
             ignore_border=True)
+
+        f = lookup(self.transfer, _transfer)
+        self.output = f(self.output_in)
+
+
+class Dropout(Layer):
+
+    @property
+    def training(self):
+        return self._training
+
+    @training.setter
+    def training(self, training):
+        self._training = training
+
+    def __init__(self, inpt, inpt_height, inpt_width,
+                 n_output,
+                 rng,
+                 training, # set to 0 if not training
+                 p, # proba of not dropping out
+                 transfer='identity',
+                 declare=None, name=None):
+        
+        self.inpt = inpt
+        self.inpt_height = inpt_height
+        self.inpt_width = inpt_width
+
+        self.output_height = self.inpt_height
+        self.output_width = self.inpt_width
+        
+        self.transfer = transfer
+        
+        self.n_output = n_output
+        
+        self.srng = RandomStreams(rng.randint(2**32))
+        self._training = training
+
+        self.p = p
+        
+        super(Dropout, self).__init__(declare=declare, name=name)
+
+    def _forward(self):
+                
+        mask = self.srng.binomial(n=1, p=(1-self.p), size=self.inpt.shape, dtype=theano.config.floatX)
+        self.output_in = T.switch(T.neq(self._training, 0), self.inpt * mask, self.inpt * self.p)
 
         f = lookup(self.transfer, _transfer)
         self.output = f(self.output_in)
