@@ -57,20 +57,20 @@ class OneLinePrinter(object):
             if not self.printed_header:
                 self.headerformat = ''
                 self.bodyformat = ''
-                for key, space in zip(self.keys, self.spaces):
-                    headerspace = space.partition('.')[0] if isinstance(space, basestring) else space
-                    # create format cells of type '{key:<space}', i.e., a left-bound cell corresponding to key of
-                    # width space
-                    self.headerformat += '{{{}:>{}}} '.format(key, headerspace)
-                    self.bodyformat += '{{{}:>{}}} '.format(key, space)
-                print self.headerformat.format(**dict(zip(self.keys,self.keys))) # fill the headline with keys
+                for k, s in zip(self.keys, self.spaces):
+                    hs = s.partition('.')[0] if isinstance(s, basestring) else s
+                    # create format cells of type '{key:<space}', i.e.,
+                    # a left-bound cell corresponding to key of width space
+                    self.headerformat += '{{{}:>{}}} '.format(k, hs)
+                    self.bodyformat += '{{{}:>{}}} '.format(k, s)
+                # fill the headline with keys
+                print self.headerformat.format(**dict(zip(self.keys,
+                                                          self.keys)))
                 print
                 self.printed_header = True
-            filtered_info = dict((k,info.get(k,12345.6789)) for k in self.keys)
-            print self.bodyformat.format(**filtered_info) # fill the body with content
-
-
-
+            filtered_info = dict((k, info.get(k, 12345.678)) for k in self.keys)
+            # fill the body with content
+            print self.bodyformat.format(**filtered_info)
 
 
 class KeyPrinter(object):
@@ -124,15 +124,14 @@ class JsonPrinter(object):
         ----------
 
         keys : list of strings
-            For each entry in this list, the corresponding key will be taken from
-            the info dictionary and printed to stdout.
+            For each entry in this list, the corresponding key will be taken
+            from the info dictionary and printed to stdout.
         """
         self.keys = keys
 
     def __call__(self, info):
         dct = dict((k, info[k]) for k in self.keys)
         print json.dumps(dct, cls=JsonForgivingEncoder)
-
 
 
 def point_print(info):
