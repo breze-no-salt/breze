@@ -114,25 +114,32 @@ class Conv2d(Layer):
         self.n_inpt = n_inpt
 
         self.border_mode = "valid"
-        
+
         self.filter_height = filter_height
         self.filter_width = filter_width
-            
+
         self.n_output = n_output
         self.transfer = transfer
         self.n_samples = n_samples
         self.subsample = subsample
-        
-        self.output_height = (inpt_height - filter_height + 2*padding[0]) / subsample[0] + 1
-        self.output_width = (inpt_width - filter_width + 2*padding[1]) / subsample[1] + 1
+
+        self.output_height = ((inpt_height - filter_height + 2*padding[0]) /
+                              subsample[0] + 1)
+        self.output_width = ((inpt_width - filter_width + 2*padding[1]) /
+                             subsample[1] + 1)
 
         # to use padding:
-        # we should either pad the input before the convolution and then use "valid" mode
+        # we should either pad the input before the convolution
+        # and then use "valid" mode
         # or use "full" mode and then slice the output (what is done here)
         if padding[0] > 0:
             self.border_mode = "full"
-            self.output_in_height = (inpt_height - filter_height + 2*(filter_height - 1)) / subsample[0] + 1
-            self.output_in_width = (inpt_width - filter_width + 2*(filter_width - 1)) / subsample[1] + 1
+            self.output_in_height = ((inpt_height - filter_height +
+                                      2*(filter_height - 1)) /
+                                     subsample[0] + 1)
+            self.output_in_width = ((inpt_width - filter_width +
+                                     2*(filter_width - 1)) /
+                                    subsample[1] + 1)
 
         if not self.output_height > 0:
             raise ValueError('inpt height smaller than filter height')
@@ -148,15 +155,27 @@ class Conv2d(Layer):
         self.bias = self.declare((self.n_output,))
 
         self.output_in = conv.conv2d(
-            self.inpt, self.weights,
+            self.inpt,
+            self.weights,
             image_shape=(
-                self.n_samples, self.n_inpt, self.inpt_height, self.inpt_width),
+                self.n_samples,
+                self.n_inpt,
+                self.inpt_height,
+                self.inpt_width
+            ),
             subsample=self.subsample,
             border_mode=self.border_mode,
-            )
+        )
 
         if self.border_mode == "full":
-            self.output_in = self.output_in[:, :, self.output_in_height/2 - self.output_height/2 - 1:self.output_in_height/2 + self.output_height/2, self.output_in_width/2 - self.output_width/2 - 1:self.output_in_width/2 + self.output_width/2]
+            self.output_in = self.output_in[
+                :,
+                :,
+                self.output_in_height/2 - self.output_height/2 - 1:
+                self.output_in_height/2 + self.output_height/2,
+                self.output_in_width/2 - self.output_width/2 - 1:
+                self.output_in_width/2 + self.output_width/2
+            ]
 
         f = lookup(self.transfer, _transfer)
         self.output = f(self.output_in)
@@ -176,7 +195,7 @@ class MaxPool2d(Layer):
         self.pool_width = pool_width
         if st is None:
             st = (pool_height, pool_width)
-        self.st = st # stride
+        self.st = st  # stride
         self.transfer = transfer
 
         self.output_height = (inpt_height - pool_height) / st[0] + 1
@@ -193,8 +212,11 @@ class MaxPool2d(Layer):
 
     def _forward(self):
         self.output_in = downsample.max_pool_2d(
-            input=self.inpt, ds=(self.pool_height, self.pool_width), st=self.st,
-            ignore_border=True)
-        
+            input=self.inpt,
+            ds=(self.pool_height, self.pool_width),
+            st=self.st,
+            ignore_border=True
+        )
+
         f = lookup(self.transfer, _transfer)
         self.output = f(self.output_in)
