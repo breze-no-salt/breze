@@ -145,7 +145,7 @@ class Trainer(object):
         self.infos = []
         self.current_info = None
 
-        self.val_key = None
+        self.val_key = 'val' # None, set from outside?
         self.stopped = False
 
     def score(self, *data):
@@ -212,9 +212,9 @@ class Trainer(object):
 
                 self.infos.append(filtered_info)
                 self.current_info = info
-
-                yield info
+                yield filtered_info
                 start = time.time()
+
                 if self.stop(info):
                     self.stopped = True
                     break
