@@ -141,7 +141,9 @@ class Conv2d(Layer):
         self.output_in = conv.conv2d(
             self.inpt, self.weights,
             image_shape=(
-                self.n_samples, self.n_inpt, self.inpt_height, self.inpt_width),
+                self.n_samples, self.n_inpt,
+                self.inpt_height, self.inpt_width
+            ),
             subsample=self.subsample,
             border_mode='valid',
             )
