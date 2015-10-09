@@ -145,7 +145,9 @@ class Trainer(object):
         self.infos = []
         self.current_info = None
 
-        self.val_key = None
+        self.val_key = 'val' # None, set from outside?
+        self.info_keys = []
+
         self.stopped = False
 
     def score(self, *data):
@@ -193,7 +195,14 @@ class Trainer(object):
         for info in self.model.iter_fit(*fit_data, info_opt=self.current_info):
             interrupt = self.interrupt(info)
             if self.pause(info) or interrupt:
-                info['val_loss'] = ma.scalar(self.score(*self.data[self.val_key]))
+                info['val_loss'] = ma.scalar(
+                    self.model._f_loss(self.model.parameters.data, *self.data[self.val_key]))
+
+                for i in self.info_keys:
+                    info['{}_loss'.format(i)] = ma.scalar(
+                        self.model._f_loss(
+                            self.model.parameters.data,
+                            *self.data[i]))
 
                 cur_val_loss = info['%s_loss' % self.val_key]
                 if cur_val_loss < self.best_loss:
@@ -212,9 +221,9 @@ class Trainer(object):
 
                 self.infos.append(filtered_info)
                 self.current_info = info
-
-                yield info
+                yield filtered_info
                 start = time.time()
+
                 if self.stop(info):
                     self.stopped = True
                     break
