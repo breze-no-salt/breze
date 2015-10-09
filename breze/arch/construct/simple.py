@@ -184,23 +184,24 @@ class MaxPool2d(Layer):
         self.output = f(self.output_in)
 
 
-
 class LocalResponseNormalization(Layer):
-    """Class representing a Local Response Normalization layer [D] (section 3.3).
-    
-    For a^i_{x,y} the activity of a neuron computed by applying kernel i at position (x,y) and applying ReLU nonlinearity,
-    the response normalized activation b^i_{x,y} is given by:
+    """
+    Class representing a Local Response Normalization layer [D] (section 3.3).
 
-        b^i_{x,y} = a^i_{x,y} / ( k + alpha * sum_{j=max(0, i - n/2)}^{max(N-1, i + n/2)} (a^j_{x,y})^2 )**beta
+    For a^i_{x,y} the activity of a neuron computed by applying kernel i
+    at position (x,y) and applying ReLU nonlinearity, the response
+    normalized activation b^i_{x,y} is given by:
 
-    
+        b^i_{x,y} = a^i_{x,y} / (k +
+    alpha * sum_{j=max(0, i - n/2)}^{max(N-1, i + n/2)} (a^j_{x,y})^2 )**beta
+
+
     References
     ----------
-    .. [D] Krizhevsky, A., Sutskever, I., & Hinton, G. E. (2012). 
-           Imagenet classification with deep convolutional neural networks. 
-           In Advances in neural information processing systems (pp. 1097-1105).
+    .. [D] Krizhevsky, A., Sutskever, I., & Hinton, G. E. (2012).
+           Imagenet classification with deep convolutional neural networks.
+           In Advances in neural information processing systems (pp. 1097-1105)
 
-    
 
     Attributes
     ----------
@@ -209,19 +210,18 @@ class LocalResponseNormalization(Layer):
 
     k : int
         hyperparameter
-    
+
     n : int
         number of adjacent kernels to sum over
-    
+
     alpha : float
         hyperparameter
-    
+
     beta : float
         hyperparameter
-        
+
     """
 
-    
     def __init__(self, inpt, inpt_height, inpt_width,
                  N, k, n, alpha, beta,
                  transfer='identity',
@@ -239,20 +239,28 @@ class LocalResponseNormalization(Layer):
         self.n = n
         self.alpha = alpha
         self.beta = beta
-        
+
         self.n_output = N
 
-        super(LocalResponseNormalization, self).__init__(declare=declare, name=name)
+        super(LocalResponseNormalization, self).__init__(declare=declare,
+                                                         name=name)
 
     def _forward(self):
         square = T.sqr(self.inpt)
         scale = T.zeros_like(self.inpt)
 
         for i in xrange(self.N):
-            T.set_subtensor(scale[:,i,:,:], self.alpha * square[:, max(0, i - self.n//2):min(self.N - 1, i + self.n//2), :, :].sum(axis=1))
+            T.set_subtensor(
+                scale[:, i, :, :],
+                self.alpha * square[
+                    :,
+                    max(0, i - self.n//2):min(self.N - 1, i + self.n//2),
+                    :,
+                    :].sum(axis=1)
+            )
 
         scale = self.k + scale ** self.beta
-        
+
         self.output_in = self.inpt / scale
         f = lookup(self.transfer, _transfer)
         self.output = f(self.output_in)
