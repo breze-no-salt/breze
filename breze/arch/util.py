@@ -22,7 +22,7 @@ try:
         print "BREZE_PARAMETERSET_DEVICE must be either 'cpu' or 'gpu'"
         sys.exit(1)
 except KeyError:
-    GPU = theano.config.device == 'gpu'
+    GPU = theano.config.device.startswith('gpu')
 
 if GPU:
     import gnumpy
