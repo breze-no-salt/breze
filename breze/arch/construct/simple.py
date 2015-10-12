@@ -6,13 +6,12 @@ import theano
 import theano.tensor as T
 from theano.tensor.nnet import conv
 from theano.tensor.signal import downsample
+from theano.ifelse import ifelse
+from theano.tensor.shared_randomstreams import RandomStreams
 
 from breze.arch.component import transfer as _transfer, loss as _loss
 from breze.arch.construct.base import Layer
 from breze.arch.util import lookup
-
-from theano.tensor.shared_randomstreams import RandomStreams
-
 
 class AffineNonlinear(Layer):
 
@@ -210,11 +209,8 @@ class Dropout(Layer):
         whether the network is in training phase
         set to 0 if not training
 
-    p : int
+    rate : float
         probability of not dropping out a unit
-
-    n : int
-        number of adjacent kernels to sum over
 
     """
 
@@ -225,21 +221,21 @@ class Dropout(Layer):
     @training.setter
     def training(self, training):
         self._training = training
-
-    def __init__(self, inpt, inpt_height, inpt_width,
+        
+    def __init__(self, inpt, 
                  n_output,
                  rng,
                  training,
-                 p,
+                 rate,
+                 inpt_height = None,
+                 inpt_width = None,
                  transfer='identity',
                  declare=None, name=None):
 
         self.inpt = inpt
-        self.inpt_height = inpt_height
-        self.inpt_width = inpt_width
 
-        self.output_height = self.inpt_height
-        self.output_width = self.inpt_width
+        self.output_height = inpt_height
+        self.output_width = inpt_width
 
         self.transfer = transfer
 
@@ -248,23 +244,24 @@ class Dropout(Layer):
         self.srng = RandomStreams(rng.randint(2**32))
         self._training = training
 
-        self.p = p
+        self.rate = rate
 
         super(Dropout, self).__init__(declare=declare, name=name)
 
     def _forward(self):
 
         mask = self.srng.binomial(
-            n=1, p=self.p, size=self.inpt.shape,
+            n=1, p=self.rate, size=self.inpt.shape,
             dtype=theano.config.floatX
         )
 
         # if training is different than 0, then we drop out units
-        # else we multiply the weights by p
-        self.output_in = T.switch(
-            T.neq(self._training, 0),
+        # else we multiply the weights by rate
+
+        self.output_in = ifelse(
+            self.training,
             self.inpt * mask,
-            self.inpt * self.p
+            self.inpt * self.rate
         )
 
         f = lookup(self.transfer, _transfer)
