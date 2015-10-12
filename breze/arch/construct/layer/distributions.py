@@ -117,3 +117,125 @@ class Bernoulli(Distribution):
         rate *= 0.999
         rate += 0.0005
         return -(X * T.log(rate) + (1 - X) * T.log(1 - rate))
+
+
+class Categorical(Distribution):
+    """Class representing a Categorical distribution.
+
+    Attributes
+    ----------
+
+    probs: Theano variable
+        Has the same shape as the distribution and contains the probability of
+        the element being 1 and all others being 0. I.e. rows sum up to 1.
+
+    stt : Theano variable.
+        Same as ``probs``.
+
+    maximum : Theano variable.
+        Maximum of the distribution.
+
+    rng : Theano RandomStreams object.
+        Random number generator to draw samples from the distribution from.
+    """
+
+    def __init__(self, probs, rng=None):
+        """Initialize a Categorical object.
+
+        Parameters
+        ----------
+
+        probs : Theano variable
+            Gives the shape of the distribution and contains the probability of
+            an element being 1, where only one of a row will be 1. Rows sum up
+            to 1.
+
+        rng : Theano RandomStreams object, optional.
+            Random number generator to draw samples from the distribution from.
+        """
+        self.probs = probs
+        self.stt = probs
+        self.maximum = T.eye(probs.shape[1])[T.argmax(probs, 1)]
+
+        super(Categorical, self).__init__(rng)
+
+    def sample(self):
+        """Return a sample of the distribution.
+
+        Returns
+        -------
+
+        S : Theano variable
+            Has the same shape as the distribution, only one and exactly one
+            element per row will be set to 1."""
+        return self.rng.multinomial(pvals=self.probs)
+
+    def nll(self, X):
+        """Return the negative log-likelihood of an observation ``X`` under the
+        distribution.
+
+        Parameters
+        ----------
+
+        X : Theano variable
+            Has to have the same shape as the distribution.
+
+        Returns
+        -------
+
+        L : Theano variable.
+            Has the same shape as ``X``, i.e. coordinate wise result.
+        """
+        return loss.cat_ce(X, self.probs)
+
+
+class ApproxSpikeAndSlab(Distribution):
+    """Class representing an approximate spike and slab distribution.
+
+    The distribution is approximate with a Gaussian scale mixture, consisting of
+    two components. A scale mixture is a mixture of Gaussians where each of the
+    components has a zero mean.
+
+    Attributes
+    ---
+
+    spike_ratio : Theano variable.
+        Value between 0 and 1 which gives the prior probability of a spike.
+
+    spike_std : Theano variable.
+        Standard deviation of the spike. Can be negative, positiveness will be
+        ensured.
+
+    slab_std : Theano variable.
+        Standard deviationof the slab. Can be negative, positiveness will be
+        ensured.
+
+    rng : Theano RandomStates object.
+        Random number generator for the expressions
+
+    """
+    def __init__(self, spike_ratio, spike_std, slab_std, rng=None):
+        self.spike_ratio = spike_ratio
+        self.spike_std = spike_std
+        self.slab_std = slab_std
+
+    def sample(self):
+        # TODO implement
+        raise NotImplemented()
+
+    def nll(self, X, inpt=None):
+        var_offset = 1e-4
+        var = self.spike_std ** 2
+        var += var_offset
+        weighted_squares = -(X ** 2) / (2 * var)
+        normalization = T.log(T.sqrt(2 * np.pi * var))
+        spike_likelihood = T.exp(weighted_squares - normalization)
+
+        var = self.slab_std ** 2
+        var += var_offset
+        weighted_squares = -(X ** 2) / (2 * var)
+        normalization = T.log(T.sqrt(2 * np.pi * var))
+        slab_likelihood = T.exp(weighted_squares - normalization)
+
+        return T.log(self.spike_ratio * spike_likelihood
+                     + (1 - self.spike_ratio) * slab_likelihood + 1e-8)
