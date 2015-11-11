@@ -87,8 +87,11 @@ class NormalGauss(Distribution):
         self.maximum = self.mean
         super(NormalGauss, self).__init__(rng)
 
-    def sample(self):
-        return self.rng.normal(size=self.shape)
+    def sample(self, epsilon=None):
+        if epsilon is None:
+            return self.rng.normal(size=self.shape)
+        else:
+            return epsilon
 
     def nll(self, X, inpt=None):
         X_flat = X.flatten()
