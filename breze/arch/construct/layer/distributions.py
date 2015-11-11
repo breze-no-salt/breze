@@ -20,7 +20,7 @@ def recover_time(X, time_steps):
 
 def normal_logpdf(xs, means, vrs):
     energy = -(xs - means) ** 2 / (2 * vrs)
-    partition_func = -T.log(T.sqrt(2 * np.pi * vrs))
+    partition_func = - 0.5 * T.log(2 * np.pi * vrs)
     return partition_func + energy
 
 
@@ -67,12 +67,12 @@ class DiagGauss(Distribution):
             return sample
 
     def nll(self, X, inpt=None):
-        var_offset = 1e-4
+        var_offset = 0.0  # 1e-4
         var = self.var
         var += var_offset
         residuals = X - self.mean
         weighted_squares = -(residuals ** 2) / (2 * var)
-        normalization = T.log(T.sqrt(2 * np.pi * var))
+        normalization = 0.5 * T.log(2 * np.pi * var)
         ll = weighted_squares - normalization
         return -ll
 
