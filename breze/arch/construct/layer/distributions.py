@@ -114,8 +114,8 @@ class Bernoulli(Distribution):
 
     def nll(self, X, inpt=None):
         rate = self.rate
-        rate *= 0.999
-        rate += 0.0005
+        # rate *= 0.999
+        # rate += 0.0005
         return -(X * T.log(rate) + (1 - X) * T.log(1 - rate))
 
 
