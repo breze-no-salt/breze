@@ -40,15 +40,7 @@ def estimate_nll(X, f_nll_z, f_nll_x_given_z, f_nll_z_given_x,
         log_recog[i] = ma.assert_numpy(-f_nll_z_given_x(Z, X))
 
     d = log_prior + log_posterior - log_recog
-
-    while d.ndim > 1:
-        d = d.sum(-1)
-    ll = logsumexp(d, 0) - np.log(n_samples)
-
-    # Normalize to average.
-    ll /= X.shape[0]
-    if X.ndim == 3:
-        ll /= X.shape[1]
+    ll = logsumexp(d, 0).mean() - np.log(n_samples)
     return -ll
 
 
