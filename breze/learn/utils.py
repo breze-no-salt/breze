@@ -262,13 +262,13 @@ def theano_floatx(*arrs):
 class JsonForgivingEncoder(json.JSONEncoder):
 
     unknown_types = (
-        types.FunctionType, types.GeneratorType, np.ndarray)
+        types.FunctionType, types.GeneratorType, np.ndarray, np.floating)
 
     def default(self, obj):
         if hasattr(obj,'as_numpy_array'):
             # Assume gnumpy
             obj = obj.as_numpy_array()
-        if isinstance(obj, np.ndarray) and obj.size == 1:
+        if isinstance(obj, np.ndarray) and obj.size == 1 or isinstance(obj, np.floating):
             obj = float(obj.flatten()[0])
             return obj
         if isinstance(obj, datetime.datetime):
