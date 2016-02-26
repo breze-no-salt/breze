@@ -2,7 +2,7 @@
 
 """Module holding miscellaneous functionality."""
 
-
+import numpy as np
 import theano.tensor as T
 
 import norm as norm_
@@ -144,7 +144,7 @@ def project_into_l2_ball(arr, radius=1):
     return arr
 
 
-def inter_gauss_kl(mean, var, mean_=0, var_=1, var_offset=0, var_offset_=0):
+def inter_gauss_kl(mean, var, mean_=0, var_=1, beta=None, var_offset=0, var_offset_=0):
     """Function returning a theano tensor representing the Kullback-Leibler
     divergence between Gaussian distributed random variables and a white
     Gaussian.
@@ -172,5 +172,7 @@ def inter_gauss_kl(mean, var, mean_=0, var_=1, var_offset=0, var_offset_=0):
     #std = T.sqrt(var)
     #std_ = T.sqrt(var_)
     m1, s1, m2, s2 = mean, T.sqrt(var + var_offset), mean_, T.sqrt(var_ + var_offset_)
+    if beta <> None:
+        return beta * 0.5 * T.log(2.0 * np.pi * s2 ** 2) - 0.5 * T.log(2.0 * np.pi * s1 ** 2) + beta * (s1 ** 2 + (m1 - m2) ** 2) / (2 * s2 ** 2) - .5
     return T.log(s2 / s1) + (s1 ** 2 + (m1 - m2) ** 2) / (2 * s2 ** 2) - .5
 
