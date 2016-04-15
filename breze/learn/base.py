@@ -107,7 +107,8 @@ class BrezeWrapperBase(object):
             opt.set_from_info(info)
         return opt
 
-    def powerfit(self, fit_data, eval_data, stop, report, eval_train_loss=True):
+    def powerfit(self, fit_data, eval_data, stop, report,
+                 schedule=None, eval_train_loss=True):
         """Iteratively fit the model.
 
         This is a convenience function which combines iteratively fitting a
@@ -171,6 +172,8 @@ class BrezeWrapperBase(object):
 
                 if stop(info) or self.CTRL_C_FLAG:
                     break
+            if schedule <> None:
+                schedule(info)
 
     def _ctrl_c_handler(self, signal, frame):
         self.CTRL_C_FLAG = True
