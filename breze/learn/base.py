@@ -107,7 +107,7 @@ class BrezeWrapperBase(object):
             opt.set_from_info(info)
         return opt
 
-    def powerfit(self, fit_data, eval_data, stop, report, eval_train_loss=True):
+    def powerfit(self, fit_data, eval_data, stop, report, eval_train_loss=True, info_opt=None):
         """Iteratively fit the model.
 
         This is a convenience function which combines iteratively fitting a
@@ -149,7 +149,7 @@ class BrezeWrapperBase(object):
         best_pars = None
         best_loss = float('inf')
 
-        for info in self.iter_fit(*fit_data):
+        for info in self.iter_fit(*fit_data, info_opt=info_opt):
             if report(info):
                 if 'loss' not in info:
                     # Not all optimizers, e.g. ilne and gd, do actually
