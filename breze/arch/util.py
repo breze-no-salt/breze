@@ -349,7 +349,7 @@ class ParameterSet(object):
         else:
             self.data = np.empty(self._n_pars).astype(theano.config.floatX)
 
-        if theano.config.compute_test_value:
+        if theano.config.compute_test_value in ('raise', 'warn'):
             self.flat.tag.test_value = self.data
 
     def __contains__(self, key):
