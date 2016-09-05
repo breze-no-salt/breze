@@ -261,7 +261,6 @@ def tell_variable_in_expr(variable, expr):
             return True
     return False
 
-
 class ParameterSet(object):
     """ParameterSet class.
 
