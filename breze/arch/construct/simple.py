@@ -2,14 +2,16 @@
 
 import numpy as np
 
+import theano
 import theano.tensor as T
 from theano.tensor.nnet import conv
 from theano.tensor.signal import downsample
+from theano.ifelse import ifelse
+from theano.tensor.shared_randomstreams import RandomStreams
 
 from breze.arch.component import transfer as _transfer, loss as _loss
 from breze.arch.construct.base import Layer
 from breze.arch.util import lookup
-
 
 class AffineNonlinear(Layer):
 
@@ -141,10 +143,12 @@ class Conv2d(Layer):
         self.output_in = conv.conv2d(
             self.inpt, self.weights,
             image_shape=(
-                self.n_samples, self.n_inpt, self.inpt_height, self.inpt_width),
+                self.n_samples, self.n_inpt,
+                self.inpt_height, self.inpt_width
+            ),
             subsample=self.subsample,
             border_mode='valid',
-            )
+        )
 
         f = lookup(self.transfer, _transfer)
         self.output = f(self.output_in)
@@ -179,6 +183,86 @@ class MaxPool2d(Layer):
         self.output_in = downsample.max_pool_2d(
             input=self.inpt, ds=(self.pool_height, self.pool_width),
             ignore_border=True)
+
+        f = lookup(self.transfer, _transfer)
+        self.output = f(self.output_in)
+
+
+class Dropout(Layer):
+    """Class representing a Dropout layer [D] (section 3.3).
+
+    At training time, a unit is kept with probability p.
+    At test time, the weights are multiplied by p, giving the
+    same output as the expected output at training time.
+
+    References
+    ----------
+    .. [D] Hinton, G. E., Srivastava, N., Krizhevsky, A., Sutskever, I.,
+                   & Salakhutdinov, R. R. (2012).
+                   Improving neural networks by preventing co-adaptation
+                   of feature detectors.
+                   arXiv preprint arXiv:1207.0580.
+
+    Attributes
+    ----------
+    training : int
+        whether the network is in training phase
+        set to 0 if not training
+
+    rate : float
+        probability of not dropping out a unit
+
+    """
+
+    @property
+    def training(self):
+        return self._training
+
+    @training.setter
+    def training(self, training):
+        self._training = training
+        
+    def __init__(self, inpt, 
+                 n_output,
+                 rng,
+                 training,
+                 rate,
+                 inpt_height = None,
+                 inpt_width = None,
+                 transfer='identity',
+                 declare=None, name=None):
+
+        self.inpt = inpt
+
+        self.output_height = inpt_height
+        self.output_width = inpt_width
+
+        self.transfer = transfer
+
+        self.n_output = n_output
+
+        self.srng = RandomStreams(rng.randint(2**32))
+        self._training = training
+
+        self.rate = rate
+
+        super(Dropout, self).__init__(declare=declare, name=name)
+
+    def _forward(self):
+
+        mask = self.srng.binomial(
+            n=1, p=self.rate, size=self.inpt.shape,
+            dtype=theano.config.floatX
+        )
+
+        # if training is different than 0, then we drop out units
+        # else we multiply the weights by rate
+
+        self.output_in = ifelse(
+            self.training,
+            self.inpt * mask,
+            self.inpt * self.rate
+        )
 
         f = lookup(self.transfer, _transfer)
         self.output = f(self.output_in)
