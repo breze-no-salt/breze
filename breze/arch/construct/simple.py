@@ -2,9 +2,12 @@
 
 import numpy as np
 
+import theano
 import theano.tensor as T
 from theano.tensor.nnet import conv
+from theano.tensor.nnet.bn import batch_normalization
 from theano.tensor.signal import downsample
+from theano.ifelse import ifelse
 
 from breze.arch.component import transfer as _transfer, loss as _loss
 from breze.arch.construct.base import Layer
@@ -141,7 +144,11 @@ class Conv2d(Layer):
         self.output_in = conv.conv2d(
             self.inpt, self.weights,
             image_shape=(
-                self.n_samples, self.n_inpt, self.inpt_height, self.inpt_width),
+                self.n_samples,
+                self.n_inpt,
+                self.inpt_height,
+                self.inpt_width
+            ),
             subsample=self.subsample,
             border_mode='valid',
             )
@@ -181,4 +188,284 @@ class MaxPool2d(Layer):
             ignore_border=True)
 
         f = lookup(self.transfer, _transfer)
+        self.output = f(self.output_in)
+
+
+class BatchNormalization(Layer):
+    """Class implementing Batch Normalization (BN) [D] adapted to fully
+    connected layers.
+
+    If X is the input, computes:
+        BN(X) = scale * (X - mean) / \sqrt(std + num_stability_cst) + shift
+    where scale and shift are learnable parameters, and:
+        * at training time, mean and std are computed on the mini-batch
+        samples, while keeping track of the exponential moving average
+        of mean and std.
+        * at validation time, the exponential moving average of mean and
+        std are used.
+
+    To apply Batch Normalization to a layer L, one should:
+        1. set the transfer function of the layer L to "identity" and the
+        transfer function of BN layer to the one of the layer L.
+        2. remove the bias of the layer L.
+
+    For image layers (convolutional layers, maxpool layers, etc.), please use
+    BatchNormalization2d.
+
+    References
+    ----------
+    .. [D] Ioffe, S., & Szegedy, C. (2015).
+           Batch normalization: Accelerating deep network training by
+           reducing internal covariate shift.
+           arXiv preprint arXiv:1502.03167.
+
+    Attributes
+    ----------
+    training : int
+        whether the network is in training phase
+        set to 0 if not training
+    weighting_decrease : float
+        degree of weighting decrease in the exponential moving average
+        computation of mean and std, must be between 0 and 1
+    num_stability_cst : float
+        constant used for numerical stability, called epsilon in [D].
+    scale : vector of floats
+        factor to scale the normalized input, called gamma in [D].
+        learnable parameter
+    shift : vector of floats
+        factor to shift the normalized input, called beta in [D].
+        learnable parameter
+    """
+
+    @property
+    def training(self):
+        return self._training
+
+    @training.setter
+    def training(self, training):
+        self._training = training
+
+    def __init__(self, inpt, n_inpt,
+                 n_samples,
+                 weighting_decrease=0.3,
+                 training=1,
+                 transfer='identity',
+                 declare=None, name=None):
+
+        self.inpt = inpt
+        self.n_inpt = n_inpt
+        self.n_output = n_inpt
+        self.n_samples = n_samples
+        self.transfer = transfer
+
+        if weighting_decrease < 0 or weighting_decrease > 1:
+            raise ValueError("weighting_decrease must be between O and 1")
+
+        self.weighting_decrease = weighting_decrease
+
+        self._training = training
+
+        self.num_stability_cst = 1e-6
+
+        super(BatchNormalization, self).__init__(declare=declare, name=name)
+
+    def _forward(self):
+
+        self.scale = self.declare((self.n_inpt,))
+        self.shift = self.declare((self.n_inpt,))
+
+        self.mean = theano.shared(
+            np.zeros((self.n_inpt,), dtype=theano.config.floatX),
+            "mean"
+        )
+        self.std = theano.shared(
+            np.ones((self.n_inpt,), dtype=theano.config.floatX),
+            "std"
+        )
+
+        mean = ifelse(
+            self.training,
+            self.inpt.mean(axis=0),
+            self.mean
+        )
+
+        std = ifelse(
+            self.training,
+            self.inpt.std(axis=0) + self.num_stability_cst,
+            self.std
+        )
+
+        self.mean.default_update = ifelse(
+            self.training,
+            (self.weighting_decrease*mean
+             + (1 - self.weighting_decrease)*self.mean),
+            self.mean
+        )
+
+        self.std.default_update = ifelse(
+            self.training,
+            (self.weighting_decrease*std
+             + (1 - self.weighting_decrease)*self.std),
+            self.std
+        )
+
+        self.output_in = batch_normalization(
+            self.inpt,
+            self.scale,
+            self.shift,
+            mean,
+            std,
+            "low_mem"
+        )
+
+        f = lookup(self.transfer, _transfer)
+
+        self.output = f(self.output_in)
+
+
+class BatchNormalization2d(Layer):
+    """Class implementing Batch Normalization (BN) [D] adapted to image layers.
+
+    If X is the input, computes:
+        BN(X) = scale * (X - mean) / \sqrt(std + num_stability_cst) + shift
+    where scale and shift are learnable parameters, and:
+        * at training time, mean and std are computed on the mini-batch
+        samples, while keeping track of the exponential moving average
+        of mean and std.
+        * at validation time, the exponential moving average of mean and
+        std are used.
+
+    To apply Batch Normalization to a layer L, one should:
+        1. set the transfer function of the layer L to "identity" and the
+        transfer function of BN layer to the one of the layer L.
+        2. remove the bias of the layer L.
+
+    For fully connected layers, please use BatchNormalization.
+
+    References
+    ----------
+    .. [D] Ioffe, S., & Szegedy, C. (2015).
+           Batch normalization: Accelerating deep network training by
+           reducing internal covariate shift.
+           arXiv preprint arXiv:1502.03167.
+
+    Attributes
+    ----------
+    training : int
+        whether the network is in training phase
+        set to 0 if not training
+    weighting_decrease : float
+        degree of weighting decrease in the exponential moving average
+        computation of mean and std, must be between 0 and 1
+    num_stability_cst : float
+        constant used for numerical stability, called epsilon in [D].
+    scale : vector of floats
+        factor to scale the normalized input, called gamma in [D].
+        learnable parameter
+    shift : vector of floats
+        factor to shift the normalized input, called beta in [D].
+        learnable parameter
+    """
+    @property
+    def training(self):
+        return self._training
+
+    @training.setter
+    def training(self, training):
+        self._training = training
+
+    def __init__(self, inpt, inpt_height, inpt_width,
+                 n_output, n_samples,
+                 weighting_decrease=0.3,
+                 training=1,
+                 transfer='identity',
+                 declare=None, name=None):
+
+        self.inpt = inpt
+        self.inpt_height = inpt_height
+        self.inpt_width = inpt_width
+        self.output_height = inpt_height
+        self.output_width = inpt_width
+        self.n_output = n_output
+        self.n_samples = n_samples
+        self.transfer = transfer
+
+        if weighting_decrease < 0 or weighting_decrease > 1:
+            raise ValueError("weighting_decrease must be between O and 1")
+
+        self.weighting_decrease = weighting_decrease
+
+        self._training = training
+
+        self.num_stability_cst = 1e-6
+
+        super(BatchNormalization2d, self).__init__(declare=declare, name=name)
+
+    def _forward(self):
+
+        self.scale = self.declare((1, self.n_output, 1, 1))
+        self.shift = self.declare((1, self.n_output, 1, 1))
+
+        self.mean = theano.shared(
+            np.zeros((1, self.n_output, 1, 1), dtype=theano.config.floatX),
+            "mean"
+        )
+        self.std = theano.shared(
+            np.ones((1, self.n_output, 1, 1), dtype=theano.config.floatX),
+            "std"
+        )
+
+        axes = (0, 2, 3)
+
+        mean = ifelse(
+            self.training,
+            # unbroadcast is necessary otherwise it would not be
+            # of the same type as self.mean
+            T.unbroadcast(
+                self.inpt.mean(axis=axes, keepdims=True),
+                *(0, 1, 2, 3)
+            ),
+            self.mean
+        )
+
+        std = ifelse(
+            self.training,
+            # unbroadcast is necessary otherwise it would not be
+            # of the same type as self.std
+            T.unbroadcast(
+                self.inpt.std(axis=axes, keepdims=True),
+                *(0, 1, 2, 3)
+            ) + self.num_stability_cst,
+            self.std
+        )
+
+        self.mean.default_update = ifelse(
+            self.training,
+            (self.weighting_decrease*mean
+             + (1 - self.weighting_decrease)*self.mean),
+            self.mean
+        )
+
+        self.std.default_update = ifelse(
+            self.training,
+            (self.weighting_decrease*std
+             + (1 - self.weighting_decrease)*self.std),
+            self.std
+        )
+
+        # the axes should be broadcastable for computation
+        mean = T.addbroadcast(mean, *axes)
+        std = T.addbroadcast(std, *axes)
+
+        self.output_in = batch_normalization(
+            self.inpt,
+            self.scale,
+            self.shift,
+            mean,
+            std,
+            "low_mem"
+        )
+
+        f = lookup(self.transfer, _transfer)
+
         self.output = f(self.output_in)
