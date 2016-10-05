@@ -1,36 +1,11 @@
 # -*- coding: utf-8 -*-
 
-import theano.tensor as T
-
 from breze.arch.construct.neural import (
     Mlp, FastDropoutMlp, Rnn, FastDropoutRnn, BidirectFastDropoutRnn)
 
 from breze.arch.util import lookup
 from breze.arch.component import transfer as _transfer
 from breze.arch.construct.layer.distributions import DiagGauss, Bernoulli
-
-
-class ConcatTransfer(object):
-
-    def __init__(self, mean_transfer, var_transfer):
-        self.mean_transfer = mean_transfer
-        self.var_transfer = var_transfer
-
-    def __call__(self, inpt):
-        f_mean_transfer = lookup(self.mean_transfer, _transfer)
-        f_var_transfer = lookup(self.var_transfer, _transfer)
-
-        half = inpt.shape[-1] // 2
-
-        if inpt.ndim == 3:
-            mean, var = inpt[:, :, :half], inpt[:, :, half:]
-            res = T.concatenate([f_mean_transfer(mean),
-                                f_var_transfer(var)], axis=2)
-        else:
-            mean, var = inpt[:, :half], inpt[:, half:]
-            res = T.concatenate([f_mean_transfer(mean),
-                                f_var_transfer(var)], axis=1)
-        return res
 
 
 def var_transfer(var):
@@ -54,12 +29,15 @@ class MlpDiagGauss(DiagGauss):
         self.mlp = Mlp(
             self.inpt, self.n_inpt, self.n_hiddens, self.n_output * 2,
             self.hidden_transfers,
-            ConcatTransfer(self.out_transfer_mean, self.out_transfer_var),
+            'identity',
             declare=declare)
 
+        f_mean_transfer = lookup(self.out_transfer_mean, _transfer)
+        f_var_transfer = lookup(self.out_transfer_var, _transfer)
+
         super(MlpDiagGauss, self).__init__(
-            self.mlp.output[:, :self.n_output],
-            self.mlp.output[:, self.n_output:],
+            f_mean_transfer(self.mlp.output[:, :self.n_output]),
+            f_var_transfer(self.mlp.output[:, self.n_output:]),
             rng)
 
 
@@ -108,13 +86,17 @@ class RnnDiagGauss(DiagGauss):
         self.rnn = Rnn(
             self.inpt, self.n_inpt, self.n_hiddens, self.n_output * 2,
             self.hidden_transfers,
-            ConcatTransfer(self.out_transfer_mean, self.out_transfer_var),
+            'identity',
             pooling=pooling,
             declare=declare)
 
-        super(RnnDiagGauss, self).__init__(self.rnn.output[:, :self.n_output],
-                                           self.rnn.output[:, self.n_output:],
-                                           rng)
+        f_mean_transfer = lookup(self.out_transfer_mean, _transfer)
+        f_var_transfer = lookup(self.out_transfer_var, _transfer)
+
+        super(RnnDiagGauss, self).__init__(
+            f_mean_transfer(self.rnn.output[:, :self.n_output]),
+            f_var_transfer(self.rnn.output[:, self.n_output:]),
+            rng)
 
 
 class FastDropoutMlpDiagGauss(DiagGauss):
