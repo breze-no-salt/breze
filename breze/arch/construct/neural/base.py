@@ -328,7 +328,7 @@ class Rnn(Layer):
         out_transfer = lookup(self.out_transfer, _transfer)
         out_in_size = getattr(out_transfer, 'in_size', 1)
         output_affine = simple.AffineNonlinear(
-            x_flat, m, self.n_output * out_in_size, out_transfer,
+            x_flat, m, self.n_output * out_in_size, 'identity',
             declare=self.declare
             )
 
